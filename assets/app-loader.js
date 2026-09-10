@@ -1,6 +1,6 @@
 (async()=>{
   try{
-    const parts=['app.part01.txt','app.part02.txt','app.part03.txt','app.part04.txt','app.part05.txt','app.part06.txt'];
+    const parts=['app.part01.txt','app.part02.txt','app.part03.txt','app.part04.txt','app.part05.txt','app.part06.txt','app.part07.txt'];
     const texts=[];
     for(const p of parts){
       const r=await fetch('assets/'+p,{cache:'no-store'});
