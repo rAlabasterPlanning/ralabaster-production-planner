@@ -5,6 +5,12 @@ function S(){try{return state}catch(_){return null}}
 function persist(){try{save()}catch(e){console.error(e)}}
 function root(){return document.getElementById('view-calculation')}
 function val(id){return document.getElementById(id)?.value||''}
+function todayKey(){const d=new Date(),z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10).replaceAll('-','')}
+function nextQuoteNo(){const s=S(),day=todayKey(),nums=(s?.quotes||[]).map(q=>String(q.quoteNo||'')).filter(n=>n.startsWith(day+'-')).map(n=>Number(n.slice(day.length+1))).filter(Number.isFinite);return `${day}-${(nums.length?Math.max(...nums):0)+1}`}
+function ensureCustomerReference(){
+ const grid=document.getElementById('calcGeneralGrid');if(!grid||document.getElementById('cCustomerReference'))return;
+ const f=document.createElement('div');f.className='field';f.innerHTML='<label>Referentie klant</label><input id="cCustomerReference" class="input" placeholder="Bijv. PO-nummer / projectreferentie">';grid.appendChild(f);
+}
 function collectCurrent(){
  const ui=window.RALAB_CALC_UI,p=ui?.products?.[ui.active]||{};
  const ops=[];
@@ -20,12 +26,14 @@ function saveQuoteDirect(){
  const current=collectCurrent();let products=(ui?.products?.length?ui.products.map((p,i)=>i===ui.active?current:structuredClone(p)):[current]);
  if(products.some(p=>!p.name))return alert('Vul bij ieder product een productnaam in.');
  if(products.some(p=>!(p.ops||[]).length))return alert('Selecteer bij ieder product minimaal één processtap.');
- s.quotes=s.quotes||[];const stamp=Date.now(),groupId=products.length>1?'qgrp_'+stamp:null,test=!!document.getElementById('calcTestOrder')?.checked;
- products.forEach((p,i)=>{const c=costFor(p,p.qty),guide=autoSale(p,c.unit),sale=finalSale(p,i,c.unit),margin=sale-c.unit;s.quotes.push({id:'q_'+stamp+'_'+i,quoteGroupId:groupId,isMultiProductLine:products.length>1,lineNo:i+1,customerId,project:val('cProject'),orderNo:val('cOrder'),deadline:val('cDeadline'),name:p.name,qty:p.qty,ops:structuredClone(p.ops),materialCost:p.materialCost,materialMode:p.materialMode,marginMode:p.marginMode,marginValue:p.marginValue,costUnit:c.unit,calculatedSaleUnit:guide,manualSalePrice:sale===guide?null:sale,saleUnit:sale,total:sale*p.qty,grossMarginUnit:margin,grossMarginPct:sale?margin/sale*100:0,markupPct:c.unit?margin/c.unit*100:0,status:'concept',created:new Date().toISOString().slice(0,10),isTestOrder:test});});
+ s.quotes=s.quotes||[];
+ const stamp=Date.now(),quoteNo=nextQuoteNo(),groupId=products.length>1?'qgrp_'+stamp:null,test=!!document.getElementById('calcTestOrder')?.checked,customerReference=val('cCustomerReference').trim();
+ products.forEach((p,i)=>{const c=costFor(p,p.qty),guide=autoSale(p,c.unit),sale=finalSale(p,i,c.unit),margin=sale-c.unit;s.quotes.push({id:'q_'+stamp+'_'+i,quoteNo,quoteGroupId:groupId,isMultiProductLine:products.length>1,lineNo:i+1,customerId,customerReference,project:val('cProject'),orderNo:val('cOrder'),deadline:val('cDeadline'),name:p.name,qty:p.qty,ops:structuredClone(p.ops),materialCost:p.materialCost,materialMode:p.materialMode,marginMode:p.marginMode,marginValue:p.marginValue,costUnit:c.unit,calculatedSaleUnit:guide,manualSalePrice:sale===guide?null:sale,saleUnit:sale,total:sale*p.qty,grossMarginUnit:margin,grossMarginPct:sale?margin/sale*100:0,markupPct:c.unit?margin/c.unit*100:0,status:'concept',created:new Date().toISOString().slice(0,10),isTestOrder:test});});
  persist();
  if(window.RALAB_ERP?.show)window.RALAB_ERP.show('quotes');
  if(window.RALAB_ERP?.renderQuotes)setTimeout(()=>window.RALAB_ERP.renderQuotes(),0);
 }
-function install(){const calc=window.RALAB_CALC;if(!calc)return false;calc.saveQuote=saveQuoteDirect;return true}
-if(!install())setTimeout(install,400);setTimeout(install,1200);
+function install(){ensureCustomerReference();const calc=window.RALAB_CALC;if(!calc)return false;calc.saveQuote=saveQuoteDirect;return true}
+document.addEventListener('click',e=>{if(e.target.closest('.navbtn[data-view="calculation"]'))setTimeout(ensureCustomerReference,120)},true);
+if(!install())setTimeout(install,400);setTimeout(()=>{install();ensureCustomerReference()},1200);
 })();
