@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>rAlabaster Productieplanner</title>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<header><h1>rAlabaster Productieplanner</h1><nav>
+<button class="navbtn active" data-view="today">Vandaag</button>
+<button class="navbtn" data-view="weeks">3 weken</button>
+<button class="navbtn" data-view="orders">Orders</button>
+<button class="navbtn" data-view="external">Extern / binnenmelden</button>
+<button class="navbtn" data-view="import">Importeren</button>
+<button class="navbtn" data-view="history">Historie</button>
+<button class="navbtn" data-view="settings">Online instellingen</button>
+</nav></header>
+<main>
+<section id="view-today"></section>
+<section id="view-weeks" class="hidden"></section>
+<section id="view-orders" class="hidden"></section>
+<section id="view-external" class="hidden"></section>
+<section id="view-import" class="hidden"></section>
+<section id="view-history" class="hidden"></section>
+<section id="view-settings" class="hidden"></section>
+</main>
+<div id="printArea"></div>
+<div id="modalRoot"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/config.js"></script>
+<script src="assets/app.js"></script>
+<script src="assets/custom.js"></script>
+</body>
+</html>
