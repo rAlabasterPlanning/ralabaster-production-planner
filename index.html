@@ -47,23 +47,16 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/custom.js"></script>
 <script src="assets/calculator.js"></script>
 <script src="assets/erp.js"></script>
-<script src="assets/masterdata.js?v=20260910-2"></script>
-<script src="assets/masterdata-fix.js?v=20260910-1"></script>
-<script src="assets/commercial.js?v=20260910-1"></script>
-<script src="assets/commercial-fix.js?v=20260910-1"></script>
+<script src="assets/products.js?v=20260910-1"></script>
+<script src="assets/commercial.js?v=20260910-2"></script>
 <script>
 document.addEventListener('click',function(e){
   const b=e.target.closest('.erp-nav');
   if(!b)return;
   const v=b.dataset.view;
-  if(window.RALAB_MASTER){
-    if(v==='customers'&&!window.RALAB_COMMERCIAL) setTimeout(()=>window.RALAB_MASTER.renderCustomers(),50);
-    if(v==='products') setTimeout(()=>window.RALAB_MASTER.renderProducts(),50);
-  }
-  if(window.RALAB_COMMERCIAL){
-    if(v==='customers') setTimeout(()=>window.RALAB_COMMERCIAL.renderCustomers(),80);
-    if(v==='dashboard') setTimeout(()=>window.RALAB_COMMERCIAL.renderDashboard(),80);
-  }
+  if(v==='products'&&window.RALAB_MASTER) setTimeout(()=>window.RALAB_MASTER.renderProducts(),60);
+  if(v==='customers'&&window.RALAB_COMMERCIAL) setTimeout(()=>window.RALAB_COMMERCIAL.renderCustomers(),60);
+  if(v==='dashboard'&&window.RALAB_COMMERCIAL) setTimeout(()=>window.RALAB_COMMERCIAL.renderDashboard(),60);
 },true);
 </script>
 </body>
