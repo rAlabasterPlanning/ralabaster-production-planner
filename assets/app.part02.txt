@@ -1,0 +1,95 @@
+Date(start,emp,includeSaturday){let d=start,guard=0;while(guard++<120){if(employeeCapacity(d,emp,includeSaturday)>0)return d;d=addDays(d,1)}return d}
+function dayStartTime(date,emp){const dow=parseDate(date).getDay();if(dow===6)return CFG.schedule?.saturdayOvertime?.start||'08:00';if(dow===5&&emp==='Ralph')return CFG.schedule?.friday?.Ralph?.start||'08:15';return CFG.schedule?.monThu?.start||'08:15'}
+function addMinutesToTime(t,m){let [h,mm]=t.split(':').map(Number);let x=h*60+mm+m;return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0')}
+function scheduledEntries(date,emp=''){const out=[];for(const t of state.tasks){if(t.status==='done')continue;for(const seg of taskSegments(t)){if(seg.date===date&&(!emp||seg.employee===emp))out.push({task:t,seg})}}return out}
+function nextWorkingDateFor(emp,date,includeSaturday=false,includeSame=false){let d=includeSame?date:addDays(date,1),guard=0;while(guard++<40){if(employeeCapacity(d,emp,includeSaturday)>0)return d;d=addDays(d,1)}return d}
+function scheduleTaskAcrossCapacity(t,emp,startDate,preferFirst=false,includeSaturday=false){
+ if(isDryTask(t)){t.employee=null;t.planSegments=[];t.date=startDate||null;return}if(!emp||isExternalTask(t)){t.employee=emp||null;t.date=startDate||null;t.planSegments=[];return}
+ const total=Math.max(0,Number(t.estimate)||0);let need=total,d=startDate,guard=0,segs=[];
+ while(need>0&&guard++<60){let cap=employeeCapacity(d,emp,includeSaturday);if(cap<=0){d=addDays(d,1);continue}
+   const used=employeePlannedMinutes(d,emp,'',t.id);let free=Math.max(0,cap-used);if(free<=0){d=addDays(d,1);continue}
+   const take=Math.min(need,free);const start=preferFirst&&segs.length===0?dayStartTime(d,emp):addMinutesToTime(dayStartTime(d,emp),used);
+   segs.push({date:d,employee:emp,start,minutes:take});need-=take;if(need>0)d=addDays(d,1);
+ }
+ t.planSegments=segs;t.employee=emp;t.date=segs[0]?.date||startDate;t.start=segs[0]?.start||'';
+}
+function taskFinishAt(t){if(isDryTask(t))return t.waitEndAt||'';if(isExternalTask(t)){const d=expectedExternalReturn(t)||t.date||'';return d?dtString(d,'00:00'):''}const ss=taskSegments(t).slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.start||'').localeCompare(b.start||''));if(ss.length){const x=ss.at(-1);return dtString(x.date,endTime(x.start||dayStartTime(x.date,x.employee),x.minutes))}return t.date?dtString(t.date,t.start||'00:00'):''}
+function taskFinishDate(t){const x=taskFinishAt(t);return x?dtDate(x):(t.date||'')}
+function clearTaskPlanning(t){t.planSegments=[];t.date=null;t.start='';if(isDryTask(t)){t.waitStartAt='';t.waitEndAt=''}}
+function scheduleDryTask(t,startAt){const start=startAt||dtString(isoDate(new Date()),'00:00');t.employee=null;t.planSegments=[];t.waitStartAt=start;t.waitEndAt=addMinutesDT(start,Number(t.estimate)||(CFG.rules?.dryRoomMinutes||540));t.date=dtDate(start);t.start=dtTime(start)}
+function cascadeReplanOrder(orderId,fromSeq,earliestAt){let cursor=(earliestAt||'').includes('T')?earliestAt:dtString(earliestAt||isoDate(new Date()),'00:00');for(const t of orderTasks(orderId).filter(x=>x.seq>fromSeq&&!isTaskComplete(x))){if(!t.dependsPrev)continue;if(isDryTask(t)){scheduleDryTask(t,cursor);cursor=t.waitEndAt;continue}if(isExternalTask(t)){if(t.status==='external'&&t.externalSentDate){cursor=dtString(expectedExternalReturn(t),'00:00');continue}const d=dtDate(cursor);t.employee=null;t.planSegments=[];t.date=d;t.externalSentDate='';t.expectedReturnDate=addDays(d,Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14));t.status='open';cursor=dtString(t.expectedReturnDate,'00:00');continue}const emp=t.employee||firstSegment(t)?.employee;if(!emp){clearTaskPlanning(t);continue}scheduleTaskFromDateTime(t,emp,cursor,false);cursor=taskFinishAt(t)||cursor}}
+
+function forecastOrder(o,includeSaturday=false){
+ const tasks=orderTasks(o.id).filter(t=>t.status!=='done');
+ if(!tasks.length)return {finish:isoDate(new Date()),impossible:false};
+ const today=isoDate(new Date());
+ const used={}; // minutes of THIS order assigned by the forecast per date/employee
+ const key=(d,e)=>d+'|'+e;
+ function free(d,e,allowSaturday=includeSaturday){return Math.max(0,employeeCapacity(d,e,allowSaturday)-employeePlannedMinutes(d,e,o.id)-(used[key(d,e)]||0))}
+ function alloc(t,earliest){
+   let need=Math.max(0,Number(t.estimate)||0);if(need===0)return earliest;
+   let start=earliest;
+   if(t.date&&t.date>start)start=t.date;
+   const fixed=t.employee||'';
+   const explicitSaturday=!!(t.date&&parseDate(t.date).getDay()===6);
+   let last=start,guard=0;
+   while(need>0&&guard++<180){
+     const candidates=fixed?[fixed]:EMPLOYEES.slice();
+     let best=null,bestFree=0;
+     const allowSat=includeSaturday||(explicitSaturday&&start===t.date);
+     for(const e of candidates){const f=free(start,e,allowSat);if(f>bestFree){best=e;bestFree=f}}
+     if(best&&bestFree>0){const take=Math.min(need,bestFree);used[key(start,best)]=(used[key(start,best)]||0)+take;need-=take;last=start;}
+     if(need>0)start=addDays(start,1);
+   }
+   return last;
+ }
+ const finishes={};let orderFinish=today;
+ for(const t of tasks){const prev=prevTask(t);let earliest=today;if(t.dependsPrev&&prev&&prev.status!=='done'){const pf=finishes[prev.id];if(pf)earliest=pf;else if(taskFinishDate(prev))earliest=taskFinishDate(prev);}let f;if(isDryTask(t)){const startAt=t.waitStartAt||dtString(earliest,'00:00');f=dtDate(t.waitEndAt||addMinutesDT(startAt,Number(t.estimate)||(CFG.rules?.dryRoomMinutes||540)));}else if(isExternalTask(t)){const lead=Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14);const base=t.externalSentDate||t.date||earliest;f=t.expectedReturnDate||addDays(base,lead);}else{f=alloc(t,earliest)}finishes[t.id]=f;if(f>orderFinish)orderFinish=f;}
+ return {finish:orderFinish,impossible:false};
+}
+function workdayEndMinutes(date,emp){const d=parseDate(date).getDay();if(d>=1&&d<=4)return timeToMin(CFG.schedule?.monThu?.end||'16:30');if(d===5&&emp==='Ralph')return timeToMin(CFG.schedule?.friday?.Ralph?.end||'15:00');if(d===6)return timeToMin(CFG.schedule?.saturdayOvertime?.end||'12:00');return 0}
+function timeToMin(t){const [h,m]=(t||'00:00').split(':').map(Number);return h*60+m}
+function minToTime(x){return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0')}
+function earliestCandidateForEmployee(emp,startAt,includeSaturday=false,excludeTaskId=''){
+ let date=dtDate(startAt),guard=0;
+ while(guard++<120){const cap=employeeCapacity(date,emp,includeSaturday);if(cap<=0){date=addDays(date,1);continue}const used=employeePlannedMinutes(date,emp,'',excludeTaskId);let startMin=timeToMin(dayStartTime(date,emp))+used;if(date===dtDate(startAt))startMin=Math.max(startMin,timeToMin(dtTime(startAt)));const endMin=workdayEndMinutes(date,emp);if(startMin<endMin)return {date,start:minToTime(startMin),free:endMin-startMin,at:dtString(date,minToTime(startMin))};date=addDays(date,1)}return null}
+function scheduleTaskFromDateTime(t,emp,startAt,includeSaturday=false){
+ clearTaskPlanning(t);let need=Math.max(0,Number(t.estimate)||0),candidate=earliestCandidateForEmployee(emp,startAt,includeSaturday,t.id),segments=[],guard=0;if(!candidate)return'';
+ while(need>0&&candidate&&guard++<120){const take=Math.min(need,candidate.free);segments.push({date:candidate.date,employee:emp,start:candidate.start,minutes:take});need-=take;if(need>0)candidate=earliestCandidateForEmployee(emp,dtString(addDays(candidate.date,1),'00:00'),includeSaturday,t.id)}
+ t.planSegments=segments;t.employee=emp;t.date=segments[0]?.date||null;t.start=segments[0]?.start||'';return taskFinishAt(t)
+}
+function bestEmployeeForTask(t,startAt,includeSaturday=false){if(t.employee)return t.employee;let best=null;for(const e of EMPLOYEES){const c=earliestCandidateForEmployee(e,startAt,includeSaturday,t.id);if(c&&(!best||c.at<best.at))best={emp:e,at:c.at}}return best?.emp||'Ralph'}
+function planEntireOrderNow(orderId,startDate,includeSaturday=false){
+ const o=order(orderId);if(!o)return;const remaining=orderTasks(orderId).filter(x=>!isTaskComplete(x));for(const t of remaining){clearTaskPlanning(t);if(isExternalTask(t)&&t.status!=='external'){t.expectedReturnDate='';t.externalSentDate=''}}let cursor=dtString(startDate||isoDate(new Date()),'08:15');
+ for(const t of remaining){
+   if(!t.dependsPrev)cursor=dtString(startDate||isoDate(new Date()),'08:15');
+   if(isDryTask(t)){scheduleDryTask(t,cursor);cursor=t.waitEndAt;continue}
+   if(isExternalTask(t)){const sendDate=dtDate(cursor);t.employee=null;t.planSegments=[];t.date=sendDate;t.start='';t.expectedReturnDate=addDays(sendDate,Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14));if(t.status==='external'&&t.externalSentDate)t.expectedReturnDate=addDays(t.externalSentDate,Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14));cursor=dtString(t.expectedReturnDate,'00:00');continue}
+   const emp=bestEmployeeForTask(t,cursor,includeSaturday);const f=scheduleTaskFromDateTime(t,emp,cursor,includeSaturday);if(f)cursor=f;
+ }
+ return cursor
+}
+function openPlanEntireOrder(id){const o=order(id);showModal(`<div class="modalhead"><h3>Gehele order inplannen – ${esc(o.orderNo)} – ${esc(o.product)}</h3></div><div class="modalbody"><div class="notice">De planner zet alle resterende stappen in volgorde. Personeelstaken worden over beschikbare werkdagen verdeeld; <b>Droogruimte loopt 9 uur 24/7 door zonder personeel</b>; externe stappen krijgen standaard 14 kalenderdagen doorlooptijd. Bestaande planning van andere orders blijft staan.</div><div class="grid2"><div class="field"><label>Start vanaf</label><input id="autoStartDate" class="input" type="date" value="${isoDate(new Date())}"></div><div class="field"><label><input id="autoSaturday" type="checkbox"> Zaterdag 08:00–12:00 als overwerk meenemen</label></div></div></div><div class="modalfoot"><button class="btn" onclick="closeModal()">Annuleren</button><button class="btn primary" onclick="confirmPlanEntireOrder('${id}')">Planning maken</button></div>`)}
+function confirmPlanEntireOrder(id){const d=document.getElementById('autoStartDate').value||isoDate(new Date()),sat=document.getElementById('autoSaturday').checked,backup=JSON.parse(JSON.stringify(state));planEntireOrderNow(id,d,sat);const o=order(id),a=orderAnalysis(o);const msg=`Planning gemaakt. Verwacht klaar: ${a.finish?fmtDate(a.finish):'-'}\nDeadline: ${o.deadline?fmtDate(o.deadline):'-'}\nStatus: ${a.label}`;if(a.status==='bad'&&!confirm(msg+'\n\nDeze planning haalt de deadline niet. Toch bewaren?')){state=backup;return}save();closeModal();render();alert(msg)}
+function orderAnalysis(o){
+ const rem=remainingMinutes(o.id),unp=unplannedMinutes(o.id);if(!o.deadline)return {status:'risk',label:'Geen deadline',remaining:rem,unplanned:unp,finish:'',finishOT:'',slackDays:null};
+ const normal=forecastOrder(o,false),ot=forecastOrder(o,true),finish=normal.finish,finishOT=ot.finish;
+ const scheduledLate=orderTasks(o.id).some(t=>t.status!=='done'&&t.date&&t.date>o.deadline);
+ let status='ok',label='Haalbaar';
+ if(scheduledLate||finish>o.deadline){if(!scheduledLate&&finishOT<=o.deadline){status='risk';label='Haalbaar met zaterdagoverwerk'}else{status='bad';label='Niet haalbaar'}}
+ else {const slack=workdaysBetween(finish,o.deadline);if(slack<=1){status='risk';label='Risico'}}
+ return {status,label,remaining:rem,unplanned:unp,finish,finishOT,slackDays:workdaysBetween(finish,o.deadline)}
+}
+function orderUrgency(o){if(!o)return {level:'green',label:''};const a=orderAnalysis(o);if(a.status==='bad')return {level:'red',label:'Direct plannen'};if(!o.deadline)return {level:'orange',label:'Deadline ontbreekt'};const days=workdaysBetween(isoDate(new Date()),o.deadline);if(a.status==='risk'||days<=3)return {level:'orange',label:'Deze week plannen'};return {level:'green',label:'Nog ruimte'}}
+function priorityScore(t){const o=order(t.orderId);if(!o?.deadline)return 999999;const days=workdaysBetween(isoDate(new Date()),o.deadline);const a=orderAnalysis(o);return (a.status==='bad'?-10000:a.status==='risk'?-5000:0)+days*100+t.seq}
+function backlogGroups(tasks){const sorted=tasks.slice().sort((a,b)=>priorityScore(a)-priorityScore(b));return {urgent:sorted.filter(t=>orderUrgency(order(t.orderId)).level==='red'),soon:sorted.filter(t=>orderUrgency(order(t.orderId)).level==='orange'),later:sorted.filter(t=>orderUrgency(order(t.orderId)).level==='green')}}
+function feasibilityBadge(o){const a=orderAnalysis(o);return `<span class="feas ${a.status}">${a.label}</span>`}
+
+function switchView(v){currentView=v;document.querySelectorAll('section[id^=view-]').forEach(x=>x.classList.add('hidden'));document.getElementById('view-'+v).classList.remove('hidden');document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));render();}
+document.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
+
+function render(){if(currentView==='today')renderToday();if(currentView==='weeks')renderWeeks();if(currentView==='orders')renderOrders();if(currentView==='external')renderExternal();if(currentView==='import')renderImport();if(currentView==='history')renderHistory();if(currentView==='settings')renderSettings();}
+function renderToday(){const root=document.getElementById('view-today');const entries=scheduledEntries(selectedDate);const tasks=[...new Set(entries.map(x=>x.task))].filter(t=>t.status!=='done');const unplanned=state.tasks.filter(t=>!hasPlanning(t)&&t.status!=='done'&&t.status!=='external');const g=backlogGroups(unplanned);
+ let html=`<div class="toolbar"><h2>Dagplanning</h2><button class="btn" onclick="selectedDate=addDays(selectedDate,-1);renderToday()">←</button><input class="input" type="date" value="${selectedDate}" onchange="selectedDate=this.value;renderToday()"><button class="btn" onclick="selectedDate=addDays(selectedDate,1);renderToday()">→</button><div class="spacer"></div><button class="btn" onclick="rollOpenTasks()">Open werk doorschuiven</button><button class="btn primary" onclick="printDay()">Print dagplanning</button></div>`;
+ html+=`<div class="summarybar"><span class="pill"><strong>${fmtDate(selectedDate)}</strong></span><span class="pill">Gepland: <strong>${fmtMin(entries.reduce((a,x)=>a+(Number(x.seg.minutes)||0),0))}</strong></span><span class="pill">Open backlog: <strong>${unplanned.length}</strong></span><span class="pill">Urgent: <strong>${g.urgent.length}</strong></span><span class="pill">Extern onderweg: <strong>${externalCount()}</strong></span></div>`;
+ html+=`<div class="dayboard"><div class="
