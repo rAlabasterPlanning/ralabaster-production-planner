@@ -1,0 +1,144 @@
+)return alert('Vul een ontvangen aantal in.');t.doneQty=Math.min(o.qty,(t.doneQty||0)+q);t.note=n;t.externalReceivedDate=d;if(t.doneQty>=o.qty){t.status='done';t.completedAt=d;t.completedAtDT=dtString(d,'08:15');dynamicReplanAfterCompletion(t,t.completedAtDT);addHistoryEvent('external_received',t,{doneQty:t.doneQty})}else{t.status='external'}save();closeModal();render();const a=orderAnalysis(o);if(o.deadline&&a.finish>o.deadline)alert(`⚠ ${o.orderNo} – ${o.product} haalt volgens de nieuwe planning de deadline niet. Verwacht ${fmtDate(a.finish)}, deadline ${fmtDate(o.deadline)}.`)}
+
+function renderImport(){const root=document.getElementById('view-import');root.innerHTML=`<div class="toolbar"><h2>Nieuwe order / cyclus importeren</h2></div><div class="panel" style="padding:16px"><div class="notice"><b>Online import:</b> je kunt een Odoo-screenshot/foto met AI laten uitlezen of tekst plakken. Het resultaat wordt altijd eerst als bewerkbare taken getoond. Geld (€) wordt genegeerd, u/m/s is tijd en kale getallen zijn aantallen.</div><div class="grid3"><div class="field"><label>Ordernummer *</label><input id="impOrder" class="input" placeholder="bijv. ORD-241"></div><div class="field"><label>Product *</label><input id="impProduct" class="input" placeholder="bijv. MODULAR - Shelby"></div><div class="field"><label>Aantal *</label><input id="impQty" class="input" type="number" min="1" value="1"></div><div class="field"><label>Deadline / gewenste gereeddatum *</label><input id="impDeadline" class="input" type="date" value="${addDays(isoDate(new Date()),10)}"></div></div><div class="grid2" style="margin-top:12px"><div class="field"><label>Screenshot / foto (optioneel)</label><input id="impImage" type="file" accept="image/*" onchange="previewImportImage(this)"><div id="impPreview"></div><button id="aiReadBtn" class="btn primary" style="margin-top:8px" onclick="analyzeImportImage()">Afbeelding met AI uitlezen</button><div id="aiImportStatus" class="muted" style="margin-top:6px"></div></div><div class="field"><label>Plak volledige Odoo-tabel of bewerkingslijst</label><textarea id="impText" placeholder="Plak hier gewoon de complete tabel uit Odoo, inclusief Product / Aantal / Totale kosten. De parser filtert zelf de bewerkingen eruit."></textarea><button class="btn" style="margin-top:6px" onclick="parseImportText()">Odoo-data inlezen</button></div></div><div class="toolbar" style="margin-top:16px"><h3 style="margin:0">Bewerkingen</h3><div class="spacer"></div><button class="btn" onclick="addImportRow()">+ Regel</button></div><table class="taskedit" id="importTasks"><thead><tr><th>#</th><th>Bewerking</th><th>Machine / werkplek</th><th>Begroot (min)</th><th>Type</th><th>Blokkeert op vorige</th><th></th></tr></thead><tbody></tbody></table><div style="margin-top:16px;text-align:right"><button class="btn primary" onclick="saveImport()">Order opslaan & klaarzetten voor planning</button></div></div>`;for(let i=0;i<3;i++)addImportRow();}
+let importImageData=null;
+function previewImportImage(inp){const f=inp.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{importImageData=r.result;document.getElementById('impPreview').innerHTML=`<img class="previewimg" src="${r.result}">`};r.readAsDataURL(f)}
+async function analyzeImportImage(){
+ if(!importImageData)return alert('Kies eerst een screenshot of foto.');
+ if(!supabaseClient||!cloudUser)return alert('Verbind eerst Supabase via Online instellingen en log in.');
+ const btn=document.getElementById('aiReadBtn'),status=document.getElementById('aiImportStatus');btn.disabled=true;status.textContent='Afbeelding wordt uitgelezen…';
+ try{
+  const {data,error}=await supabaseClient.functions.invoke('analyze-odoo-image',{body:{image_data_url:importImageData}});
+  if(error)throw error;if(!data?.tasks?.length)throw new Error(data?.error||'Geen bewerkingen herkend.');
+  if(data.product)document.getElementById('impProduct').value=data.product;
+  if(data.quantity)document.getElementById('impQty').value=data.quantity;
+  const tb=document.querySelector('#importTasks tbody');tb.innerHTML='';
+  data.tasks.forEach((x,i)=>addImportRow({name:x.name||'',machine:x.machine||x.name||'',estimate:x.type==='wait'?540:(Number(x.minutes)||0),type:x.type||'work',dependsPrev:i>0}));renumberImport();
+  status.textContent=`${data.tasks.length} stappen herkend. Controleer ze en sla daarna de order op.`;
+ }catch(e){console.error(e);status.textContent='Uitlezen mislukt.';alert('AI-uitlezen mislukt: '+(e.message||e));}finally{btn.disabled=false}
+}
+function addImportRow(d={}){const tb=document.querySelector('#importTasks tbody');if(!tb)return;const n=tb.children.length+1;const tr=document.createElement('tr');tr.innerHTML=`<td class="seq">${n}</td><td><input class="iname" value="${esc(d.name||'')}"></td><td><input class="imach" value="${esc(d.machine||'')}"></td><td><input class="iest" type="number" min="0" value="${Number(d.estimate)||0}"></td><td><select class="itype"><option value="work" ${d.type==='work'?'selected':''}>Productietijd</option><option value="wait" ${d.type==='wait'?'selected':''}>Wachttijd 24/7</option><option value="external" ${d.type==='external'?'selected':''}>Extern</option></select></td><td style="text-align:center"><input class="idep" type="checkbox" ${n>1&&(d.dependsPrev!==false)?'checked':''}></td><td><button class="btn small danger" onclick="this.closest('tr').remove();renumberImport()">×</button></td>`;tb.appendChild(tr)}
+function renumberImport(){[...document.querySelectorAll('#importTasks tbody tr')].forEach((r,i)=>{r.querySelector('.seq').textContent=i+1;if(i===0)r.querySelector('.idep').checked=false})}
+function parseDuration(s){
+ s=mdCellText(s).toLowerCase();let m=0,found=false;
+ const h=s.match(/(\d+(?:[.,]\d+)?)\s*u(?:ur)?\b/i);const mm=s.match(/(\d+(?:[.,]\d+)?)\s*m(?:in)?\b/i);const sec=s.match(/(\d+(?:[.,]\d+)?)\s*s(?:ec)?\b/i);
+ if(h){m+=parseFloat(h[1].replace(',','.'))*60;found=true}if(mm){m+=parseFloat(mm[1].replace(',','.'));found=true}if(sec){m+=parseFloat(sec[1].replace(',','.'))/60;found=true}
+ return found?Math.round(m):0
+}
+function mdCellText(s){return (s||'').replace(/\*\*/g,'').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/<[^>]*>/g,'').replace(/&nbsp;|\u00a0/g,' ').trim()}
+function classifyOdooCell(raw){
+ const s=mdCellText(raw).replace(/\s+/g,' ').trim();
+ if(!s)return {type:'empty',value:null,text:s};
+ if(/€\s*$/.test(s)||/€/.test(s))return {type:'money',value:null,text:s};
+ if(/\d\s*(?:u(?:ur)?|m(?:in)?|s(?:ec)?)\b/i.test(s))return {type:'time',value:parseDuration(s),text:s};
+ const compact=s.replace(/\s/g,'');
+ if(/^[-+]?\d{1,3}(?:\.\d{3})*(?:,\d+)?$/.test(compact)||/^[-+]?\d+(?:[.,]\d+)?$/.test(compact)){
+   let n=compact;
+   if(n.includes(',')&&n.includes('.'))n=n.replace(/\./g,'').replace(',','.');
+   else if(n.includes(','))n=n.replace(',','.');
+   return {type:'number',value:parseFloat(n),text:s};
+ }
+ return {type:'text',value:null,text:s}
+}
+function splitOperationMachine(label){
+ label=mdCellText(label).replace(/\s+/g,' ').trim();
+ if(!label)return {name:'',machine:''};
+ const parts=label.split(/\s+-\s+/).map(x=>x.trim()).filter(Boolean);
+ if(parts.length===1)return {name:label,machine:label};
+ if(parts.length%2===0){const half=parts.length/2;const a=parts.slice(0,half).join(' - '),b=parts.slice(half).join(' - ');if(a.toLowerCase()===b.toLowerCase())return {name:a,machine:b}}
+ for(let i=1;i<parts.length;i++){const a=parts.slice(0,i).join(' - '),b=parts.slice(i).join(' - ');if(a.toLowerCase()===b.toLowerCase())return {name:a,machine:b}}
+ return {name:parts[0],machine:parts.slice(1).join(' - ')}
+}
+function parseOdooRows(text){
+ const lines=text.split(/\r?\n/).map(x=>x.trim()).filter(x=>x.length);
+ const rows=[];
+ for(const line of lines){
+   if(/^\|/.test(line)){
+     const cells=line.replace(/^\|/,'').replace(/\|$/,'').split('|').map(x=>x.trim());
+     if(cells.length>=2)rows.push(cells);
+   }else if(line.includes('\t')){
+     const cells=line.split(/\t+/).map(x=>x.trim());if(cells.length>=2)rows.push(cells);
+   }
+ }
+ return rows
+}
+function externalNameFromMarker(label){
+ let x=mdCellText(label).replace(/^Te\s+/i,'').replace(/^Klaar\s+met\s+/i,'').trim();
+ if(!x)return '';
+ // Houd de Odoo-benaming herkenbaar, maar maak er één duidelijke externe taak van.
+ return x.replace(/^kosten\s+/i,'').trim()
+}
+function parseImportText(){
+ const text=document.getElementById('impText').value.trim();if(!text)return alert('Plak eerst Odoo-data of een bewerkingslijst.');
+ const parsed=[];let detectedProduct='',detectedQty=null;const externalMarkers=[];
+ const rows=parseOdooRows(text);
+ if(rows.length>=2){
+   let operationsStarted=false,productFound=false;
+   for(const raw of rows){
+     const c0=mdCellText(raw[0]||''), c1=classifyOdooCell(raw[1]||''), c2=classifyOdooCell(raw[2]||'');
+     if(/^[-: ]+$/.test(c0)||/product.*aantal.*totale kosten/i.test(c0)||/kostprijs per eenheid/i.test(c0))continue;
+
+     // Een lege omschrijving + tijd is in Odoo de totaalregel die materiaal/subcontracting van echte bewerkingen scheidt.
+     if(!c0 && c1.type==='time'){operationsStarted=true;continue}
+     if(!c0)continue;
+
+     // Eerste inhoudelijke regel met een kaal getal in kolom 2 en geld in kolom 3 = hoofdproduct + aantal.
+     if(!productFound && c1.type==='number' && (c2.type==='money'||raw.length>=2)){
+       detectedProduct=c0;detectedQty=c1.value;productFound=true;continue
+     }
+
+     if(!operationsStarted){
+       // Regels vóór totaaluren zijn materiaal/kosten/subcontracting-indicatoren, geen interne taken.
+       if(/^Kosten\b/i.test(c0))continue;
+       const te=c0.match(/^Te\s+(.+)$/i),klaar=c0.match(/^Klaar\s+met\s+(.+)$/i);
+       if(te)externalMarkers.push(externalNameFromMarker(te[1]));
+       if(klaar)externalMarkers.push(externalNameFromMarker(klaar[1]));
+       continue
+     }
+
+     // Na de totaalregel: alleen een tijd in kolom 2 maakt een echte bewerking. Geld/aantallen worden nooit als tijd geïnterpreteerd.
+     if(c1.type==='time' && c1.value>0){
+       const om=splitOperationMachine(c0);const dry=/droogruimte/i.test(c0);const ext=/\bextern\b/i.test(c0);
+       parsed.push({...om,estimate:dry?540:c1.value,type:dry?'wait':(ext?'external':'work')});
+     }
+   }
+
+   // Combineer Te X + Klaar met X tot precies één externe stap van standaard 14 kalenderdagen.
+   const key=x=>x.toLowerCase().replace(/\s+/g,' ').replace(/ten$/,'t').replace(/en$/,'').trim();
+   const uniq=[];for(const m of externalMarkers){if(m&&!uniq.some(x=>key(x)===key(m)))uniq.push(m)}
+   for(const m of uniq){
+     const label=m.trim();const display=/waterjet/i.test(label)?'Waterjetten':label;
+     const task={name:`${display} extern`,machine:`${display} extern`,estimate:0,type:'external',dependsPrev:true};
+     const idx=parsed.findIndex(x=>/alabaster klaarzetten/i.test(x.name+' '+x.machine));parsed.splice(idx>=0?idx+1:0,0,task)
+   }
+ }else{
+   // Fallback voor plakken uit Odoo waarbij omschrijving en tijd op aparte regels terechtkomen.
+   const lines=text.split(/\r?\n/).map(x=>mdCellText(x).replace(/\s+/g,' ').trim()).filter(Boolean);
+   let pendingLabel='', seenTotal=false, productSet=false;
+   for(const line of lines){
+     if(/^[-|: ]+$/.test(line)||/product.*aantal.*totale kosten/i.test(line)||/kostprijs per eenheid/i.test(line))continue;
+     const dur=parseDuration(line);const hasMoney=/€/.test(line);
+     if(dur){
+       if(!pendingLabel){seenTotal=true;continue}
+       if(seenTotal||parsed.length){const om=splitOperationMachine(pendingLabel);if(om.name){const dry=/droogruimte/i.test(pendingLabel),ext=/\bextern\b/i.test(pendingLabel);parsed.push({...om,estimate:dry?540:dur,type:dry?'wait':(ext?'external':'work')})}}
+       pendingLabel='';continue
+     }
+     if(hasMoney)continue;
+     const num=line.replace(/\s/g,'');
+     if(!productSet&&/^\d+(?:[.,]\d+)?$/.test(num)){detectedQty=parseFloat(num.replace(',','.'));productSet=true;continue}
+     if(/^Kosten\b/i.test(line))continue;
+     const te=line.match(/^Te\s+(.+)$/i),klaar=line.match(/^Klaar\s+met\s+(.+)$/i);
+     if(te){externalMarkers.push(externalNameFromMarker(te[1]));continue}if(klaar){externalMarkers.push(externalNameFromMarker(klaar[1]));continue}
+     if(!detectedProduct&&!/^\d/.test(line)){detectedProduct=line;continue}
+     pendingLabel=line;
+   }
+   const key=x=>x.toLowerCase().replace(/\s+/g,' ').replace(/ten$/,'t').replace(/en$/,'').trim();const uniq=[];for(const m of externalMarkers){if(m&&!uniq.some(x=>key(x)===key(m)))uniq.push(m)};for(const m of uniq){const display=/waterjet/i.test(m)?'Waterjetten':m;const task={name:`${display} extern`,machine:`${display} extern`,estimate:0,type:'external',dependsPrev:true};const idx=parsed.findIndex(x=>/alabaster klaarzetten/i.test(x.name+' '+x.machine));parsed.splice(idx>=0?idx+1:0,0,task)}
+ }
+ if(detectedProduct&&!document.getElementById('impProduct').value.trim())document.getElementById('impProduct').value=detectedProduct;
+ if(detectedQty&&(+document.getElementById('impQty').value===1||!document.getElementById('impQty').value))document.getElementById('impQty').value=detectedQty;
+ const tb=document.querySelector('#importTasks tbody');tb.innerHTML='';parsed.forEach((x,i)=>addImportRow({...x,dependsPrev:i>0}));
+ if(!parsed.length){for(let i=0;i<3;i++)addImportRow();alert('Ik kon geen bewerkingen met een tijd herkennen. Tijd moet in Odoo u, m of s bevatten (bijv. 4u 10m 0s).');return}
+ renumberImport();const ex=parsed.filter(x=>x.type==='external').length,dry=parsed.filter(x=>x.type==='wait').length;
+ alert(`${parsed.length} stappen herkend${detectedProduct?' voor '+detectedProduct:''}.${ex?' '+ex+' externe stap(pen) toegevoegd.':''}${dry?' Droogruimte staat als 9 uur 24/7 wachttijd.':''} Controleer de regels voordat je opslaat.`);
+}
+function saveImport(){const orderNo=document.getElementById('impOrder').value.trim(),product=document.getElementById('impProduct').value.trim(),qty=+document.getElementById('impQty').value,deadline=document.getElementById('impDeadline').value;if(!orderNo||!product||!qty||!deadline)return alert('Ordernummer, product, aantal en deadline zijn verplicht.');const rows=[...document.querySelectorAll('#importTasks tbody tr')];const defs=rows.map((r,i)=>({seq:i+1,name:r.querySelector('.iname').value.trim(),machine:r.querySelector('.imach').value.trim(),estimate:+r.querySelector('.iest').value,type:r.querySelector('.itype')?.value||'work',dependsPrev:r.querySelector('.idep').checked})).filter(x=>x.name);if(!defs.length)return alert('Voeg minimaal één bewerking toe.');if(defs.
