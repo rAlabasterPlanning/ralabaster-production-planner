@@ -1,11 +1,16 @@
-// rAlabaster - stabiele directe orderflow + verwijderen vanuit Order openen
+// rAlabaster - stabiele directe orderflow + verwijderen vanuit echte planner Order openen
 (()=>{
 let directBusy=false;
 function S(){try{return state}catch(_){return null}}
 function persist(){try{save()}catch(e){console.error(e)}}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function openOrders(){
-  try{window.RALAB_ERP?.show?.('orders')}catch(e){console.error(e)}
-  setTimeout(()=>{try{window.RALAB_ERP?.renderOrders?.()}catch(e){console.error(e)}stripOverviewDeleteButtons()},80);
+  try{
+    if(typeof window.switchView==='function')window.switchView('orders');
+    else if(typeof window.renderOrders==='function'){try{currentView='orders'}catch(_){};window.renderOrders()}
+    else window.RALAB_ERP?.show?.('orders');
+  }catch(e){console.error(e)}
+  setTimeout(()=>{try{if(typeof window.renderOrders==='function')window.renderOrders()}catch(e){console.error(e)}},80);
 }
 function directOrder(){
   if(directBusy)return;
@@ -27,9 +32,6 @@ function directOrder(){
     directBusy=false;
   },120);
 }
-function stripOverviewDeleteButtons(){
-  document.querySelectorAll('#view-orders [data-delete-order]').forEach(b=>b.remove());
-}
 function deleteOrderNow(id){
   const s=S();if(!s)return;
   const o=(s.orders||[]).find(x=>x.id===id);if(!o)return;
@@ -37,29 +39,31 @@ function deleteOrderNow(id){
   s.orders=(s.orders||[]).filter(x=>x.id!==id);
   (s.quotes||[]).forEach(q=>{if(q.orderId===id){q.orderId='';if(q.status==='accepted')q.status='concept'}});
   persist();
-  try{closeModal()}catch(_){document.getElementById('modalRoot').innerHTML=''}
+  try{closeModal()}catch(_){const m=document.getElementById('modalRoot');if(m)m.innerHTML=''}
   openOrders();
 }
 function askDelete(id){
   const s=S(),o=(s?.orders||[]).find(x=>x.id===id);if(!o)return;
   const label=o.orderNo||o.product||id;
-  const html=`<div class="modalhead"><h3>Order verwijderen</h3></div><div class="modalbody"><p>Weet je zeker dat je order <b>${String(label).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</b> wilt verwijderen?</p><p class="muted">De bijbehorende planningstaken worden ook verwijderd.</p></div><div class="modalfoot"><button class="btn" type="button" onclick="closeModal()">Annuleren</button><button class="btn" type="button" data-confirm-delete-order="${id}" style="font-weight:800">Ja, verwijderen</button></div>`;
+  const html=`<div class="modalhead"><h3>Order verwijderen</h3></div><div class="modalbody"><p>Weet je zeker dat je order <b>${esc(label)}</b> wilt verwijderen?</p><p class="muted">De bijbehorende planningstaken worden ook verwijderd.</p></div><div class="modalfoot"><button class="btn" type="button" onclick="closeModal()">Annuleren</button><button class="btn" type="button" data-confirm-delete-order="${esc(id)}" style="font-weight:800">Ja, verwijderen</button></div>`;
   if(typeof showModal==='function')showModal(html);else if(confirm(`Weet je zeker dat je order “${label}” wilt verwijderen?`))deleteOrderNow(id);
 }
 function addDeleteToOpenOrder(id){
   const foot=document.querySelector('#modalRoot .modalfoot');if(!foot||foot.querySelector('[data-open-order-delete]'))return;
   const b=document.createElement('button');b.className='btn';b.type='button';b.dataset.openOrderDelete=id;b.textContent='Verwijderen';b.style.marginRight='auto';b.style.fontWeight='800';foot.prepend(b);
 }
-function install(){
-  const erp=window.RALAB_ERP;if(!erp)return false;
-  erp.deleteOrder=askDelete;
-  if(!erp.__deleteInsideOpenWrapped){
-    const oldOpen=erp.openOrder;
-    erp.openOrder=function(id){const r=oldOpen.apply(this,arguments);setTimeout(()=>addDeleteToOpenOrder(id),0);return r};
-    erp.__deleteInsideOpenWrapped=true;
-  }
-  stripOverviewDeleteButtons();
+function installPlannerOpen(){
+  const fn=window.openOrder;
+  if(typeof fn!=='function')return false;
+  if(fn.__ralabDeleteWrapped)return true;
+  const wrapped=function(id){const r=fn.apply(this,arguments);setTimeout(()=>addDeleteToOpenOrder(id),0);return r};
+  wrapped.__ralabDeleteWrapped=true;
+  window.openOrder=wrapped;
   return true;
+}
+function install(){
+  installPlannerOpen();
+  if(window.RALAB_ERP)window.RALAB_ERP.deleteOrder=askDelete;
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('#calcFollowupActions button');
@@ -71,7 +75,5 @@ document.addEventListener('click',e=>{
   const yes=e.target.closest('[data-confirm-delete-order]');
   if(yes){e.preventDefault();e.stopImmediatePropagation();deleteOrderNow(yes.dataset.confirmDeleteOrder)}
 },true);
-document.addEventListener('click',e=>{if(e.target.closest('.navbtn[data-view="orders"]'))setTimeout(stripOverviewDeleteButtons,120)},true);
-const orders=document.getElementById('view-orders');if(orders)new MutationObserver(()=>requestAnimationFrame(stripOverviewDeleteButtons)).observe(orders,{childList:true,subtree:true});
-if(!install())setTimeout(install,500);setTimeout(install,1400);
+install();setTimeout(install,400);setTimeout(install,1200);setTimeout(install,2500);
 })();
