@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>rAlabaster Werkvloer</title>
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="assets/worker.css">
+</head>
+<body class="worker-body">
+<header class="worker-header"><div><h1>rAlabaster Werkvloer</h1><div class="worker-sub">Mijn productietaken</div></div><div id="workerWho"></div></header>
+<main class="worker-main">
+<section id="loginCard" class="worker-login">
+  <h2>Werkvloer openen</h2>
+  <p>Kies je naam en vul je 4-cijferige PIN in.</p>
+  <label>Naam</label>
+  <select id="workerName"><option>Ralph</option><option>Peter</option><option>Kaan</option><option>Lance</option><option>Shaffi</option></select>
+  <label>PIN</label>
+  <input id="workerPin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*" placeholder="••••">
+  <button class="btn primary worker-big" onclick="workerLogin()">Mijn taken openen</button>
+  <div id="loginError" class="worker-error"></div>
+</section>
+<section id="tasksView" class="hidden">
+  <div class="worker-toolbar"><div><h2 id="tasksTitle">Mijn taken</h2><div id="lastUpdate" class="muted"></div></div><div><button class="btn" onclick="loadTasks()">↻ Vernieuwen</button><button class="btn" onclick="workerLogout()">Andere medewerker</button></div></div>
+  <div id="workerTasks"></div>
+</section>
+</main>
+<div id="workerModal"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/config.js"></script>
+<script src="assets/worker.js"></script>
+</body>
+</html>
