@@ -1,0 +1,91 @@
+some(x=>!x.machine))return alert('Iedere bewerking moet een machine/werkplek hebben.');const id='o_'+Date.now();state.orders.push({id,orderNo,product,qty,deadline,created:isoDate(new Date()),sourceImage:importImageData,active:true});defs.forEach(d=>state.tasks.push({id:'t_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),orderId:id,...d,employee:null,date:null,start:'',planSegments:[],status:'open',actual:0,doneQty:0,note:'',externalLeadDays:d.type==='external'?14:null,waitStartAt:'',waitEndAt:''}));save();importImageData=null;alert('Order opgeslagen. Alle taken staan nu bij “Nog in te plannen”.');switchView('today')}
+
+function renderSettings(){
+ const root=document.getElementById('view-settings');if(!root)return;const c=onlineConfig();const email=cloudUser?.email||c.email||'';
+ root.innerHTML=`<div class="toolbar"><h2>Online instellingen</h2></div><div class="panel" style="padding:16px;max-width:980px">
+ <div class="notice"><b>Gedeelde rAlabaster planning</b><br>Alle planneraccounts in deze werkruimte zien en wijzigen dezelfde planning. De site ververst online wijzigingen automatisch elke 15 seconden.</div>
+ <div class="grid2"><div class="field"><label>Supabase Project URL</label><input id="sbUrl" class="input" value="${esc(c.url||'')}" placeholder="https://xxxx.supabase.co"></div><div class="field"><label>Anon / publishable key</label><input id="sbKey" class="input" value="${esc(c.anonKey||'')}" placeholder="sb_publishable_... of anon key"></div><div class="field"><label>E-mail</label><input id="sbEmail" class="input" type="email" value="${esc(email)}"></div><div class="field"><label>Wachtwoord</label><input id="sbPass" class="input" type="password" placeholder="Alleen nodig bij inloggen"></div></div>
+ <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="saveSupabaseSettings()">Instellingen opslaan</button><button class="btn primary" onclick="supabaseLogin()">Inloggen & synchroniseren</button><button class="btn" onclick="supabaseSignup()">Planneraccount aanmaken</button>${cloudUser?'<button class="btn danger" onclick="supabaseLogout()">Uitloggen</button>':''}<a class="btn" href="werkvloer.html" target="_blank">Werkvloer openen ↗</a></div>
+ <div style="margin-top:14px"><b>Status:</b> ${esc(cloudStatus)}${cloudUser?` · ${esc(cloudUser.email||'')}`:''}</div>
+ <hr style="border:0;border-top:1px solid #e2e6e9;margin:18px 0">
+ <div class="toolbar"><h3 style="margin:0">Werkvloer toegang</h3><div class="spacer"></div><button class="btn" onclick="loadWorkerPins()">Status verversen</button></div>
+ <div class="notice">Werknemers openen <b>werkvloer.html</b>, kiezen hun naam en gebruiken een 4-cijferige PIN. Zij zien alleen hun eigen taken. Stel hieronder per persoon een PIN in of wijzig hem later.</div>
+ <div id="workerPinGrid" class="worker-pin-grid">${EMPLOYEES.map(e=>`<div class="worker-pin-row"><div><b>${esc(e)}</b><div class="muted" id="pinStatus-${esc(e)}">PIN-status laden…</div></div><input class="input" id="pin-${esc(e)}" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Nieuwe PIN"><button class="btn" onclick="setWorkerPin('${esc(e)}')">PIN opslaan</button></div>`).join('')}</div>
+ <hr style="border:0;border-top:1px solid #e2e6e9;margin:18px 0">
+ <div class="notice"><b>AI afbeelding import</b><br>De Supabase Edge Function <code>analyze-odoo-image</code> leest Odoo-screenshots uit. Het secret <code>OPENAI_API_KEY</code> moet in Supabase staan.</div>
+ </div>`;
+ if(cloudUser)setTimeout(loadWorkerPins,0)
+}
+async function workerApi(body){
+ if(!supabaseClient)return {error:'Supabase is niet verbonden.'};
+ const {data,error}=await supabaseClient.functions.invoke('worker-api',{body:{workspace_id:WORKSPACE_ID,...body}});
+ if(error){let msg=error.message||String(error);try{if(error.context){const j=await error.context.json();msg=j?.error||msg}}catch(_){}return {error:msg}}
+ return data||{}
+}
+async function loadWorkerPins(){
+ if(!cloudUser)return;
+ const r=await workerApi({action:'admin_list_workers'});if(r.error)return console.warn(r.error);
+ const map=Object.fromEntries((r.workers||[]).map(x=>[x.employee,x]));
+ for(const e of EMPLOYEES){const el=document.getElementById('pinStatus-'+e);if(el)el.textContent=map[e]?.has_pin?'PIN ingesteld':'Nog geen PIN ingesteld'}
+}
+async function setWorkerPin(employee){
+ if(!cloudUser)return alert('Log eerst in als planner.');const input=document.getElementById('pin-'+employee);const pin=(input?.value||'').trim();if(!/^\d{4}$/.test(pin))return alert('Gebruik precies 4 cijfers.');
+ const r=await workerApi({action:'admin_set_pin',employee,pin});if(r.error)return alert('PIN opslaan mislukt: '+r.error);input.value='';await loadWorkerPins();alert('PIN voor '+employee+' opgeslagen.')
+}
+function saveSupabaseSettings(){const c={url:document.getElementById('sbUrl').value.trim(),anonKey:document.getElementById('sbKey').value.trim(),email:document.getElementById('sbEmail').value.trim()};saveOnlineConfig(c);alert('Instellingen opgeslagen. Log daarna in om te synchroniseren.')}
+async function supabaseLogin(){const c={url:document.getElementById('sbUrl').value.trim(),anonKey:document.getElementById('sbKey').value.trim(),email:document.getElementById('sbEmail').value.trim()};const pass=document.getElementById('sbPass').value;if(!c.url||!c.anonKey||!c.email||!pass)return alert('Vul URL, key, e-mail en wachtwoord in.');saveOnlineConfig(c);supabaseClient=window.supabase.createClient(c.url,c.anonKey,{auth:{persistSession:true,autoRefreshToken:true}});const {data,error}=await supabaseClient.auth.signInWithPassword({email:c.email,password:pass});if(error)return alert('Inloggen mislukt: '+error.message);cloudUser=data.user;await loadCloudState();startCloudRefresh();renderSettings()}
+async function supabaseSignup(){const c={url:document.getElementById('sbUrl').value.trim(),anonKey:document.getElementById('sbKey').value.trim(),email:document.getElementById('sbEmail').value.trim()};const pass=document.getElementById('sbPass').value;if(!c.url||!c.anonKey||!c.email||!pass)return alert('Vul URL, key, e-mail en wachtwoord in.');if(pass.length<8)return alert('Gebruik een wachtwoord van minimaal 8 tekens.');saveOnlineConfig(c);supabaseClient=window.supabase.createClient(c.url,c.anonKey,{auth:{persistSession:true,autoRefreshToken:true}});const {data,error}=await supabaseClient.auth.signUp({email:c.email,password:pass});if(error)return alert('Account aanmaken mislukt: '+error.message);if(data?.session){cloudUser=data.user;await loadCloudState();startCloudRefresh();renderSettings();alert('Account aangemaakt en ingelogd.');}else alert('Account aangemaakt. Controleer je e-mail als Supabase e-mailbevestiging vereist en log daarna in.');}
+async function supabaseLogout(){stopCloudRefresh();if(supabaseClient)await supabaseClient.auth.signOut();cloudUser=null;cloudStatus='login';renderOnlineBadge();renderSettings()}
+function renderHistory(){const root=document.getElementById('view-history');const arr=state.tasks.filter(t=>t.status==='done'||t.status==='partial').slice().sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''));root.innerHTML=`<div class="toolbar"><h2>Historie</h2><div class="spacer"></div><button class="btn" onclick="exportBackup()">Backup downloaden</button><label class="btn">Backup terugzetten<input type="file" accept="application/json" style="display:none" onchange="importBackup(this)"></label></div><div class="panel"><table><thead><tr><th>Datum</th><th>Order / product</th><th>Bewerking</th><th>Persoon</th><th>Machine</th><th>Begroot</th><th>Werkelijk</th><th>Aantal</th></tr></thead><tbody>${arr.map(t=>{const o=order(t.orderId);return `<tr><td>${esc(t.completedAt||'')}</td><td>${esc(o?.orderNo)} – ${esc(o?.product)}</td><td>${esc(t.name)}</td><td>${esc(t.employee||'-')}</td><td>${esc(t.machine)}</td><td>${fmtMin(t.estimate)}</td><td>${fmtMin(t.actual)}</td><td>${t.doneQty||0}/${o?.qty||0}</td></tr>`}).join('')||'<tr><td colspan=8>Nog geen afgeronde taken.</td></tr>'}</tbody></table></div>`}
+
+
+// --- Snelle uitvoering & dynamisch herplannen (v9) ---
+function addHistoryEvent(type,t,extra={}){
+ const o=order(t.orderId);state.history=state.history||[];state.history.push({id:'h_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),type,taskId:t.id,orderId:t.orderId,orderNo:o?.orderNo||'',product:o?.product||'',task:t.name,machine:t.machine,at:nowLocalDT(),...extra});
+}
+function dependentChainAfter(t){
+ const arr=[];for(const x of orderTasks(t.orderId).filter(x=>x.seq>t.seq&&!isTaskComplete(x))){if(!x.dependsPrev)break;arr.push(x)}return arr;
+}
+function freeIntervalsForEmployee(date,emp,includeSaturday=false,excludeIds=new Set()){
+ const cap=employeeCapacity(date,emp,includeSaturday);if(cap<=0)return[];
+ const ws=timeToMin(dayStartTime(date,emp)),we=workdayEndMinutes(date,emp);if(we<=ws)return[];
+ const busy=[];
+ for(const x of scheduledEntries(date,emp)){
+   if(excludeIds.has(x.task.id))continue;
+   const st=timeToMin(x.seg.start||dayStartTime(date,emp));const en=Math.min(we,st+(Number(x.seg.minutes)||0));if(en>ws&&st<we)busy.push([Math.max(ws,st),en]);
+ }
+ busy.sort((a,b)=>a[0]-b[0]);const merged=[];for(const b of busy){if(!merged.length||b[0]>merged.at(-1)[1])merged.push(b);else merged.at(-1)[1]=Math.max(merged.at(-1)[1],b[1])}
+ const gaps=[];let cur=ws;for(const [a,b] of merged){if(a>cur)gaps.push([cur,a]);cur=Math.max(cur,b)}if(cur<we)gaps.push([cur,we]);return gaps;
+}
+function scheduleTaskPrecisely(t,emp,startAt,includeSaturday=false,excludeIds=new Set()){
+ clearTaskPlanning(t);let need=Math.max(0,Number(t.estimate)||0),date=dtDate(startAt),firstDate=date,earliest=timeToMin(dtTime(startAt)),segs=[],guard=0;
+ while(need>0&&guard++<180){const gaps=freeIntervalsForEmployee(date,emp,includeSaturday,excludeIds);for(const [a,b] of gaps){let st=a;if(date===firstDate)st=Math.max(st,earliest);if(st>=b)continue;const take=Math.min(need,b-st);if(take>0){segs.push({date,employee:emp,start:minToTime(st),minutes:take});need-=take;if(need<=0)break}}if(need>0){date=addDays(date,1);earliest=0}}
+ t.planSegments=segs;t.employee=emp;t.date=segs[0]?.date||null;t.start=segs[0]?.start||'';return taskFinishAt(t);
+}
+function dynamicReplanAfterCompletion(t,completedAt){
+ const chain=dependentChainAfter(t);if(!chain.length)return;
+ const preserved=new Map(chain.map(x=>[x.id,{employee:x.employee||firstSegment(x)?.employee||null,status:x.status,externalSentDate:x.externalSentDate||''}]));
+ // Eerst vrijmaken, zodat oude blokken van dezelfde keten de nieuwe planning niet tegenhouden.
+ for(const x of chain){if(isExternalTask(x)&&x.status==='external'&&x.externalSentDate)continue;clearTaskPlanning(x)}
+ let cursor=completedAt;
+ for(const x of chain){
+   if(isDryTask(x)){scheduleDryTask(x,cursor);cursor=x.waitEndAt;continue}
+   if(isExternalTask(x)){
+     if(x.status==='external'&&x.externalSentDate){cursor=dtString(expectedExternalReturn(x),'00:00');continue}
+     const d=dtDate(cursor);x.employee=null;x.planSegments=[];x.date=d;x.status='open';x.expectedReturnDate=addDays(d,Number(x.externalLeadDays)||(CFG.rules?.externalLeadDays||14));cursor=dtString(x.expectedReturnDate,'00:00');continue
+   }
+   const emp=preserved.get(x.id)?.employee;if(!emp){clearTaskPlanning(x);break}
+   scheduleTaskPrecisely(x,emp,cursor,false,new Set(chain.map(y=>y.id)));cursor=taskFinishAt(x)||cursor;
+ }
+}
+function openQuickComplete(id){
+ const t=state.tasks.find(x=>x.id===id),o=order(t.orderId);if(!t||!o)return;if(isBlocked(t)&&!confirm('Vorige taak is nog niet gereed. Toch deze taak afronden?'))return;
+ const planned=taskSegments(t).reduce((a,s)=>a+(Number(s.minutes)||0),0)||(Number(t.estimate)||0);const defActual=t.actual||planned;const remainingQty=Math.max(0,(Number(o.qty)||0)-(Number(t.doneQty)||0));
+ showModal(`<div class="modalhead"><h3>Taak afronden – ${esc(o.orderNo)} – ${esc(o.product)}</h3></div><div class="modalbody"><div class="notice"><b>${esc(t.name)}</b><br>Machine: <b>${esc(t.machine)}</b> · ${o.qty} st.<br>Na bevestigen wordt de afhankelijke planning van <b>deze order</b> automatisch naar voren of naar achteren herpland op basis van het werkelijke gereedmoment.</div><div class="grid3"><div class="field"><label>Resultaat</label><select id="qcStatus" onchange="toggleQuickPartial()"><option value="done">Gereed</option><option value="partial">Deels gereed</option></select></div><div class="field"><label>Werkelijke tijd (min)</label><input id="qcActual" class="input" type="number" min="0" value="${defActual}"></div><div class="field"><label>Aantal gereed</label><input id="qcQty" class="input" type="number" min="0" max="${o.qty}" value="${remainingQty||o.qty}"></div><div class="field"><label>Werkelijk gereed op</label><input id="qcAt" class="input" type="datetime-local" value="${nowLocalDT()}"></div><div class="field qc-partial" style="display:none"><label>Geschatte resterende tijd (min)</label><input id="qcRemaining" class="input" type="number" min="0" value="${Math.max(15,(Number(t.estimate)||0)-defActual)}"></div><div class="field qc-partial" style="display:none"><label>Resterend werk</label><select id="qcStrategy"><option value="next_first">Volgende werkdag als eerste werk</option><option value="next_free">Eerstvolgende vrije plek</option></select></div></div><div class="field" style="margin-top:12px"><label>Opmerking</label><textarea id="qcNote">${esc(t.note||'')}</textarea></div></div><div class="modalfoot"><button class="btn" onclick="closeModal()">Annuleren</button><button class="btn primary" onclick="confirmQuickComplete('${id}')">Afronden & planning bijwerken</button></div>`);
+}
+function toggleQuickPartial(){const partial=document.getElementById('qcStatus')?.value==='partial';document.querySelectorAll('.qc-partial').forEach(el=>el.style.display=partial?'block':'none')}
+function confirmQuickComplete(id){
+ const t=state.tasks.find(x=>x.id===id),o=order(t.orderId);if(!t||!o)return;const status=document.getElementById('qcStatus').value,actual=+document.getElementById('qcActual').value||0,qty=+document.getElementById('qcQty').value||0,at=document.getElementById('qcAt').value||nowLocalDT(),note=document.getElementById('qcNote').value;
+ const beforeAnalysis=orderAnalysis(o);const oldPlan=JSON.parse(JSON.stringify(taskSegments(t)));t.actual=(Number(t.actual)||0)+actual;t.note=note;
+ if(status==='done'){
+   t.doneQty=Math.min(o.qty,Math.max(qty,o.qty));t.status='done';t.completedAt=dtDate(at);t.completedAtDT=at;clearTaskPlanning(t);addHistoryEvent('done',t,{actualMinutes:actual,doneQty:t.doneQ
