@@ -8,21 +8,27 @@
 </head>
 <body>
 <header><a class="brand" href="#" aria-label="rAlabaster" style="display:flex;align-items:center;flex:0 0 auto"><img id="brandLogo" class="brand-logo" alt="rAlabaster" style="height:42px;width:auto;display:block"></a><nav>
-<button class="navbtn active" data-view="today">Vandaag</button>
+<button class="navbtn" data-view="calculation">1. Calculaties</button>
+<button class="navbtn erp-nav" data-view="quotes">2. Offertes</button>
+<button class="navbtn erp-nav" data-view="orders">3. Orders</button>
+<button class="navbtn active" data-view="today">4. Planning vandaag</button>
 <button class="navbtn" data-view="weeks">3 weken</button>
-<button class="navbtn" data-view="orders">Orders</button>
-<button class="navbtn" data-view="calculation">Calculatie</button>
-<button class="navbtn" data-view="external">Extern / binnenmelden</button>
-<button class="navbtn" data-view="import">Importeren</button>
-<button class="navbtn" data-view="history">Historie</button>
-<button class="navbtn" data-view="settings">Online instellingen</button>
+<button class="navbtn" data-view="external">5. Extern / binnenmelden</button>
+<button class="navbtn erp-nav" data-view="completed">6. Afgeronde orders</button>
+<button class="navbtn erp-nav" data-view="products">7. Producten</button>
+<button class="navbtn erp-nav" data-view="customers">Klanten</button>
+<button class="navbtn" data-view="settings">Instellingen</button>
 </nav></header>
 <main>
+<section id="view-calculation" class="hidden"></section>
+<section id="view-quotes" class="hidden"></section>
+<section id="view-orders" class="hidden"></section>
 <section id="view-today"></section>
 <section id="view-weeks" class="hidden"></section>
-<section id="view-orders" class="hidden"></section>
-<section id="view-calculation" class="hidden"></section>
 <section id="view-external" class="hidden"></section>
+<section id="view-completed" class="hidden"></section>
+<section id="view-products" class="hidden"></section>
+<section id="view-customers" class="hidden"></section>
 <section id="view-import" class="hidden"></section>
 <section id="view-history" class="hidden"></section>
 <section id="view-settings" class="hidden"></section>
@@ -30,20 +36,13 @@
 <div id="printArea"></div>
 <div id="modalRoot"></div>
 <script>
-fetch('assets/ralabaster-logo.b64.txt')
-  .then(r => { if (!r.ok) throw new Error('Logo niet gevonden'); return r.text(); })
-  .then(b64 => {
-    const raw = atob(b64.trim());
-    const bytes = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-    document.getElementById('brandLogo').src = URL.createObjectURL(new Blob([bytes], {type:'image/jpeg'}));
-  })
-  .catch(() => { document.querySelector('.brand').style.display='none'; });
+fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();return r.text()}).then(b64=>{const raw=atob(b64.trim()),bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);document.getElementById('brandLogo').src=URL.createObjectURL(new Blob([bytes],{type:'image/jpeg'}))}).catch(()=>{document.querySelector('.brand').style.display='none'});
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="assets/config.js"></script>
 <script src="assets/app-loader.js"></script>
 <script src="assets/custom.js"></script>
 <script src="assets/calculator.js"></script>
+<script src="assets/erp.js"></script>
 </body>
 </html>
