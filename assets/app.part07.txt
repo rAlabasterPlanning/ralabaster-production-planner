@@ -1,0 +1,104 @@
+
+// --- v11.2 Orderafsluiting, rendement, rapporten en afgeronde orders ---
+(function(){
+  const _origOpenQuickComplete = openQuickComplete;
+  const _origSaveQuickComplete = saveQuickComplete;
+  const _origRenderSettings = renderSettings;
+  const _origSwitchView = switchView;
+
+  function isPrepTask(t){ return /alabaster\s*klaarzetten/i.test((t?.name||'')+' '+(t?.machine||'')); }
+  function finalWorkTask(o){
+    const arr=orderTasks(o.id).filter(t=>!isExternalTask(t)&&!isDryTask(t));
+    return arr.slice().sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0)).at(-1)||null;
+  }
+  function num(v){ const n=Number(String(v??'').replace(',','.')); return Number.isFinite(n)?n:0; }
+  function kg(v){ return num(v).toLocaleString('nl-NL',{minimumFractionDigits:0,maximumFractionDigits:3})+' kg'; }
+  function pct(v){ return Number.isFinite(v)?v.toLocaleString('nl-NL',{minimumFractionDigits:1,maximumFractionDigits:1})+'%':'-'; }
+  function orderYield(o){
+    const tasks=orderTasks(o.id), prep=tasks.find(isPrepTask), final=finalWorkTask(o);
+    const begin=num(o.startWeightKg||prep?.startWeightKg);
+    const unit=num(o.endUnitWeightKg||final?.endUnitWeightKg);
+    const qty=num(o.completedQty||final?.doneQty||o.qty);
+    const total=unit*qty;
+    return {begin,unit,qty,total,yieldPct:begin>0?(total/begin*100):NaN};
+  }
+  function allOrderTasksDone(o){ const ts=orderTasks(o.id); return ts.length>0 && ts.every(t=>isTaskComplete(t)); }
+
+  openQuickComplete=function(id){
+    _origOpenQuickComplete(id);
+    setTimeout(()=>{
+      const t=state.tasks.find(x=>x.id===id),o=t&&order(t.orderId); if(!t||!o)return;
+      const body=document.querySelector('#modalRoot .modalbody'); if(!body)return;
+      const extra=document.createElement('div'); extra.className='grid3'; extra.style.marginTop='12px';
+      let html=`<div class="field"><label>Verbruik / materiaal</label><input id="qcConsumption" class="input" value="${esc(t.consumption||'')}" placeholder="bijv. 3 blokken / 18,4 kg"></div>`;
+      if(isPrepTask(t)) html+=`<div class="field"><label>Gewicht klaargezet (kg)</label><input id="qcStartWeight" class="input" type="number" min="0" step="0.001" value="${num(t.startWeightKg)||''}" placeholder="0,000"></div>`;
+      if(finalWorkTask(o)?.id===t.id) html+=`<div class="field"><label>Gewicht per eindproduct (kg)</label><input id="qcEndUnitWeight" class="input" type="number" min="0" step="0.001" value="${num(t.endUnitWeightKg)||''}" placeholder="0,000"></div>`;
+      extra.innerHTML=html; body.appendChild(extra);
+      if(finalWorkTask(o)?.id===t.id){
+        const note=document.createElement('div'); note.className='notice'; note.style.marginTop='12px'; note.id='yieldPreview';
+        note.innerHTML='Vul het gewicht per eindproduct en aantal gereed in. Bij afronden berekent de planner automatisch het totale eindgewicht en rendement t.o.v. het gewicht dat bij Alabaster klaarzetten is vastgelegd.'; body.appendChild(note);
+        const refresh=()=>{const begin=num(o.startWeightKg||orderTasks(o.id).find(isPrepTask)?.startWeightKg),unit=num(document.getElementById('qcEndUnitWeight')?.value),q=num(document.getElementById('qcQty')?.value),total=unit*q,y=begin>0?total/begin*100:NaN;note.innerHTML=`Begin: <b>${begin?kg(begin):'-'}</b> · Eind: <b>${unit&&q?kg(total):'-'}</b> · Rendement: <b>${Number.isFinite(y)?pct(y):'-'}</b>`};
+        document.getElementById('qcEndUnitWeight')?.addEventListener('input',refresh);document.getElementById('qcQty')?.addEventListener('input',refresh);refresh();
+      }
+    },0);
+  };
+
+  saveQuickComplete=function(id){
+    const t=state.tasks.find(x=>x.id===id),o=t&&order(t.orderId);
+    const consumption=document.getElementById('qcConsumption')?.value?.trim()||'';
+    const startWeight=num(document.getElementById('qcStartWeight')?.value);
+    const endUnitWeight=num(document.getElementById('qcEndUnitWeight')?.value);
+    const qtyBefore=num(document.getElementById('qcQty')?.value);
+    if(t){ if(consumption)t.consumption=consumption; if(startWeight){t.startWeightKg=startWeight;if(o)o.startWeightKg=startWeight} if(endUnitWeight){t.endUnitWeightKg=endUnitWeight;if(o)o.endUnitWeightKg=endUnitWeight} }
+    const r=_origSaveQuickComplete.apply(this,arguments);
+    setTimeout(()=>{
+      if(!o)return;
+      if(endUnitWeight)o.endUnitWeightKg=endUnitWeight;
+      if(qtyBefore)o.completedQty=qtyBefore;
+      if(allOrderTasksDone(o)&&!o.closed){ finalizeOrder(o); }
+      else save();
+    },0);
+    return r;
+  };
+
+  function finalizeOrder(o){
+    const y=orderYield(o);o.closed=true;o.active=false;o.status='completed';o.completedAt=nowLocalDT();
+    o.startWeightKg=y.begin||o.startWeightKg||0;o.endUnitWeightKg=y.unit||o.endUnitWeightKg||0;o.completedQty=y.qty||o.qty;o.endTotalWeightKg=y.total||0;o.yieldPct=Number.isFinite(y.yieldPct)?y.yieldPct:null;
+    state.completedOrders=state.completedOrders||[];if(!state.completedOrders.includes(o.id))state.completedOrders.push(o.id);save();
+    showModal(`<div class="modalhead"><h3>Order afgerond – ${esc(o.orderNo)} – ${esc(o.product)}</h3></div><div class="modalbody">
+      <div class="notice"><b>De volledige productieorder is gereed en gearchiveerd.</b><br>De order blijft altijd terug te vinden onder <b>Afgeronde orders</b>.</div>
+      <div class="grid3"><div class="pill"><strong>Begin gewicht</strong><br>${y.begin?kg(y.begin):'-'}</div><div class="pill"><strong>Eindgewicht</strong><br>${y.total?kg(y.total):'-'} (${y.qty||0} st.)</div><div class="pill"><strong>Rendement</strong><br>${Number.isFinite(y.yieldPct)?pct(y.yieldPct):'-'}</div></div>
+      <div style="margin-top:18px"><b>Wat wil je nu doen?</b></div>
+      <div style="display:grid;gap:10px;margin-top:10px"><button class="btn primary" onclick="printProductionReport('${o.id}')">Productierapport / nacalculatie maken</button><button class="btn" onclick="printPackingSlip('${o.id}')">Pakbon maken</button><button class="btn" onclick="emailPackingSlip('${o.id}')">Pakbon per e-mail voorbereiden</button></div>
+    </div><div class="modalfoot"><button class="btn" onclick="closeModal();openCompletedOrders()">Naar afgeronde orders</button><button class="btn" onclick="closeModal()">Sluiten</button></div>`);
+  }
+
+  function reportStats(o){
+    const ts=orderTasks(o.id).slice().sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));
+    const est=ts.reduce((s,t)=>s+(Number(t.estimate)||0),0),act=ts.reduce((s,t)=>s+(Number(t.actual)||0),0);return {ts,est,act,diff:act-est,pct:est?((act-est)/est*100):0};
+  }
+  function docWindow(title,html){const w=window.open('','_blank');if(!w)return alert('Sta pop-ups toe om het document te openen.');w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>body{font:13px Arial,sans-serif;color:#111;margin:28px}h1{font-size:22px;margin:0 0 4px}.muted{color:#666}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #aaa;padding:7px;text-align:left;vertical-align:top}th{background:#eee}.sum{margin-top:18px;border:1px solid #999;padding:12px}.logo{font-size:25px;font-weight:700;letter-spacing:1px}.actions{margin:0 0 18px}@media print{.actions{display:none}}</style></head><body><div class="actions"><button onclick="print()">Print / opslaan als PDF</button></div>${html}</body></html>`);w.document.close()}
+  printProductionReport=function(orderId){
+    const o=order(orderId);if(!o)return;const s=reportStats(o),y=orderYield(o);
+    const rows=s.ts.map(t=>`<tr><td>${Number(t.seq)||''}</td><td><b>${esc(t.name)}</b><br><span class="muted">${esc(t.machine||'')}</span></td><td>${esc(t.employee||'-')}</td><td>${fmtMin(Number(t.estimate)||0)}</td><td>${fmtMin(Number(t.actual)||0)}</td><td>${fmtMin((Number(t.actual)||0)-(Number(t.estimate)||0))}</td><td>${esc(t.consumption||'-')}</td><td>${esc(t.note||'-')}</td></tr>`).join('');
+    docWindow(`Productierapport ${o.orderNo}`,`<div class="logo">rAlabaster</div><h1>Productierapport / nacalculatie</h1><div class="muted">Afgerond ${esc(o.completedAt||'')}</div><div class="meta"><div><b>Order</b><br>${esc(o.orderNo)}</div><div><b>Product</b><br>${esc(o.product)}</div><div><b>Aantal</b><br>${o.completedQty||o.qty}</div><div><b>Deadline</b><br>${esc(o.deadline||'-')}</div></div><table><thead><tr><th>#</th><th>Fase / machine</th><th>Wie</th><th>Begroot</th><th>Werkelijk</th><th>Verschil</th><th>Verbruik</th><th>Opmerking</th></tr></thead><tbody>${rows}</tbody></table><div class="sum"><b>Tijd:</b> begroot ${fmtMin(s.est)} · werkelijk ${fmtMin(s.act)} · verschil ${s.diff>=0?'+':''}${fmtMin(s.diff)} (${s.pct>=0?'+':''}${s.pct.toFixed(1)}%)<br><b>Materiaalrendement:</b> begin ${y.begin?kg(y.begin):'-'} · eind ${y.total?kg(y.total):'-'} · ${Number.isFinite(y.yieldPct)?pct(y.yieldPct):'-'}<br><span class="muted">Eindgewicht berekend als ${y.unit?kg(y.unit):'-'} per product × ${y.qty||0} producten.</span></div>`)
+  };
+  printPackingSlip=function(orderId){const o=order(orderId);if(!o)return;docWindow(`Pakbon ${o.orderNo}`,`<div class="logo">rAlabaster</div><h1>Pakbon</h1><div class="meta"><div><b>Ordernummer</b><br>${esc(o.orderNo)}</div><div><b>Datum</b><br>${isoDate(new Date())}</div><div><b>Klant</b><br>${esc(o.customer||'-')}</div><div><b>Product</b><br>${esc(o.product)}</div></div><table><thead><tr><th>Omschrijving</th><th>Aantal</th></tr></thead><tbody><tr><td>${esc(o.product)}</td><td>${o.completedQty||o.qty}</td></tr></tbody></table><div class="sum">Opmerking: ${esc(o.deliveryNote||'')}</div>`)};
+  emailPackingSlip=function(orderId){const o=order(orderId);if(!o)return;const to=localStorage.getItem('ralabaster_dispatch_email')||'';const subject=encodeURIComponent(`Pakbon ${o.orderNo} – ${o.product}`);const body=encodeURIComponent(`Pakbon voor order ${o.orderNo}\nProduct: ${o.product}\nAantal: ${o.completedQty||o.qty}\n\nOpen in de planner de afgeronde order en kies “Pakbon maken” om de PDF te printen/op te slaan en toe te voegen.`);window.location.href=`mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`};
+
+  function renderCompletedOrders(){
+    const root=document.getElementById('view-completed');if(!root)return;const arr=state.orders.filter(o=>o.closed||o.status==='completed').slice().sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''));
+    root.innerHTML=`<div class="toolbar"><h2>Afgeronde orders</h2><div class="spacer"></div><input id="completedSearch" class="input" placeholder="Zoek order of product" oninput="renderCompletedOrders()"></div><div class="ordercards">${arr.filter(o=>{const q=(document.getElementById('completedSearch')?.value||'').toLowerCase();return !q||(`${o.orderNo} ${o.product}`).toLowerCase().includes(q)}).map(o=>{const s=reportStats(o),y=orderYield(o);return `<div class="ordercard"><div class="muted">${esc(o.completedAt||'')}</div><h3 style="margin:5px 0">${esc(o.orderNo)} – ${esc(o.product)}</h3><div>${o.completedQty||o.qty} st. · begroot ${fmtMin(s.est)} · werkelijk ${fmtMin(s.act)}</div><div style="margin-top:5px">Begin ${y.begin?kg(y.begin):'-'} · eind ${y.total?kg(y.total):'-'} · rendement <b>${Number.isFinite(y.yieldPct)?pct(y.yieldPct):'-'}</b></div><div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn small" onclick="openCompletedOrder('${o.id}')">Open data</button><button class="btn small" onclick="printProductionReport('${o.id}')">Productierapport</button><button class="btn small" onclick="printPackingSlip('${o.id}')">Pakbon</button></div></div>`}).join('')||'<div class="notice">Nog geen volledig afgeronde orders.</div>'}</div>`;
+  }
+  window.renderCompletedOrders=renderCompletedOrders;
+  openCompletedOrder=function(orderId){const o=order(orderId);if(!o)return;const s=reportStats(o),y=orderYield(o);showModal(`<div class="modalhead"><h3>${esc(o.orderNo)} – ${esc(o.product)}</h3></div><div class="modalbody"><div class="grid3"><div class="pill"><strong>Aantal</strong><br>${o.completedQty||o.qty}</div><div class="pill"><strong>Rendement</strong><br>${Number.isFinite(y.yieldPct)?pct(y.yieldPct):'-'}</div><div class="pill"><strong>Tijd</strong><br>${fmtMin(s.act)} werkelijk / ${fmtMin(s.est)} begroot</div></div><div class="panel" style="margin-top:14px"><table><thead><tr><th>Fase</th><th>Wie</th><th>Machine</th><th>Begroot</th><th>Werkelijk</th><th>Verbruik</th><th>Opmerking</th></tr></thead><tbody>${s.ts.map(t=>`<tr><td>${esc(t.name)}</td><td>${esc(t.employee||'-')}</td><td>${esc(t.machine||'-')}</td><td>${fmtMin(Number(t.estimate)||0)}</td><td>${fmtMin(Number(t.actual)||0)}</td><td>${esc(t.consumption||'-')}</td><td>${esc(t.note||'-')}</td></tr>`).join('')}</tbody></table></div></div><div class="modalfoot"><button class="btn" onclick="printProductionReport('${o.id}')">Rapport</button><button class="btn" onclick="printPackingSlip('${o.id}')">Pakbon</button><button class="btn" onclick="closeModal()">Sluiten</button></div>`)};
+  openCompletedOrders=function(){closeModal();showCompletedView()};
+  function showCompletedView(){document.querySelectorAll('main section').forEach(s=>s.classList.add('hidden'));document.getElementById('view-completed')?.classList.remove('hidden');document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view==='completed'));renderCompletedOrders()}
+
+  // Voeg de nieuwe pagina/nav toe.
+  if(!document.getElementById('view-completed')){const sec=document.createElement('section');sec.id='view-completed';sec.className='hidden';document.querySelector('main')?.appendChild(sec)}
+  if(!document.querySelector('.navbtn[data-view="completed"]')){const b=document.createElement('button');b.className='navbtn';b.dataset.view='completed';b.textContent='Afgeronde orders';b.addEventListener('click',showCompletedView);const hist=document.querySelector('.navbtn[data-view="history"]');hist?.parentNode?.insertBefore(b,hist)}
+  switchView=function(v){if(v==='completed')return showCompletedView();return _origSwitchView.apply(this,arguments)};
+
+  renderSettings=function(){_origRenderSettings();setTimeout(()=>{const panel=document.querySelector('#view-settings .panel');if(!panel||document.getElementById('dispatchEmail'))return;const d=document.createElement('div');d.innerHTML=`<hr style="border:0;border-top:1px solid #e2e6e9;margin:18px 0"><div class="field"><label>Kantoor-e-mailadres voor pakbonnen</label><input id="dispatchEmail" class="input" type="email" value="${esc(localStorage.getItem('ralabaster_dispatch_email')||'')}" placeholder="planning@..."><div class="muted" style="margin-top:5px">De knop “Pakbon per e-mail voorbereiden” gebruikt dit adres. Automatisch PDF-bijlagen versturen kunnen we koppelen zodra een mailprovider is ingesteld.</div><button class="btn" style="margin-top:8px" onclick="localStorage.setItem('ralabaster_dispatch_email',document.getElementById('dispatchEmail').value.trim());alert('E-mailadres opgeslagen.')">E-mailadres opslaan</button></div>`;panel.appendChild(d)},0)};
+})();
