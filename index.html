@@ -46,10 +46,11 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/app-loader.js"></script>
 <script src="assets/custom.js"></script>
 <script src="assets/calculator.js"></script>
+<script src="assets/calculator-capacity-fix.js?v=20260910-1"></script>
 <script src="assets/erp.js"></script>
 <script src="assets/products.js?v=20260910-1"></script>
 <script src="assets/commercial.js?v=20260910-3"></script>
-<script src="assets/dirty-guard.js?v=20260910-1"></script>
+<script src="assets/unsaved-guard.js?v=20260910-1"></script>
 <script>
 document.addEventListener('click',function(e){
   const b=e.target.closest('.erp-nav');
