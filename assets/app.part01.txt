@@ -1,0 +1,129 @@
+
+const CFG=window.RALAB_CONFIG||{};
+const EMPLOYEES=CFG.employees||['Ralph','Peter','Kaan','Lance','Shaffi'];
+const KEY='ralabaster_planner_v1';
+const ONLINE_KEY='ralabaster_online_config_v1';
+let state=loadState();
+let supabaseClient=null, cloudUser=null, cloudSyncTimer=null, cloudLoading=false, cloudStatus='offline', cloudRefreshTimer=null;
+const WORKSPACE_ID=CFG.online?.workspaceId||'ralabaster';
+if(!Array.isArray(state.deletedTasks))state.deletedTasks=[];
+if(!Array.isArray(state.history))state.history=[];
+state.version=Math.max(Number(state.version)||1,11);
+state.tasks.forEach(t=>{if(!Array.isArray(t.planSegments))t.planSegments=[];if(isExternalTask(t)&&!t.externalLeadDays)t.externalLeadDays=CFG.rules?.externalLeadDays||14;if(isDryTask(t)&&!t.estimate)t.estimate=CFG.rules?.dryRoomMinutes||540});
+let currentView='today';
+let selectedDate=isoDate(new Date());
+let weekAnchor=isoDate(mondayOf(new Date()));
+
+function defaultState(){
+ const orderId='o_demo';
+ const taskDefs=[
+  ['Stenen klaarleggen','Alabaster klaarzetten',30],
+  ['Ruw steen boren','Ruw materiaal boren',400],
+  ['Verlijmen alu dop','Verlijmen',120],
+  ['Drogen','Droogruimte',540],
+  ['Instellen (Ralph)','Mori',30],
+  ['Draaien (Mori)','Mori SL25',720],
+  ['Verlijmen dop (klant)','Verlijmen',400],
+  ['Nabewerking Teach-In (RALAB)','Teach-in Draaibank (RALAB)',320],
+  ['Polijsten','Polijsten',160],
+  ['Inpakken','Inpakken',96]
+ ];
+ return {version:11,deletedTasks:[],orders:[{id:orderId,orderNo:'DEMO-001',product:'MODULAR - Shelby',qty:80,deadline:addDays(isoDate(new Date()),10),created:isoDate(new Date()),sourceImage:null,active:true}],tasks:taskDefs.map((x,i)=>({id:'t_demo_'+i,orderId,seq:i+1,name:x[0],machine:x[1],estimate:x[2],dependsPrev:i>0,employee:null,date:null,start:'',status:'open',actual:0,doneQty:0,note:''})),history:[]};
+}
+function loadState(){try{const x=JSON.parse(localStorage.getItem(KEY));if(!x||!x.version)return defaultState();x.orders=(x.orders||[]).map(o=>({...o,deadline:o.deadline||''}));x.version=Math.max(Number(x.version)||1,11);return x}catch(e){return defaultState()}}
+function save(){
+ localStorage.setItem(KEY,JSON.stringify(state));
+ scheduleCloudSave();
+}
+function onlineConfig(){try{const saved=JSON.parse(localStorage.getItem(ONLINE_KEY)||'{}');return {url:saved.url||CFG.online?.supabaseUrl||'',anonKey:saved.anonKey||CFG.online?.supabasePublishableKey||'',email:saved.email||''}}catch(e){return {url:CFG.online?.supabaseUrl||'',anonKey:CFG.online?.supabasePublishableKey||'',email:''}}}
+function saveOnlineConfig(c){localStorage.setItem(ONLINE_KEY,JSON.stringify(c))}
+function scheduleCloudSave(){if(cloudLoading||!supabaseClient||!cloudUser)return;clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(saveCloudState,500)}
+async function saveCloudState(){
+ if(!supabaseClient||!cloudUser||cloudLoading)return;
+ cloudStatus='syncing';renderOnlineBadge();
+ const {error}=await supabaseClient.from('planner_shared_state').upsert({workspace_id:WORKSPACE_ID,data:state,updated_at:new Date().toISOString()},{onConflict:'workspace_id'});
+ cloudStatus=error?'error':'online';renderOnlineBadge();if(error)console.error(error)
+}
+async function initSupabase(){
+ const c=onlineConfig();if(!c.url||!c.anonKey||!window.supabase){cloudStatus='offline';renderOnlineBadge();return}
+ try{
+  supabaseClient=window.supabase.createClient(c.url,c.anonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  const {data}=await supabaseClient.auth.getSession();cloudUser=data?.session?.user||null;
+  if(cloudUser){await loadCloudState();startCloudRefresh()}else{cloudStatus='login';renderOnlineBadge()}
+  supabaseClient.auth.onAuthStateChange(async(_event,session)=>{cloudUser=session?.user||null;if(cloudUser){await loadCloudState();startCloudRefresh()}else{stopCloudRefresh();cloudStatus='login';renderOnlineBadge();renderSettings()}})
+ }catch(e){console.error(e);cloudStatus='error';renderOnlineBadge()}
+}
+function startCloudRefresh(){stopCloudRefresh();cloudRefreshTimer=setInterval(()=>{if(cloudUser&&!cloudLoading)loadCloudState(true)},15000)}
+function stopCloudRefresh(){if(cloudRefreshTimer){clearInterval(cloudRefreshTimer);cloudRefreshTimer=null}}
+async function loadCloudState(silent=false){
+ if(!supabaseClient||!cloudUser)return;
+ cloudLoading=true;if(!silent){cloudStatus='syncing';renderOnlineBadge()}
+ const {data,error}=await supabaseClient.from('planner_shared_state').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).maybeSingle();
+ if(error){console.error(error);cloudStatus='error';cloudLoading=false;renderOnlineBadge();return}
+ if(data?.data?.orders&&data?.data?.tasks){state=data.data;localStorage.setItem(KEY,JSON.stringify(state))}
+ else{const {error:upErr}=await supabaseClient.from('planner_shared_state').upsert({workspace_id:WORKSPACE_ID,data:state,updated_at:new Date().toISOString()},{onConflict:'workspace_id'});if(upErr){console.error(upErr);cloudStatus='error';cloudLoading=false;renderOnlineBadge();return}}
+ cloudLoading=false;cloudStatus='online';render();renderOnlineBadge()
+}
+function renderOnlineBadge(){let el=document.getElementById('onlineBadge');if(!el){el=document.createElement('span');el.id='onlineBadge';el.style.cssText='margin-left:auto;font-size:12px;padding:4px 8px;border-radius:999px;background:#28423d;color:#fff';document.querySelector('header')?.appendChild(el)}const m={offline:'Offline opslag',login:'Supabase: inloggen',syncing:'Supabase: synchroniseren…',online:'Supabase: online',error:'Supabase: fout'};el.textContent=m[cloudStatus]||cloudStatus}
+
+function isoDate(d){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
+function parseDate(s){const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)}
+function addDays(s,n){const d=parseDate(s);d.setDate(d.getDate()+n);return isoDate(d)}
+function mondayOf(d){const x=new Date(d);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);x.setHours(12,0,0,0);return x}
+function fmtDate(s){return parseDate(s).toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+function fmtShort(s){return parseDate(s).toLocaleDateString('nl-NL',{weekday:'short',day:'numeric',month:'numeric'})}
+function fmtMin(m){m=Number(m)||0;return Math.floor(m/60)+'u '+String(m%60).padStart(2,'0')+'m'}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function order(id){return state.orders.find(o=>o.id===id)}
+function orderTasks(orderId){return state.tasks.filter(t=>t.orderId===orderId).sort((a,b)=>a.seq-b.seq)}
+function prevTask(t){return state.tasks.find(x=>x.orderId===t.orderId&&x.seq===t.seq-1)}
+function nowLocalDT(){const d=new Date(),z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,16)}
+function isTaskComplete(t){return t?.status==='done'||(isDryTask(t)&&t.waitEndAt&&t.waitEndAt<=nowLocalDT())}
+function isBlocked(t){if(!t.dependsPrev||t.seq===1||isTaskComplete(t)) return false;const p=prevTask(t);return !!p && !isTaskComplete(p)}
+function isExternalTask(t){return t?.type==='external'||/\bextern(?:e|al)?\b/i.test((t?.name||'')+' '+(t?.machine||''))}
+function isDryTask(t){return t?.type==='wait'||/droogruimte/i.test((t?.name||'')+' '+(t?.machine||''))}
+function isWaitTask(t){return isDryTask(t)}
+function displayStatus(t){if(isTaskComplete(t))return'done';if(t.status==='external')return'external';if(t.status==='partial')return'partial';if(t.status==='in_progress')return'in_progress';if(isBlocked(t))return'blocked';return hasPlanning(t)?'planned':'open'}
+function statusLabel(t){const s=displayStatus(t);return {done:'✓ Gereed',external:'↗ Bij externe partij',partial:'◐ Deels gereed',in_progress:'▶ Bezig',blocked:'🔒 Geblokkeerd',planned:'○ Gepland',open:'○ Niet gepland'}[s]}
+function endTime(start,mins){if(!start)return'';let [h,m]=start.split(':').map(Number);let x=h*60+m+(Number(mins)||0);return String(Math.floor(x/60)%24).padStart(2,'0')+':'+String(x%60).padStart(2,'0')}
+function dtString(date,time='00:00'){return date+'T'+time}
+function dtDate(x){return (x||'').slice(0,10)}
+function dtTime(x){return (x||'').slice(11,16)||'00:00'}
+function addMinutesDT(x,mins){const d=new Date(x);d.setMinutes(d.getMinutes()+(Number(mins)||0));const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,16)}
+function taskSegments(t){if(Array.isArray(t.planSegments)&&t.planSegments.length)return t.planSegments;return t.date&&t.employee?[{date:t.date,employee:t.employee,start:t.start||'',minutes:Number(t.estimate)||0}]:[]}
+function hasPlanning(t){if(isDryTask(t))return !!t.waitStartAt;if(isExternalTask(t))return !!(t.date||t.externalSentDate);return taskSegments(t).length>0}
+function firstSegment(t){return taskSegments(t).slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.start||'').localeCompare(b.start||''))[0]||null}
+function taskCard(t,compact=false,seg=null){
+ const o=order(t.orderId);const s=displayStatus(t),u=orderUrgency(o);const x=seg||firstSegment(t);const mins=x?Number(x.minutes)||0:Number(t.estimate)||0;const total=Number(t.estimate)||0;
+ let special='';
+ if(isDryTask(t)&&t.waitStartAt)special=`<div class="deadline">Droogtijd 24/7 · ${fmtShort(dtDate(t.waitStartAt))} ${dtTime(t.waitStartAt)} → ${fmtShort(dtDate(t.waitEndAt))} ${dtTime(t.waitEndAt)}</div>`;
+ else if(isExternalTask(t))special=`<div class="deadline">Extern · ${expectedExternalReturn(t)?'verwacht retour '+fmtShort(expectedExternalReturn(t)):'standaard '+(CFG.rules?.externalLeadDays||14)+' dagen'}</div>`;
+ const canComplete=!isDryTask(t)&&!isExternalTask(t)&&!isTaskComplete(t);
+ const completeBtn=canComplete?`<button class="btn small task-complete-btn" onclick="event.stopPropagation();openQuickComplete('${t.id}')">✓ Afronden</button>`:'';
+ return `<div class="task urg-${u.level}" draggable="true" data-task="${t.id}" data-status="${s}" onclick="openTask('${t.id}')" ondragstart="dragStart(event,'${t.id}')">
+<div class="top">${esc(o?.orderNo||'')} – ${esc(o?.product||'')}</div><div class="op">${esc(t.name)} · ${o?.qty||0} st.</div><div class="machine"><b>Machine:</b> ${esc(t.machine||'-')}</div><div class="meta">${isDryTask(t)?'Geen personeel · '+fmtMin(total):(x?.start?esc(x.start)+(mins?'–'+endTime(x.start,mins):'')+' · ':'')+fmtMin(mins)+(x&&mins!==total?' van '+fmtMin(total):'')+(x?.employee?' · '+esc(x.employee):'')}</div>${special}${o?.deadline?`<div class="deadline">Deadline: ${fmtShort(o.deadline)} · ${u.label}</div>`:''}<div class="task-actions"><span class="badge ${s}">${statusLabel(t)}</span>${completeBtn}</div></div>`
+}
+
+// Werkweek rAlabaster. Ma-do 08:15-16:30 voor iedereen; vrijdag alleen Ralph 08:15-15:00.
+// Zaterdag 08:00-12:00 is optioneel overwerk en wordt NIET nodig verondersteld voor de normale haalbaarheidsstatus.
+function durationBetween(start,end){return Math.max(0,timeToMin(end)-timeToMin(start))}
+const NORMAL_DAY_MIN=durationBetween(CFG.schedule?.monThu?.start||'08:15',CFG.schedule?.monThu?.end||'16:30');
+const FRIDAY_RALPH_MIN=durationBetween(CFG.schedule?.friday?.Ralph?.start||'08:15',CFG.schedule?.friday?.Ralph?.end||'15:00');
+const SATURDAY_OT_MIN=durationBetween(CFG.schedule?.saturdayOvertime?.start||'08:00',CFG.schedule?.saturdayOvertime?.end||'12:00');
+function employeeCapacity(date,emp,includeSaturday=false){const dow=parseDate(date).getDay();if(dow>=1&&dow<=4)return NORMAL_DAY_MIN;if(dow===5)return emp==='Ralph'?FRIDAY_RALPH_MIN:0;if(dow===6)return includeSaturday?SATURDAY_OT_MIN:0;return 0}
+function workWindow(date,emp){const dow=parseDate(date).getDay();if(dow>=1&&dow<=4)return `${CFG.schedule?.monThu?.start||'08:15'}–${CFG.schedule?.monThu?.end||'16:30'}`;if(dow===5&&emp==='Ralph')return `${CFG.schedule?.friday?.Ralph?.start||'08:15'}–${CFG.schedule?.friday?.Ralph?.end||'15:00'}`;if(dow===6)return `${CFG.schedule?.saturdayOvertime?.start||'08:00'}–${CFG.schedule?.saturdayOvertime?.end||'12:00'} (overwerk)`;return 'Niet aanwezig'}
+function nextRegularDateForEmployee(date,emp){let d=addDays(date,1),guard=0;while(guard++<30){if(employeeCapacity(d,emp||'Ralph',false)>0)return d;d=addDays(d,1)}return d}
+function expectedExternalReturn(t){const sent=t.externalSentDate||t.date||'';const lead=Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14);return t.expectedReturnDate||(sent?addDays(sent,lead):'')}
+function externalCount(){return state.tasks.filter(t=>isExternalTask(t)&&t.status==='external').length}
+function isRegularWorkday(s){const d=parseDate(s).getDay();return d>=1&&d<=5}
+function isPlanningDay(s){const d=parseDate(s).getDay();return d!==0}
+function workdaysBetween(a,b){if(!a||!b)return 999;let d=parseDate(a),end=parseDate(b),n=0,step=d<=end?1:-1;while((step>0&&d<=end)||(step<0&&d>=end)){if(d.getDay()>=1&&d.getDay()<=5)n+=step;d.setDate(d.getDate()+step)}return n}
+function remainingMinutes(orderId){return orderTasks(orderId).filter(t=>t.status!=='done'&&!isExternalTask(t)&&!isDryTask(t)).reduce((a,t)=>a+(Number(t.estimate)||0),0)}
+function unplannedMinutes(orderId){return orderTasks(orderId).filter(t=>t.status!=='done'&&!isExternalTask(t)&&!isDryTask(t)&&!hasPlanning(t)).reduce((a,t)=>a+(Number(t.estimate)||0),0)}
+function employeePlannedMinutes(date,emp,excludeOrderId='',excludeTaskId=''){let total=0;for(const t of state.tasks){if(t.status==='done'||isExternalTask(t)||isDryTask(t)||(excludeOrderId&&t.orderId===excludeOrderId)||(excludeTaskId&&t.id===excludeTaskId))continue;for(const seg of taskSegments(t))if(seg.date===date&&seg.employee===emp)total+=Number(seg.minutes)||0}return total}
+function plannedMinutesOn(date){return EMPLOYEES.reduce((a,e)=>a+employeePlannedMinutes(date,e),0)}
+function employeeFreeMinutes(date,emp,includeSaturday=false,excludeOrderId='',excludeTaskId=''){return Math.max(0,employeeCapacity(date,emp,includeSaturday)-employeePlannedMinutes(date,emp,excludeOrderId,excludeTaskId))}
+function teamCapacityOn(date,includeSaturday=false){return EMPLOYEES.reduce((a,e)=>a+employeeCapacity(date,e,includeSaturday),0)}
+function teamFreeMinutesUntil(deadline,includeSaturday=false,excludeOrderId=''){if(!deadline)return 999999;let d=isoDate(new Date()),total=0,guard=0;while(d<=deadline&&guard++<120){total+=EMPLOYEES.reduce((a,e)=>a+employeeFreeMinutes(d,e,includeSaturday,excludeOrderId),0);d=addDays(d,1)}return total}
+function lastPlannedDate(orderId){const ds=orderTasks(orderId).filter(t=>t.status!=='done'&&t.date).map(t=>t.date).sort();return ds.at(-1)||''}
+function nextCapacity
