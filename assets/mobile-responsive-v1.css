@@ -1,0 +1,112 @@
+/* rAlabaster responsive/touch layer v1 — presentation only, no planning logic */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{min-width:0;overflow-x:hidden}
+img{max-width:100%}
+
+/* Tablets: give forms and toolbars more room without changing desktop layout. */
+@media (max-width:1180px){
+  header{padding-left:12px;padding-right:12px;gap:10px}
+  header .brand{flex:0 0 auto}
+  header nav{flex:1 1 auto;min-width:0;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:6px 0}
+  header nav::-webkit-scrollbar{display:none}
+  .navbtn{flex:0 0 auto;white-space:nowrap;min-height:42px}
+  main{padding:14px}
+  .grid3{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ordercards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .panel{max-width:100%}
+  .panel>table,.taskedit{min-width:760px}
+  .panel{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .weeks{overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
+
+/* Phone / small tablet portrait */
+@media (max-width:760px){
+  :root{--mobile-gap:10px}
+  body{font-size:14px;padding-bottom:env(safe-area-inset-bottom)}
+  header{height:auto;min-height:58px;align-items:center;padding:6px max(8px,env(safe-area-inset-left)) 6px max(8px,env(safe-area-inset-right));gap:8px}
+  .brand-logo{height:34px!important;max-width:108px;object-fit:contain}
+  header nav{order:2;min-width:0;overflow-x:auto;scroll-snap-type:x proximity;padding:2px 0}
+  .navbtn{min-height:44px;padding:9px 12px;font-size:13px;scroll-snap-align:start}
+  #onlineBadge{flex:0 0 auto;max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px!important;padding:4px 6px!important}
+
+  main{padding:10px max(8px,env(safe-area-inset-right)) 16px max(8px,env(safe-area-inset-left));width:100%;overflow:hidden}
+  .toolbar{gap:8px;align-items:stretch}
+  .toolbar h2{width:100%;font-size:20px;margin:0 0 2px}
+  .toolbar .spacer{display:none}
+  .toolbar>.btn,.toolbar>.input,.toolbar>select{flex:1 1 auto;min-width:130px}
+
+  .btn{min-height:44px;padding:10px 12px;touch-action:manipulation}
+  .btn.small{min-height:38px;padding:8px 10px;font-size:12px}
+  .input,select,textarea{font-size:16px;min-height:44px;max-width:100%}
+  textarea{min-height:90px}
+  input[type="checkbox"],input[type="radio"]{width:20px;height:20px}
+
+  .grid2,.grid3{grid-template-columns:1fr!important;gap:10px}
+  .field{min-width:0}
+  .field .input,.field select,.field textarea{width:100%}
+  .summarybar{gap:6px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+  .pill{flex:0 0 auto}
+
+  /* Today planning becomes a horizontal swipe board instead of a very long single column. */
+  .dayboard{display:grid!important;grid-template-columns:none!important;grid-auto-flow:column;grid-auto-columns:minmax(270px,88vw);gap:8px;overflow-x:auto;overflow-y:visible;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;padding-bottom:8px}
+  .dayboard>.column{scroll-snap-align:start;min-height:300px}
+  .column h3{position:sticky!important;top:58px;z-index:5}
+  .colbody{min-height:200px;padding:7px}
+  .task{padding:10px;margin-bottom:8px;touch-action:pan-y}
+  .task .top{font-size:13px}.task .op{font-size:14px}.task .meta,.task .machine{font-size:12px}
+  .task-actions{align-items:center;gap:6px}
+  .task-complete-btn{min-height:36px;font-size:12px;padding:7px 9px}
+
+  /* 3-week planning remains a wide planning grid and is deliberately swipeable. */
+  .weeks{margin-left:-2px;margin-right:-2px;overflow-x:auto;overscroll-behavior-x:contain}
+  .weekgrid{min-width:980px}
+
+  /* Orders as cards are naturally touch friendly. */
+  .ordercards{grid-template-columns:1fr;gap:8px}
+  .ordercard{padding:12px}
+  .ordercard .btn{margin-top:4px}
+
+  /* Modal becomes an app-like full screen sheet. */
+  .modalback{padding:0;align-items:stretch;background:rgba(0,0,0,.35)}
+  .modal{width:100vw;max-width:none;height:100dvh;max-height:100dvh;border-radius:0;display:flex;flex-direction:column;overflow:hidden}
+  .modalhead{flex:0 0 auto;padding:12px 14px;padding-top:max(12px,env(safe-area-inset-top))}
+  .modalhead h3{font-size:17px;line-height:1.25}
+  .modalbody{flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px}
+  .modalfoot{flex:0 0 auto;padding:10px max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));display:grid;grid-template-columns:1fr;gap:8px}
+  .modalfoot .btn{width:100%}
+
+  /* Tables: horizontal scroll instead of squeezing unreadably. */
+  .panel{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .panel>table,.taskedit{min-width:720px}
+  #view-calculation .panel>table{min-width:860px}
+  #view-external .panel>table{min-width:700px}
+  #view-products .panel>table,#view-customers .panel>table{min-width:700px}
+  .panel th{top:58px}
+
+  /* Calculator/order edit action bars stay reachable. */
+  #view-calculation>div[style*="display:flex"],#view-calculation .calc-order-actions{position:sticky;bottom:0;z-index:8;background:rgba(245,246,248,.96);padding:8px 0 max(8px,env(safe-area-inset-bottom));backdrop-filter:blur(8px)}
+  #view-calculation>div[style*="display:flex"] .btn{flex:1 1 46%}
+
+  .notice{padding:10px;font-size:13px}
+  .prioritybox summary{min-height:44px;align-items:center}
+}
+
+/* Narrow phones */
+@media (max-width:430px){
+  header{display:grid;grid-template-columns:auto minmax(0,1fr) auto}
+  header nav{grid-column:1/-1;width:100%}
+  .brand-logo{height:31px!important;max-width:94px}
+  .navbtn{font-size:12px;padding:8px 10px}
+  main{padding-top:8px}
+  .dayboard{grid-auto-columns:92vw}
+  .toolbar>.btn,.toolbar>.input,.toolbar>select{width:100%;flex-basis:100%}
+  .ordercard{border-radius:8px}
+}
+
+/* Touch devices: don't rely on hover as the only feedback. */
+@media (hover:none){
+  .btn:hover,.navbtn:hover,.panel tr:hover td{background:initial}
+  .btn:active{transform:translateY(1px);background:#eef1f2}
+  .btn.primary:active{filter:brightness(.92)}
+  .navbtn:active{background:#28423d;color:#fff}
+}
