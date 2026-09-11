@@ -1,12 +1,12 @@
 (async()=>{
   try{
     const parts=['app.part01.txt','app.part02.txt','app.part03.txt','app.part04.txt','app.part05.txt','app.part06.txt','app.part07.txt'];
-    const texts=[];
-    for(const p of parts){
-      const r=await fetch('assets/'+p,{cache:'no-store'});
+    // Load all app chunks in parallel. The browser may cache them between visits.
+    const texts=await Promise.all(parts.map(async p=>{
+      const r=await fetch('assets/'+p,{cache:'default'});
       if(!r.ok) throw new Error(p+' kon niet worden geladen ('+r.status+')');
-      texts.push(await r.text());
-    }
+      return r.text();
+    }));
     const s=document.createElement('script');
     s.textContent=texts.join('');
     document.body.appendChild(s);
