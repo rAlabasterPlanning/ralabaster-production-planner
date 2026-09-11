@@ -53,7 +53,7 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/calculator-pricing.js?v=20260910-3"></script>
 <script src="assets/calculator-quote-fix.js?v=20260910-3"></script>
 <script src="assets/calculator-concepts.js?v=20260910-1"></script>
-<script src="assets/erp.js"></script>
+<script src="assets/erp.js?v=20260911-2"></script>
 <script src="assets/quote-meta.js?v=20260910-1"></script>
 <script src="assets/order-actions.js?v=20260910-3"></script>
 <script src="assets/products.js?v=20260910-1"></script>
@@ -73,17 +73,12 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/bulk-excel-import-v1.js?v=20260911-3"></script>
 <script src="assets/bulk-excel-gildemeister-v1.js?v=20260911-2"></script>
 <script src="assets/planning-product-batching-v1.js?v=20260911-1"></script>
-<script src="assets/performance-v1.js?v=20260911-2"></script>
+<script src="assets/performance-v1.js?v=20260911-3"></script>
 <script>
 document.addEventListener('click',function(e){
   const b=e.target.closest('.erp-nav');
-  if(!b)return;
-  const v=b.dataset.view;
-  requestAnimationFrame(()=>{
-    if(v==='products'&&window.RALAB_MASTER) window.RALAB_MASTER.renderProducts();
-    if(v==='customers'&&window.RALAB_COMMERCIAL) window.RALAB_COMMERCIAL.renderCustomers();
-    if(v==='dashboard'&&window.RALAB_COMMERCIAL) window.RALAB_COMMERCIAL.renderDashboard();
-  });
+  if(!b||b.dataset.view!=='dashboard')return;
+  requestAnimationFrame(()=>{if(window.RALAB_COMMERCIAL)window.RALAB_COMMERCIAL.renderDashboard()});
 },true);
 </script>
 </body>
