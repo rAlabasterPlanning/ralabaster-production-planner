@@ -73,10 +73,8 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/bulk-excel-import-v1.js?v=20260911-3"></script>
 <script src="assets/bulk-excel-gildemeister-v1.js?v=20260911-2"></script>
 <script src="assets/planning-product-batching-v1.js?v=20260911-1"></script>
-<script src="assets/performance-v1.js?v=20260911-3"></script>
+<script src="assets/performance-v1.js?v=20260911-4"></script>
 <script>
-// ERP-tabbladen worden hier één keer afgehandeld in de capture-fase.
-// Daardoor draait de zware oude core-render niet eerst óók nog op dezelfde klik.
 document.addEventListener('click',function(e){
   const b=e.target.closest('.erp-nav');
   if(!b)return;
