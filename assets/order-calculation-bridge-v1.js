@@ -1,6 +1,6 @@
 // rAlabaster: edit an existing production order inside Calculatie without creating a duplicate order.
 (()=>{
-const VERSION='20260912-6';
+const VERSION='20260912-7';
 let editOrderId='';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const S=()=>{try{return state}catch(_){return null}};
@@ -86,6 +86,7 @@ function setWaitingMaterial(on){
  const o=orderById(editOrderId),s=S();if(!o||!s)return false;
  o.waitingMaterial=!!on;
  o.materialStatus=on?'waiting':'available';
+ o.planningCheckedAt='';
  o.materialStatusChangedAt=new Date().toISOString();
  if(on){
    clearMovableForOrder((s.tasks||[]).filter(t=>t.orderId===o.id));
@@ -95,7 +96,7 @@ function setWaitingMaterial(on){
  renderEditor();
  return true;
 }
-function saveOrderCalc(openNext=false){const s=S(),o=orderById(editOrderId);if(!s||!o)return false;const qty=Math.max(1,Number(document.getElementById('ocQty')?.value)||1),customerId=document.getElementById('ocCustomer')?.value||'',customer=s.customers?.find(c=>c.id===customerId),ready=document.getElementById('ocReady')?.value||'';o.customerId=customerId;o.customerName=customer?.name||o.customerName||'';o.project=document.getElementById('ocProject')?.value.trim()||'';o.product=document.getElementById('ocProduct')?.value.trim()||o.product;o.qty=qty;o.saleUnit=Math.max(0,Number(document.getElementById('ocSale')?.value)||0);o.materialCostUnit=Math.max(0,Number(document.getElementById('ocMaterial')?.value)||0);if(ready){o.quotedEstimatedReadyDate=ready;o.communicatedDeadline=ready;o.maximumReadyDate=addDays(ready,14);o.internalTargetDate=addDays(o.maximumReadyDate,-3);o.deadline=o.maximumReadyDate;o.bufferModelVersion=2}
+function saveOrderCalc(openNext=false){const s=S(),o=orderById(editOrderId);if(!s||!o)return false;o.planningCheckedAt='';const qty=Math.max(1,Number(document.getElementById('ocQty')?.value)||1),customerId=document.getElementById('ocCustomer')?.value||'',customer=s.customers?.find(c=>c.id===customerId),ready=document.getElementById('ocReady')?.value||'';o.customerId=customerId;o.customerName=customer?.name||o.customerName||'';o.project=document.getElementById('ocProject')?.value.trim()||'';o.product=document.getElementById('ocProduct')?.value.trim()||o.product;o.qty=qty;o.saleUnit=Math.max(0,Number(document.getElementById('ocSale')?.value)||0);o.materialCostUnit=Math.max(0,Number(document.getElementById('ocMaterial')?.value)||0);if(ready){o.quotedEstimatedReadyDate=ready;o.communicatedDeadline=ready;o.maximumReadyDate=addDays(ready,14);o.internalTargetDate=addDays(o.maximumReadyDate,-3);o.deadline=o.maximumReadyDate;o.bufferModelVersion=2}
  const rows=parseRows(o);const rowIds=new Set(rows.map(t=>t.id));const keep=(s.tasks||[]).filter(t=>t.orderId!==o.id||rowIds.has(t.id));const map=new Map(rows.map(t=>[t.id,t]));s.tasks=keep.map(t=>map.has(t.id)?map.get(t.id):t);for(const t of rows)if(!s.tasks.some(x=>x.id===t.id))s.tasks.push(t);for(const t of rows){delete t.__minutes;delete t.__mode}
  const rowsForCalc=parseRows(o);recalcCost(o,rowsForCalc);updateTemplate(o,rowsForCalc);for(const t of rowsForCalc){const real=s.tasks.find(x=>x.id===t.id);if(real){real.calcMode=t.__mode;real.rate=t.rate}}
  clearMovableForOrder(s.tasks.filter(t=>t.orderId===o.id));
