@@ -86,15 +86,15 @@ function deleteOrder(id){
  return true;
 }
 function confirmDeleteOrder(id){
- const s=S(),o=findOrder(id);if(!s||!o)return false;
+ const s=S(),o=(s?.orders||[]).find(x=>x.id===id);if(!s||!o){alert('Order kon niet worden gevonden.');return false;}
  o.deleted=true;o.deletedAt=new Date().toISOString();o.active=false;o.status='deleted';o.planningCheckedAt='';
  for(const t of (s.tasks||[]).filter(t=>t.orderId===id)){
    t.deleted=true;t.deletedAt=o.deletedAt;t.date=null;t.start='';t.planSegments=[];t.employee=null;
  }
- persist();
  try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
  const root=document.getElementById('modalRoot');if(root)root.innerHTML='';
  renderOrders();
+ persist();
  return true;
 }
 function orderConfirmation(id){const s=S(),o=findOrder(id),c=s.customers.find(x=>x.id===o?.customerId);if(!o)return;const proposed=o.communicatedDeadline||o.deadline||((o.internalExpectedDate)?(()=>{const d=new Date(o.internalExpectedDate+'T12:00');d.setDate(d.getDate()+14);return d.toISOString().slice(0,10)})():'');const date=prompt('Gecommuniceerde gereeddatum (harde deadline voor klant)',proposed);if(!date)return;o.communicatedDeadline=date;o.deadline=date;const body=`Dear ${c?.contact||'Customer'},\n\nThank you for your order. Please find our order confirmation below.\n\nOrder: ${o.orderNo}\nProduct: ${o.product}\nQuantity: ${o.qty}\nPrice per unit: ${euro(o.saleUnit)}\nTotal: ${euro(o.totalSale)}\nEstimated ready date: ${date}\n\nKind regards,\nrAlabaster`;s.orderConfirmations.push({id:'oc_'+Date.now(),orderId:o.id,created:iso(),to:'info@ralabaster.com',customerEmail:c?.email||'',communicatedDate:date,body});persist();const w=window.open('','_blank');w.document.write(`<html><head><title>Order Confirmation ${esc(o.orderNo)}</title><style>body{font-family:Arial;max-width:800px;margin:40px auto;line-height:1.5}h1{font-size:24px}table{width:100%;border-collapse:collapse}td{padding:8px;border-bottom:1px solid #ddd}.right{text-align:right}</style></head><body><h1>ORDER CONFIRMATION</h1><p><b>rAlabaster</b></p><p>Customer: ${esc(c?.name||'')}<br>Attn: ${esc(c?.contact||'')}<br>Order: ${esc(o.orderNo)}</p><table><tr><td>${esc(o.product)}</td><td>${o.qty} pcs</td><td class="right">${euro(o.saleUnit)}</td><td class="right">${euro(o.totalSale)}</td></tr></table><p><b>Estimated ready date: ${esc(date)}</b></p><p>Thank you for your order.</p><p>Kind regards,<br>rAlabaster</p><script>setTimeout(()=>window.print(),300)<\/script></body></html>`);w.document.close();setTimeout(()=>{location.href=`mailto:info@ralabaster.com?subject=${encodeURIComponent('Order Confirmation – rAlabaster – '+o.orderNo)}&body=${encodeURIComponent(body+'\n\nThe PDF can be attached after saving/printing the opened confirmation.')}`},500)}
