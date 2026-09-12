@@ -1,7 +1,7 @@
 // rAlabaster strict chain planning + manual release gate.
 // Plan the full chain on expected finish times, but do not allow actual execution before the previous step is released.
 (()=>{
-  const VERSION='20260912-1';
+  const VERSION='20260912-2';
   const S=()=>{try{return state}catch(_){return null}};
   const pad=n=>String(n).padStart(2,'0');
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -10,8 +10,6 @@
   const isWait=t=>t?.type==='wait'||/droogruimte/i.test((t?.name||'')+' '+(t?.machine||''));
   const isExternal=t=>t?.type==='external'||/\bextern(?:e|al)?\b/i.test((t?.name||'')+' '+(t?.machine||''));
 
-  // Fractional minutes previously produced times such as 09:22.5. Round upward to the next full minute so
-  // a dependent task can never overlap its predecessor and all date-time strings remain valid.
   function safeEndTime(start,mins){
     if(!start)return'';
     const [h,m]=(start||'00:00').split(':').map(Number);
@@ -30,20 +28,17 @@
   if(typeof window.endTime==='function')window.endTime=safeEndTime;
   if(typeof window.addMinutesDT==='function')window.addMinutesDT=safeAddMinutesDT;
 
-  // Make waiting steps a real planning link with a valid expected start + finish cursor.
   window.scheduleDryTask=function(t,startAt){
     const start=startAt&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(startAt)?startAt.slice(0,16):`${new Date().toISOString().slice(0,10)}T00:00`;
     t.employee=null;t.planSegments=[];t.waitStartAt=start;
     t.waitEndAt=safeAddMinutesDT(start,Number(t.estimate)||540);
-    t.date=start.slice(0,10);t.start=start.slice(11,16);
-    t.plannedReleaseAt=t.waitEndAt;
+    t.date=start.slice(0,10);t.start=start.slice(11,16);t.plannedReleaseAt=t.waitEndAt;
     return t.waitEndAt;
   };
 
   function previousReleased(t){
     if(!t||!t.dependsPrev||Number(t.seq)<=1)return true;
     const p=prev(t);if(!p)return true;
-    // Planning may use expected finish, execution may only use an explicit release/completion.
     return done(p)||!!p.releasedAt;
   }
   function blockReason(t){
@@ -51,18 +46,26 @@
     const p=prev(t);return `Vorige stap “${p?.name||'onbekend'}” is nog niet vrijgegeven.`;
   }
 
-  // Hard gate for completion/start-like actions in the planner. No "toch doorgaan" override.
   const baseQuick=window.openQuickComplete;
   if(typeof baseQuick==='function')window.openQuickComplete=function(id){
-    const t=S()?.tasks?.find(x=>x.id===id);const reason=blockReason(t);
+    const t=S()?.tasks?.find(x=>x.id===id),reason=blockReason(t);
     if(reason){alert(reason+'\nDe taak blijft wel in de planning staan, maar mag nog niet worden uitgevoerd.');return false}
     return baseQuick.apply(this,arguments);
   };
   const baseExternal=window.markExternalSent;
   if(typeof baseExternal==='function')window.markExternalSent=function(id){
-    const t=S()?.tasks?.find(x=>x.id===id);const reason=blockReason(t);
+    const t=S()?.tasks?.find(x=>x.id===id),reason=blockReason(t);
     if(reason){alert(reason+'\nExtern versturen is pas toegestaan na vrijgave van de vorige stap.');return false}
     return baseExternal.apply(this,arguments);
+  };
+  const baseSaveTask=window.saveTask;
+  if(typeof baseSaveTask==='function')window.saveTask=function(id){
+    const t=S()?.tasks?.find(x=>x.id===id),newStatus=document.getElementById('mStatus')?.value||'open';
+    if(newStatus!=='open'){
+      const reason=blockReason(t);
+      if(reason){alert(reason+'\nJe kunt de taak wel vooruit plannen, maar niet starten, deels gereed melden of afronden voordat de vorige stap is vrijgegeven.');return false}
+    }
+    return baseSaveTask.apply(this,arguments);
   };
 
   function releaseWait(id){
@@ -71,7 +74,6 @@
     const at=(typeof nowLocalDT==='function'?nowLocalDT():new Date().toISOString().slice(0,16));
     t.status='done';t.releasedAt=at;t.completedAtDT=at;t.completedAt=at.slice(0,10);t.actual=Number(t.estimate)||540;
     try{if(typeof addHistoryEvent==='function')addHistoryEvent('wait_released',t,{releasedAt:at})}catch(_){ }
-    // The planned chain already exists. On real release, move the dependent chain to the actual release moment.
     try{if(typeof dynamicReplanAfterCompletion==='function')dynamicReplanAfterCompletion(t,at)}catch(e){console.warn('Keten herplannen na vrijgave overgeslagen',e)}
     try{save()}catch(e){console.error(e)}
     try{closeModal()}catch(_){ }
@@ -79,7 +81,6 @@
     return true;
   }
 
-  // Clicking a waiting step opens a dedicated manual release dialog.
   const baseOpenTask=window.openTask;
   if(typeof baseOpenTask==='function')window.openTask=function(id){
     const t=S()?.tasks?.find(x=>x.id===id);
