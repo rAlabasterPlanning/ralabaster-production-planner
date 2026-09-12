@@ -1,6 +1,6 @@
 // rAlabaster order-calculation workflow helpers: batch review flow + selectable standard steps.
 (()=>{
-  const VERSION='20260912-3';
+  const VERSION='20260912-4';
   const reviewed=new Set();
   const OPS=[
     ['Technisch uitwerken',0,30,'batch'],['Verpakking bestellen',30,30,'batch'],['Materiaal bestellen',11,30,'batch'],['Alabaster klaarzetten',11,30,'batch'],
@@ -71,6 +71,23 @@
     const extra=selected&&!WORKPLACES.includes(selected)?`<option value="${esc(selected)}" selected>${esc(selected)}</option>`:'';
     return `<option value="">— kies werkplek —</option>${extra}${WORKPLACES.map(n=>`<option value="${esc(n)}" ${n===selected?'selected':''}>${esc(n)}</option>`).join('')}`;
   }
+  function upgradeExistingRows(){
+    const tbody=document.getElementById('ocRows');if(!tbody)return;
+    for(const row of tbody.querySelectorAll('[data-oc-row]')){
+      const nameEl=row.querySelector('[data-oc-name]');
+      if(nameEl && nameEl.tagName!=='SELECT'){
+        const v=nameEl.value||'';const sel=document.createElement('select');
+        sel.className=nameEl.className||'input';sel.setAttribute('data-oc-name','');sel.innerHTML=stepOptions(v);
+        nameEl.replaceWith(sel);
+      }
+      const machineEl=row.querySelector('[data-oc-machine]');
+      if(machineEl && machineEl.tagName!=='SELECT'){
+        const v=machineEl.value||'';const sel=document.createElement('select');
+        sel.className=machineEl.className||'input';sel.setAttribute('data-oc-machine','');sel.innerHTML=machineOptions(v);
+        machineEl.replaceWith(sel);
+      }
+    }
+  }
   function addSelectableRow(){
     const tbody=document.getElementById('ocRows');if(!tbody)return;const id=uid();
     tbody.insertAdjacentHTML('beforeend',`<tr data-oc-row data-task-id="${id}" data-status="open"><td style="white-space:nowrap"><button class="btn small" type="button" data-oc-up title="Omhoog">↑</button> <button class="btn small" type="button" data-oc-down title="Omlaag">↓</button></td><td><select class="input" data-oc-name>${stepOptions()}</select></td><td><select class="input" data-oc-machine>${machineOptions()}</select></td><td><select class="input" data-oc-mode><option value="batch">1× batch</option><option value="unit">per product</option><option value="external">extern</option><option value="wait">wachten 24/7</option></select></td><td><input class="input" data-oc-min type="text" inputmode="text" value="0" placeholder="min / 1,5u / 1d"></td><td><input class="input" data-oc-rate type="number" min="0" step="0.01" value="0"></td><td><input class="input" data-oc-ext type="number" min="0" step="0.01" value="0"></td><td><button class="btn small" type="button" data-oc-delete>Verwijder</button></td></tr>`);
@@ -93,6 +110,11 @@
     const step=e.target.closest('#ocRows [data-oc-name]');if(step){applyStepPreset(step);return}
     const machine=e.target.closest('#ocRows [data-oc-machine]');if(machine)applyMachinePreset(machine);
   },true);
+
+  const observer=new MutationObserver(()=>upgradeExistingRows());
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+  setInterval(upgradeExistingRows,700);
+  upgradeExistingRows();
 
   window.RALAB_ORDER_CALC_WORKFLOW={version:VERSION,reviewed,nextOrder,needsPlanning,audit,ensureFullyPlanned};
 })();
