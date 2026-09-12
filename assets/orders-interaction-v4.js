@@ -1,6 +1,6 @@
 // Orders interaction v4 — direct hit testing for iPad/touch, no render wrapping or DOM mutation.
 (()=>{
-  const VERSION='20260912-7';
+  const VERSION='20260912-8';
   if(window.__ralabOrdersInteractionV4Installed)return;
   window.__ralabOrdersInteractionV4Installed=true;
 
@@ -30,6 +30,9 @@
     if(m)return {type:'confirmation',id:m[1]};
     m=raw.match(/RALAB_ERP\.deleteOrder\(['"]([^'"]+)['"]\)/);
     if(m)return {type:'delete',id:m[1]};
+    if(/RALAB_ORDER_CALC_WORKFLOW\?\.startReview\?\.\(\)/.test(raw)||raw.includes('RALAB_ORDER_CALC_WORKFLOW.startReview'))return {type:'review'};
+    m=raw.match(/RALAB_ERP\.openCustomer\(['"]([^'"]+)['"]\)/);
+    if(m)return {type:'customer',id:m[1]};
     if(raw.includes("RALAB_ERP.show('calculation')")||raw.includes('RALAB_ERP.show("calculation")'))return {type:'calculation'};
     return null;
   }
@@ -53,6 +56,8 @@
         if(typeof fn!=='function')throw new Error('deleteOrder unavailable');
         fn(action.id);return true;
       }
+      if(action.type==='review'){window.RALAB_ORDER_CALC_WORKFLOW?.startReview?.();return true}
+      if(action.type==='customer'){window.RALAB_ERP?.openCustomer?.(action.id);return true}
       if(action.type==='calculation'){go('calculation');return true}
     }catch(err){console.error('Orderactie mislukt',err);alert('Deze orderactie kon niet worden geopend.');}
     return false;
@@ -80,12 +85,19 @@
     }
 
     const orders=document.getElementById('view-orders');
-    if(!orders||orders.classList.contains('hidden'))return;
-    const btn=hit('#view-orders button',x,y);
-    const action=orderAction(btn);
-    if(action){
-      e.preventDefault();e.stopImmediatePropagation();
-      runOrderAction(action);
+    if(orders&&!orders.classList.contains('hidden')){
+      const btn=hit('#view-orders button',x,y);
+      const action=orderAction(btn);
+      if(action){e.preventDefault();e.stopImmediatePropagation();runOrderAction(action)}
+      return;
+    }
+    const customers=document.getElementById('view-customers');
+    if(customers&&!customers.classList.contains('hidden')){
+      const btn=hit('#view-customers button',x,y);
+      const action=orderAction(btn);
+      if(action){e.preventDefault();e.stopImmediatePropagation();runOrderAction(action);return}
+      const row=hit('#view-customers tr[data-customer-id]',x,y);
+      if(row){e.preventDefault();e.stopImmediatePropagation();window.RALAB_ERP?.openCustomer?.(row.dataset.customerId)}
     }
   }
 
