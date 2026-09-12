@@ -183,8 +183,10 @@ function strategicRecommendation(focusId){
    }
    const score=x=>{
      const saved=x.saved.length,other=x.savedOther.length,focus=x.focusImproved?1:0;
-     const penalty=x.kind==='shift'?(x.days*2):x.kind==='peter'?(x.extraMinutes/240):x.kind==='overtime'?(6+x.extraMinutes/180):20;
-     return saved*100+other*25+focus*40-penalty;
+     // Eerst zoveel mogelijk deadlines redden. Bij gelijk resultaat liever geen klantdeadline verschuiven;
+     // daarna zo weinig mogelijk extra uren/dagen gebruiken.
+     const penalty=x.kind==='shift'?(80+x.days*18):x.kind==='peter'?(x.extraMinutes/240):x.kind==='overtime'?(35+x.extraMinutes/180):100;
+     return saved*1000+other*120+focus*200-penalty;
    };
    result.options=result.options.filter(x=>x.saved.length>0||x.focusImproved).sort((a,b)=>score(b)-score(a));
    result.best=result.options[0]||null;
