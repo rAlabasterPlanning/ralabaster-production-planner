@@ -1,6 +1,6 @@
 // rAlabaster order-calculation workflow helpers: batch review flow + selectable standard steps.
 (()=>{
-  const VERSION='20260912-9';
+  const VERSION='20260912-10';
   const reviewed=new Set();
   const OPS=[
     ['Technisch uitwerken',0,30,'batch'],['Verpakking bestellen',30,30,'batch'],['Materiaal bestellen',11,30,'batch'],['Alabaster klaarzetten',11,30,'batch'],
@@ -122,6 +122,30 @@
       adviceHtml='<b>Wat doen:</b> nog geen harde overschrijding, maar weinig buffer. Plan deze order eerder of houd extra capaciteit vrij om rood te voorkomen.';
     }
 
+    let smartHtml='';
+    if((h?.status==='bad'||h?.status==='risk')&&a?.ok){
+      try{
+        const smart=window.RALAB_DEADLINE_PLANNER?.strategicRecommendation?.(o.id),best=smart?.best;
+        if(best){
+          best.focusId=o.id;window.__ralabSmartChoice=best;
+          const saved=(best.saved||[]),other=(best.savedOther||[]);
+          const orderName=id=>{const x=(S()?.orders||[]).find(q=>q.id===id);return x?(x.orderNo||'')+(x.product?' · '+x.product:''):id};
+          const savedNames=saved.slice(0,4).map(orderName).join(', ');
+          let action='';
+          if(best.kind==='shift')action=`Verschuif <b>${esc(best.shiftOrderNo)}${best.shiftProduct?' · '+esc(best.shiftProduct):''}</b> met <b>${best.days} dag(en)</b> naar ${esc(best.newDate)}.`;
+          else if(best.kind==='peter')action=`Zet Peter gericht in voor ca. <b>${fmtHours(best.extraMinutes)}</b> in de herplanning.`;
+          else action=`Gebruik Peter + zaterdag/overwerk; ca. <b>${fmtHours(best.extraMinutes)}</b> valt op zaterdag in de herplanning.`;
+          smartHtml=`<div style="margin-top:12px;padding:12px;border:2px solid #2f7d4a;border-radius:8px;background:#eef8f1">
+            <div style="font-size:16px;font-weight:900">⭐ Beste keuze over alle orders</div>
+            <div style="margin-top:6px">${action}</div>
+            <div style="margin-top:5px">Effect: <b>${saved.length} rode order(s)</b> worden hiermee haalbaar${other.length?' — daarvan '+other.length+' andere order(s) naast deze':''}.</div>
+            ${savedNames?'<div class="muted" style="margin-top:4px">Worden gered: '+esc(savedNames)+(saved.length>4?' + '+(saved.length-4)+' meer':'')+'</div>':''}
+            <div class="muted" style="margin-top:5px">De keuze is berekend over de hele actieve planning: eerst zoveel mogelijk deadlines halen, daarna zo min mogelijk klantdeadlines verschuiven en zo min mogelijk extra capaciteit gebruiken.</div>
+            <button class="btn primary" type="button" data-apply-smart-choice style="margin-top:9px">Beste keuze uitvoeren</button>
+          </div>`;
+        }
+      }catch(err){console.warn('Slimste keuze kon niet worden berekend',err)}
+    }
     let execute='';
     if(h?.status==='bad'){
       let adv=null;try{adv=window.RALAB_DEADLINE_PLANNER?.attentionAdvice?.(o.id)}catch(_){}
@@ -140,7 +164,7 @@
       execute=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,.14)"><div style="font-weight:900;margin-bottom:8px">Beslis</div><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><button class="btn primary" type="button" data-attention-accept="${esc(o.id)}">Planning zo accepteren</button><span style="display:inline-flex;gap:6px;align-items:center"><input class="input" id="attentionShiftDays" type="number" inputmode="numeric" min="1" step="1" value="1" style="width:72px"><span>dagen</span><button class="btn" type="button" data-attention-shift="${esc(o.id)}">Deadline opschuiven</button></span></div></div>`;
     }
     const panel=document.createElement('div');panel.id='ocAttentionPanel';panel.className='panel';panel.style.cssText='margin:12px 0;padding:14px;border:2px solid '+(h?.status==='bad'?'#c73b32':'#d59b2d')+';background:'+(h?.status==='bad'?'#fff0ee':'#fff7df');
-    panel.innerHTML=`<div style="font-size:18px;font-weight:900;margin-bottom:8px">${h?.status==='bad'?'🔴 Aandacht nodig':'🟠 Controleren'}</div><div style="line-height:1.55">${reasons.map(x=>'<div style="margin:4px 0">'+x+'</div>').join('')}<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.12)">${adviceHtml}</div></div>${execute}`;
+    panel.innerHTML=`<div style="font-size:18px;font-weight:900;margin-bottom:8px">${h?.status==='bad'?'🔴 Aandacht nodig':'🟠 Controleren'}</div><div style="line-height:1.55">${reasons.map(x=>'<div style="margin:4px 0">'+x+'</div>').join('')}<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.12)">${adviceHtml}</div></div>${smartHtml}${execute}`;
     const toolbar=editor.querySelector('.toolbar');toolbar?.after(panel);
   }
   function stepOptions(selected=''){
@@ -185,6 +209,7 @@
   document.addEventListener('click',e=>{
     const add=e.target.closest('[data-oc-add]');if(add){e.preventDefault();e.stopImmediatePropagation();addSelectableRow();return}
     const savePlan=e.target.closest('[data-oc-save-plan]');if(savePlan){e.preventDefault();e.stopImmediatePropagation();saveAndNext();return}
+    const smart=e.target.closest('[data-apply-smart-choice]');if(smart){e.preventDefault();e.stopImmediatePropagation();const choice=window.__ralabSmartChoice;if(!choice){alert('Het voorstel is niet meer beschikbaar. Open de order opnieuw om opnieuw te berekenen.');return}const r=window.RALAB_DEADLINE_PLANNER?.applyStrategicRecommendation?.(choice);if(!r?.ok){alert(r?.message||'Kon de beste keuze niet uitvoeren.');return}window.__ralabSmartChoice=null;alert('Beste keuze uitgevoerd en de volledige planning is opnieuw opgeslagen.');setTimeout(()=>window.RALAB_ORDER_CALC?.open?.(choice.focusId),60);return}
     const enforce=e.target.closest('[data-attention-enforce]');if(enforce){e.preventDefault();e.stopImmediatePropagation();const r=window.RALAB_DEADLINE_PLANNER?.applyDeadlineMustBeMet?.(enforce.dataset.attentionEnforce);if(!r?.ok){alert(r?.message||'Deze deadline kan niet automatisch gehaald worden.');return}alert('Planning aangepast en opgeslagen. De gekozen extra capaciteit is nu echt ingepland.');setTimeout(()=>window.RALAB_ORDER_CALC?.open?.(enforce.dataset.attentionEnforce),50);return}
     const accept=e.target.closest('[data-attention-accept]');if(accept){e.preventDefault();e.stopImmediatePropagation();const r=window.RALAB_DEADLINE_PLANNER?.acceptCurrentPlanAndMoveDeadline?.(accept.dataset.attentionAccept);if(!r?.ok){alert(r?.message||'Kon planning niet accepteren.');return}reviewed.add(accept.dataset.attentionAccept);alert('Planning geaccepteerd. Nieuwe deadline: '+r.newDate+'.');const n=nextOrder(accept.dataset.attentionAccept);if(n)setTimeout(()=>window.RALAB_ORDER_CALC?.open?.(n.id),50);else if(typeof window.switchView==='function')window.switchView('orders');return}
     const shift=e.target.closest('[data-attention-shift]');if(shift){e.preventDefault();e.stopImmediatePropagation();const days=Math.max(0,Number(document.getElementById('attentionShiftDays')?.value)||0);const r=window.RALAB_DEADLINE_PLANNER?.shiftCustomerDeadline?.(shift.dataset.attentionShift,days);if(!r?.ok){alert(r?.message||'Kon deadline niet verschuiven.');return}alert('Deadline '+days+' dag(en) opgeschoven naar '+r.newDate+'. Planning is opnieuw doorgerekend.');setTimeout(()=>window.RALAB_ORDER_CALC?.open?.(shift.dataset.attentionShift),50);return}
