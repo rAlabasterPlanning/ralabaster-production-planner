@@ -1,0 +1,7 @@
+/* Orders interaction safety v4 — keep hidden overlays from stealing taps and keep real controls on top. */
+#modalRoot:empty{pointer-events:none!important}
+#ralabNumericOverlay:not(.open){display:none!important;pointer-events:none!important}
+header{pointer-events:auto!important;z-index:300000!important}
+header nav,header .navbtn{pointer-events:auto!important}
+#view-orders{position:relative;z-index:1;pointer-events:auto!important}
+#view-orders button,#view-orders input,#view-orders select,#view-orders textarea{position:relative;z-index:3;pointer-events:auto!important}
