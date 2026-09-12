@@ -83,7 +83,17 @@ function planOrderStrict(o,opts={}){
  for(let i=0;i<ts.length;i++){const t=ts[i];if(frozen(t)){const f=taskFinishAt(t);if(f&&f>cursor)cursor=f;continue}
    const next=ts[i+1];if(isDryTask(t)){scheduleDryTask(t,cursor);cursor=t.waitEndAt;continue}
    if(isExternalTask(t)){const send=dtDate(cursor),lead=Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14);t.employee=null;t.planSegments=[];t.date=send;t.start='';if(t.status==='external'&&t.externalSentDate)t.expectedReturnDate=addCal(t.externalSentDate,lead);else t.expectedReturnDate=addCal(send,lead);cursor=dtString(t.expectedReturnDate,'00:00');continue}
-   if(isSetup(t)&&next&&!isExternalTask(next)&&!isDryTask(next)&&!frozen(next)){cursor=pairSetupWithExecution(t,next,cursor,opts);i++;continue}
+   if(isSetup(t)&&next&&!isExternalTask(next)&&!isDryTask(next)&&!frozen(next)){
+     cursor=pairSetupWithExecution(t,next,cursor,opts);
+     // Sla de uitvoerende stap alleen over als die door pairing ook echt is ingepland.
+     // Zo kan een mislukte pairing nooit een taak stilletjes ongepland achterlaten.
+     const nextPlanned=taskDone(next)||taskStarted(next)||(Array.isArray(next.planSegments)&&next.planSegments.length>0)||!!next.date;
+     if(nextPlanned){i++;continue}
+     // Fallback: plan setup en uitvoering los, maar nog steeds strikt achter elkaar.
+     cursor=allocateInternal(t,cursor,opts);
+     cursor=allocateInternal(next,cursor,opts);
+     i++;continue
+   }
    cursor=allocateInternal(t,cursor,opts);
  }
  return cursor;
