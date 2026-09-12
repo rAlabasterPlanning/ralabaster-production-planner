@@ -1,6 +1,6 @@
 // rAlabaster numeric keypad v2 — true fullscreen overlay for touch number entry.
 (()=>{
-  const VERSION='20260912-2';
+  const VERSION='20260912-3';
   const touchCapable=()=>('maxTouchPoints' in navigator&&navigator.maxTouchPoints>0);
   if(!touchCapable())return;
 
@@ -11,12 +11,15 @@
     <div class="np-head"><div class="np-label">Getal invoeren</div><button type="button" class="np-close" data-np-close aria-label="Sluiten">×</button></div>
     <div class="np-value">0</div>
     <div class="np-grid">${['1','2','3','4','5','6','7','8','9',',','0','⌫'].map(k=>`<button type="button" data-np-key="${k}">${k}</button>`).join('')}</div>
+    <div class="np-units" hidden><button type="button" data-np-unit="m">Minuut</button><button type="button" data-np-unit="u">Uur</button><button type="button" data-np-unit="d">Dag</button></div>
     <div class="np-actions"><button type="button" data-np-cancel>Annuleer</button><button type="button" class="np-ok" data-np-ok>OK</button></div>
   </div>`;
   document.body.appendChild(overlay);
 
   const valueEl=overlay.querySelector('.np-value');
   const labelEl=overlay.querySelector('.np-label');
+  const unitsEl=overlay.querySelector('.np-units');
+  const isTimeTarget=el=>!!el?.matches?.('[data-oc-min]');
 
   function labelFor(el){
     const id=el.id;
@@ -39,18 +42,23 @@
     target.classList.add('np-active');
     try{target.blur()}catch(_){ }
     labelEl.textContent=labelFor(el);
+    unitsEl.hidden=!isTimeTarget(el);
     display();
     overlay.classList.add('open');
     document.documentElement.style.overflow='hidden';
   }
   function close(commit){
     if(target&&commit){
-      let v=(buffer||'0').replace(',','.');
-      let n=Number(v);if(!Number.isFinite(n))n=0;
-      const min=target.getAttribute('min'),max=target.getAttribute('max');
-      if(min!==null&&Number.isFinite(Number(min)))n=Math.max(n,Number(min));
-      if(max!==null&&Number.isFinite(Number(max)))n=Math.min(n,Number(max));
-      target.value=String(n);
+      if(isTimeTarget(target)){
+        target.value=buffer||'0';
+      }else{
+        let v=(buffer||'0').replace(',','.');
+        let n=Number(v);if(!Number.isFinite(n))n=0;
+        const min=target.getAttribute('min'),max=target.getAttribute('max');
+        if(min!==null&&Number.isFinite(Number(min)))n=Math.max(n,Number(min));
+        if(max!==null&&Number.isFinite(Number(max)))n=Math.min(n,Number(max));
+        target.value=String(n);
+      }
       target.dispatchEvent(new Event('input',{bubbles:true}));
       target.dispatchEvent(new Event('change',{bubbles:true}));
     } else if(target){target.value=original}
@@ -72,7 +80,7 @@
 
   document.addEventListener('pointerdown',e=>{
     if(e.pointerType!=='touch')return;
-    const el=e.target.closest('input[type="number"]');
+    const el=e.target.closest('input[type="number"], input[data-oc-min]');
     if(!el||el.disabled||el.readOnly)return;
     e.preventDefault();
     e.stopPropagation();
@@ -85,6 +93,12 @@
   });
   overlay.addEventListener('click',e=>{
     const k=e.target.closest('[data-np-key]');if(k){key(k.dataset.npKey);return}
+    const u=e.target.closest('[data-np-unit]');if(u&&target){
+      const raw=(buffer||'0').replace(/[a-z]+$/i,'');
+      const unit=u.dataset.npUnit;
+      buffer=unit==='m'?raw:raw+unit;
+      display();close(true);return;
+    }
     if(e.target.closest('[data-np-ok]')){close(true);return}
     if(e.target.closest('[data-np-cancel],[data-np-close]')){close(false);return}
   });
