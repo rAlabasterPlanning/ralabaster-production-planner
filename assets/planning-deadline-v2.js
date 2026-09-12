@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260912-9';
+const VERSION='20260912-10';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=60;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -170,8 +170,13 @@ function strategicRecommendation(focusId){
  try{
    const base=run();result.baseline=base.map;const baseBad=new Set(badIds(base.map)),focusBase=base.map[focusId];
    const addOption=(x)=>{x.badAfter=badIds(x.map).length;x.badBefore=baseBad.size;x.saved=[...baseBad].filter(id=>x.map[id]?.status!=='bad');x.savedOther=x.saved.filter(id=>id!==x.shiftOrderId&&id!==focusId);x.focusImproved=focusBase?.status==='bad'&&x.map[focusId]?.status!=='bad';result.options.push(x)};
-   state=clone(original);const peter=run({allowPeter:true,allowSaturday:false});let peterMin=0;for(const t of S()?.tasks||[])for(const g of taskSegments(t)||[])if(g.employee==='Peter')peterMin+=Number(g.minutes)||0;addOption({kind:'peter',label:'Peter inzetten',map:peter.map,state:peter.state,extraMinutes:peterMin});
-   state=clone(original);const overtime=run({allowPeter:true,allowSaturday:true});let satMin=0;for(const t of S()?.tasks||[])for(const g of taskSegments(t)||[])if(g.date&&parseDate(g.date).getDay()===6)satMin+=Number(g.minutes)||0;addOption({kind:'overtime',label:'Peter + zaterdag/overwerk',map:overtime.map,state:overtime.state,extraMinutes:satMin});
+   state=clone(original);const peter=run({allowPeter:true,allowSaturday:false});let peterMin=0;for(const t of S()?.tasks||[])for(const g of taskSegments(t)||[])if(g.employee==='Peter')peterMin+=Number(g.minutes)||0;
+   // Een Peter-scenario zonder daadwerkelijk ingeplande Peter-minuten is geen oplossing.
+   // Zonder deze controle kon een gewone herschikking ten onrechte als "Peter 0 uur" winnen.
+   if(peterMin>0)addOption({kind:'peter',label:'Peter inzetten',map:peter.map,state:peter.state,extraMinutes:peterMin});
+   state=clone(original);const overtime=run({allowPeter:true,allowSaturday:true});let satMin=0;for(const t of S()?.tasks||[])for(const g of taskSegments(t)||[])if(g.date&&parseDate(g.date).getDay()===6)satMin+=Number(g.minutes)||0;
+   // Het overwerkscenario mag alleen worden voorgesteld als er echt zaterdagcapaciteit wordt gebruikt.
+   if(satMin>0)addOption({kind:'overtime',label:'Peter + zaterdag/overwerk',map:overtime.map,state:overtime.state,extraMinutes:satMin});
    const candidates=active().filter(o=>baseBad.has(o.id)||base.map[o.id]?.status==='risk').slice(0,12);
    for(const cand of candidates){
      for(const days of [1,2,3,5,7]){
@@ -188,13 +193,14 @@ function strategicRecommendation(focusId){
      const penalty=x.kind==='shift'?(80+x.days*18):x.kind==='peter'?(x.extraMinutes/240):x.kind==='overtime'?(35+x.extraMinutes/180):100;
      return saved*1000+other*120+focus*200-penalty;
    };
-   result.options=result.options.filter(x=>x.saved.length>0||x.focusImproved).sort((a,b)=>score(b)-score(a));
+   result.options=result.options.filter(x=>(x.kind==='shift'||Number(x.extraMinutes)>0)&&(x.saved.length>0||x.focusImproved)).sort((a,b)=>score(b)-score(a));
    result.best=result.options[0]||null;
  }finally{state=original}
  return result;
 }
 function applyStrategicRecommendation(choice){
  if(!choice?.state)return{ok:false,message:'Geen uitvoerbaar voorstel beschikbaar.'};
+ if(choice.kind!=='shift'&&!(Number(choice.extraMinutes)>0))return{ok:false,message:'Dit voorstel gebruikt geen extra capaciteit en kan daarom niet worden uitgevoerd.'};
  const next=clone(choice.state);state=next;normalizeSequences();
  const focus=order(choice.focusId||'');if(focus){focus.planningDecision='smart_'+choice.kind;focus.planningDecisionAt=new Date().toISOString()}
  save();render();return{ok:true};
