@@ -1,6 +1,6 @@
 // rAlabaster order-calculation workflow helpers: batch review flow + selectable standard steps.
 (()=>{
-  const VERSION='20260912-5';
+  const VERSION='20260912-6';
   const reviewed=new Set();
   const OPS=[
     ['Technisch uitwerken',0,30,'batch'],['Verpakking bestellen',30,30,'batch'],['Materiaal bestellen',11,30,'batch'],['Alabaster klaarzetten',11,30,'batch'],
@@ -35,13 +35,29 @@
     return{ok:missing.length===0,missing};
   }
   function needsPlanning(o){return !audit(o).ok}
+  function needsReview(o){
+    if(!o||o.active===false||o.status==='completed'||o.waitingMaterial||o.materialStatus==='waiting')return false;
+    return needsPlanning(o)||!o.planningCheckedAt;
+  }
+  function reviewQueue(){
+    const s=S();if(!s)return[];
+    return (s.orders||[]).filter(needsReview).sort((a,b)=>(a.deadline||a.communicatedDeadline||'9999-12-31').localeCompare(b.deadline||b.communicatedDeadline||'9999-12-31')||(a.orderNo||'').localeCompare(b.orderNo||''));
+  }
+  function reviewCount(){return reviewQueue().length}
+  function startReview(){
+    reviewed.clear();
+    const n=reviewQueue()[0];
+    if(!n){alert('Er zijn geen orders meer die gecontroleerd of ingepland moeten worden.');return false}
+    window.RALAB_ORDER_CALC?.open?.(n.id);
+    return true;
+  }
   function nextOrder(excludeId){
     const s=S();if(!s)return null;
     return (s.orders||[])
-      .filter(o=>o.id!==excludeId&&!reviewed.has(o.id)&&o.active!==false&&o.status!=='completed'&&!o.waitingMaterial&&o.materialStatus!=='waiting'&&needsPlanning(o))
+      .filter(o=>o.id!==excludeId&&!reviewed.has(o.id)&&needsReview(o))
       .sort((a,b)=>(a.deadline||a.communicatedDeadline||'9999-12-31').localeCompare(b.deadline||b.communicatedDeadline||'9999-12-31')||(a.orderNo||'').localeCompare(b.orderNo||''))[0]||null;
   }
-  function remainingUnplannedCount(){const s=S();return (s?.orders||[]).filter(o=>o.active!==false&&o.status!=='completed'&&!o.waitingMaterial&&o.materialStatus!=='waiting'&&needsPlanning(o)).length}
+  function remainingUnplannedCount(){return reviewCount()}
   function ensureFullyPlanned(o){
     let a=audit(o);if(a.ok)return a;
     try{window.RALAB_DEADLINE_PLANNER?.normalizeSequences?.();window.RALAB_DEADLINE_PLANNER?.planOrderStrict?.(o,{allowPeter:false,allowSaturday:false});save()}catch(e){console.warn('Extra planningscontrole mislukt',e)}
@@ -58,6 +74,8 @@
       alert(`Deze order is nog niet volledig ingepland. Ik ga daarom niet door naar de volgende order.\n\nNog zonder geldige planning:\n${names||'onbekende stap'}`);
       return;
     }
+    o.planningCheckedAt=new Date().toISOString();
+    try{save()}catch(_){}
     reviewed.add(o.id);
     const n=nextOrder(o.id);if(n){setTimeout(()=>window.RALAB_ORDER_CALC?.open?.(n.id),30);return}
     const left=remainingUnplannedCount();
@@ -117,5 +135,5 @@
   setInterval(upgradeExistingRows,700);
   upgradeExistingRows();
 
-  window.RALAB_ORDER_CALC_WORKFLOW={version:VERSION,reviewed,nextOrder,needsPlanning,audit,ensureFullyPlanned};
+  window.RALAB_ORDER_CALC_WORKFLOW={version:VERSION,reviewed,nextOrder,needsPlanning,needsReview,reviewQueue,reviewCount,startReview,audit,ensureFullyPlanned};
 })();
