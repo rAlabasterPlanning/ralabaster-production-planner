@@ -1,6 +1,6 @@
 // rAlabaster order-calculation workflow helpers: batch review flow + selectable standard steps.
 (()=>{
-  const VERSION='20260912-4';
+  const VERSION='20260912-5';
   const reviewed=new Set();
   const OPS=[
     ['Technisch uitwerken',0,30,'batch'],['Verpakking bestellen',30,30,'batch'],['Materiaal bestellen',11,30,'batch'],['Alabaster klaarzetten',11,30,'batch'],
@@ -23,6 +23,7 @@
   }
   function audit(o){
     if(!o)return{ok:false,missing:[]};
+    if(o.waitingMaterial||o.materialStatus==='waiting')return{ok:true,missing:[],waitingMaterial:true};
     if(window.RALAB_CHAIN_RELEASE?.auditOrder)return window.RALAB_CHAIN_RELEASE.auditOrder(o.id);
     const s=S(),missing=[];
     for(const t of (s?.tasks||[]).filter(t=>t.orderId===o.id)){
@@ -37,10 +38,10 @@
   function nextOrder(excludeId){
     const s=S();if(!s)return null;
     return (s.orders||[])
-      .filter(o=>o.id!==excludeId&&!reviewed.has(o.id)&&o.active!==false&&o.status!=='completed'&&needsPlanning(o))
+      .filter(o=>o.id!==excludeId&&!reviewed.has(o.id)&&o.active!==false&&o.status!=='completed'&&!o.waitingMaterial&&o.materialStatus!=='waiting'&&needsPlanning(o))
       .sort((a,b)=>(a.deadline||a.communicatedDeadline||'9999-12-31').localeCompare(b.deadline||b.communicatedDeadline||'9999-12-31')||(a.orderNo||'').localeCompare(b.orderNo||''))[0]||null;
   }
-  function remainingUnplannedCount(){const s=S();return (s?.orders||[]).filter(o=>o.active!==false&&o.status!=='completed'&&needsPlanning(o)).length}
+  function remainingUnplannedCount(){const s=S();return (s?.orders||[]).filter(o=>o.active!==false&&o.status!=='completed'&&!o.waitingMaterial&&o.materialStatus!=='waiting'&&needsPlanning(o)).length}
   function ensureFullyPlanned(o){
     let a=audit(o);if(a.ok)return a;
     try{window.RALAB_DEADLINE_PLANNER?.normalizeSequences?.();window.RALAB_DEADLINE_PLANNER?.planOrderStrict?.(o,{allowPeter:false,allowSaturday:false});save()}catch(e){console.warn('Extra planningscontrole mislukt',e)}
