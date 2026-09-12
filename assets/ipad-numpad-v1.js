@@ -1,4 +1,4 @@
-// rAlabaster iPad numeric keypad v1 — opens only for touch taps on number fields.
+// rAlabaster iPad numeric keypad v2 — centered touch popup for number fields.
 (()=>{
   const isTouchCapable=()=>('maxTouchPoints' in navigator&&navigator.maxTouchPoints>0);
   if(!isTouchCapable())return;
@@ -6,7 +6,7 @@
   let target=null,buffer='',original='';
   const pad=document.createElement('div');
   pad.id='ralabIpadNumpad';
-  pad.innerHTML=`<div class="np-head"><div class="np-label">Getal invoeren</div><button type="button" data-np-close aria-label="Sluiten">×</button></div><div class="np-value">0</div><div class="np-grid">${['1','2','3','4','5','6','7','8','9',',','0','⌫'].map(k=>`<button type="button" data-np-key="${k}">${k}</button>`).join('')}</div><div class="np-actions"><button type="button" data-np-cancel>Annuleer</button><button type="button" class="np-ok" data-np-ok>OK</button></div>`;
+  pad.innerHTML=`<div class="np-dialog" role="dialog" aria-modal="true" aria-label="Numerieke invoer"><div class="np-head"><div class="np-label">Getal invoeren</div><button type="button" data-np-close aria-label="Sluiten">×</button></div><div class="np-value">0</div><div class="np-grid">${['1','2','3','4','5','6','7','8','9',',','0','⌫'].map(k=>`<button type="button" data-np-key="${k}">${k}</button>`).join('')}</div><div class="np-actions"><button type="button" data-np-cancel>Annuleer</button><button type="button" class="np-ok" data-np-ok>OK</button></div></div>`;
   document.body.appendChild(pad);
   const valueEl=pad.querySelector('.np-value'),labelEl=pad.querySelector('.np-label');
 
@@ -60,9 +60,10 @@
   },true);
   pad.addEventListener('pointerdown',e=>e.preventDefault());
   pad.addEventListener('click',e=>{
+    if(e.target===pad){close(false);return}
     const k=e.target.closest('[data-np-key]');if(k){key(k.dataset.npKey);return}
     if(e.target.closest('[data-np-ok]')){close(true);return}
     if(e.target.closest('[data-np-cancel],[data-np-close]')){close(false);return}
   });
-  window.RALAB_IPAD_NUMPAD={open,close,version:'20260912-1'};
+  window.RALAB_IPAD_NUMPAD={open,close,version:'20260912-2'};
 })();
