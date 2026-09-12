@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260912-7';
+const VERSION='20260912-8';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=60;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -134,6 +134,31 @@ function attentionAdvice(orderId){
  }finally{state=backup}
  return out;
 }
+function applyDeadlineMustBeMet(id){
+ const before=clone(S()),o=order(id);if(!o)return{ok:false,message:'Order niet gevonden'};
+ const p=previewOptimize(id);
+ if(!p?.health||p.health.status==='bad'){state=before;return{ok:false,message:'Ook met Peter en zaterdag/overwerk kan deze deadline met de huidige capaciteit niet betrouwbaar gehaald worden.'}}
+ applyState(p.after);
+ const fresh=order(id);if(fresh){fresh.planningDecision='deadline_must_be_met';fresh.planningDecisionAt=new Date().toISOString();fresh.planningRiskAcceptedAt='';save()}
+ return{ok:true,mode:p.mode,health:p.health,changes:p.changes};
+}
+function acceptCurrentPlanAndMoveDeadline(id){
+ const o=order(id);if(!o)return{ok:false,message:'Order niet gevonden'};
+ const h=health(o),newDate=[h.finish,o.internalExpectedDate||''].filter(Boolean).sort().at(-1)||h.finish||today();
+ o.communicatedDeadline=newDate;o.deadline=newDate;o.maximumReadyDate=newDate;o.internalTargetDate=newDate;
+ o.planningRiskAcceptedAt=new Date().toISOString();o.planningRiskAcceptedFinish=newDate;o.planningRiskAcceptedDeadline=newDate;
+ o.planningDecision='accept_current_plan';o.planningDecisionAt=new Date().toISOString();save();render();
+ return{ok:true,newDate};
+}
+function shiftCustomerDeadline(id,days){
+ const o=order(id),n=Math.max(0,Math.round(Number(days)||0));if(!o)return{ok:false,message:'Order niet gevonden'};if(!n)return{ok:false,message:'Vul het aantal dagen in waarmee de deadline mag opschuiven.'};
+ const base=o.communicatedDeadline||hardDate(o)||today(),newDate=addCal(base,n);
+ o.communicatedDeadline=newDate;o.deadline=newDate;o.maximumReadyDate=newDate;o.internalTargetDate=addCal(newDate,-2);
+ o.planningRiskAcceptedAt='';o.planningRiskAcceptedFinish='';o.planningRiskAcceptedDeadline='';
+ o.planningDecision='deadline_shift_'+n+'_days';o.planningDecisionAt=new Date().toISOString();
+ normalizeSequences();optimizeAll({allowPeter:false,allowSaturday:false});save();render();
+ return{ok:true,newDate,health:health(o)};
+}
 function scenario(){const backup=clone(S()),result={};try{optimizeAll({allowPeter:false,allowSaturday:false});for(const o of S().orders||[])if(o.active&&!o.isGeneralWork)result[o.id]={normal:health(o)};state=clone(backup);optimizeAll({allowPeter:true,allowSaturday:false});for(const o of S().orders||[])if(result[o.id])result[o.id].peter=health(o);state=clone(backup);optimizeAll({allowPeter:true,allowSaturday:true});for(const o of S().orders||[])if(result[o.id])result[o.id].overtime=health(o)}finally{state=backup}return result}
 function recommendation(o,sc){const x=sc?.[o.id];if(!x)return'';if(x.normal.status!=='bad')return x.normal.status==='ok'?'Normale capaciteit':'Buffer wordt gebruikt';if(x.peter?.status!=='bad')return'Peter nodig';if(x.overtime?.status!=='bad')return'Peter + zaterdagoverwerk nodig';return'Niet haalbaar met huidige capaciteit'}
 function changedTasks(before,after){const map=new Map((before.tasks||[]).map(t=>[t.id,t]));const out=[];for(const t of after.tasks||[]){const b=map.get(t.id);if(!b||isGeneral(t)||taskDone(t))continue;const a1=JSON.stringify(b.planSegments||[]),a2=JSON.stringify(t.planSegments||[]);if(a1!==a2||String(b.machine||'')!==String(t.machine||'')){const o=(after.orders||[]).find(x=>x.id===t.orderId);out.push({orderNo:o?.orderNo||'',product:o?.product||'',task:t.name,from:(b.planSegments||[])[0]?.date||'',to:(t.planSegments||[])[0]?.date||'',machine:t.machine||''})}}return out}
@@ -157,7 +182,7 @@ function install(){if(typeof window.renderOrders!=='function'||typeof window.ope
  window.openPlanEntireOrder=function(id){const o=order(id);showModal(`<div class="modalhead"><h3>Order inplannen – ${esc(o.orderNo)} – ${esc(o.product)}</h3></div><div class="modalbody"><div class="notice"><b>Vaste procesvolgorde actief.</b> Instellen door Ralph blijft direct gekoppeld aan de uitvoerende machinebewerking. ZL15-werk mag automatisch over ZL15 #1, ZL15 #2 en SL25 worden verdeeld.</div><div class="grid2"><div class="panel" style="padding:12px"><b>Zonder andere orders te wijzigen</b><p class="muted">Plant deze order in om de bestaande planning heen. De taakvolgorde blijft vast.</p><button class="btn" type="button" data-plan-current="${esc(id)}">Alleen deze order plannen</button></div><div class="panel" style="padding:12px"><b>Optimaliseer op deadlines</b><p class="muted">Herschikt nog niet gestarte planning na de freeze-horizon en controleert Peter/overwerk.</p><button class="btn primary" type="button" data-optimize-order="${esc(id)}">Deadline-optimalisatie</button></div></div></div><div class="modalfoot"><button class="btn" onclick="closeModal()">Sluiten</button></div>`)};
  const st=document.createElement('style');st.textContent=`.deadline-health{margin-top:8px;padding:7px 9px;border-radius:7px;background:#eef7ef;font-size:12px}.deadline-health.risk{background:#fff4d8}.deadline-health.bad{background:#ffe5e2}.deadline-v2-box{background:#fbfcfb}`;document.head.appendChild(st);
  document.addEventListener('click',e=>{const pc=e.target.closest('[data-plan-current]');if(pc){e.preventDefault();const id=pc.dataset.planCurrent,o=order(id);clearMovablePlanning([id]);planOrderStrict(o,{allowPeter:false,allowSaturday:false});save();closeModal();render();return}const b=e.target.closest('[data-optimize-order]');if(b){e.preventDefault();openOptimize(b.dataset.optimizeOrder);return}const a=e.target.closest('[data-apply-deadline-opt]');if(a){e.preventDefault();if(window.__ralabOptimizedState){const n=window.__ralabOptimizedState;window.__ralabOptimizedState=null;closeModal();applyState(n)}return}const l=e.target.closest('[data-lock-order]');if(l){e.preventDefault();lockOrder(l.dataset.lockOrder);return}},true);
- window.RALAB_DEADLINE_PLANNER={version:VERSION,optimizeAll,planOrderStrict,health,scenario,attentionAdvice,openOptimize,normalizeSequences,enforceManualMove,machineOptions,allocateInternal,scheduleWaitStrict};
+ window.RALAB_DEADLINE_PLANNER={version:VERSION,optimizeAll,planOrderStrict,health,scenario,attentionAdvice,applyDeadlineMustBeMet,acceptCurrentPlanAndMoveDeadline,shiftCustomerDeadline,openOptimize,normalizeSequences,enforceManualMove,machineOptions,allocateInternal,scheduleWaitStrict};
  if(typeof currentView!=='undefined'&&currentView==='orders')renderOrders();
 }
 install();
