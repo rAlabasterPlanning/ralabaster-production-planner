@@ -22,6 +22,7 @@
 <button class="navbtn erp-nav" data-view="products">7. Producten</button>
 <button class="navbtn erp-nav" data-view="customers">Klanten</button>
 <button class="navbtn" data-view="settings">Instellingen</button>
+<button class="navbtn" id="refreshAppBtn" type="button" title="Laad de nieuwste versie van de planner">↻ Ververs app</button>
 </nav></header>
 <main>
 <section id="view-dashboard" class="hidden"></section>
@@ -83,6 +84,12 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/ipad-numpad-v1.js?v=20260912-2"></script>
 <script src="assets/order-open-touch-fix-v1.js?v=20260912-1"></script>
 <script>
+document.getElementById('refreshAppBtn')?.addEventListener('click',function(e){
+  e.preventDefault();
+  const url=new URL(location.href);
+  url.searchParams.set('_refresh',Date.now().toString());
+  location.replace(url.toString());
+});
 document.addEventListener('click',function(e){
   const b=e.target.closest('.erp-nav');
   if(!b)return;
