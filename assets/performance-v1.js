@@ -1,7 +1,7 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20260911-5';
+  const VERSION='20260912-6';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
   const DIFF_CHUNK=500;
@@ -33,7 +33,7 @@
   function invalidate(){indexesValid=false;analysisCache.clear()}
   function getOrder(id){ensureIndexes();return orderIndex.get(id)||null}
   function getOrderTasks(id){ensureIndexes();return taskIndex.get(id)||[]}
-  function activeOrders(){return (state.orders||[]).filter(o=>o.active!==false&&o.status!=='completed')}
+  function activeOrders(){return (state.orders||[]).filter(o=>!o.deleted&&o.active!==false&&o.status!=='completed')}
 
   function lightweightAnalysis(o){
     const ts=getOrderTasks(o?.id),today=isoDate(new Date());let rem=0,unp=0,last='';
@@ -80,8 +80,8 @@
     finally{normalizedInitBusy=false}
   }
 
-  function orderRow(o,now){return {workspace_id:WORKSPACE_ID,order_id:o.id,order_no:o.orderNo||'',active:o.active!==false&&o.status!=='completed',status:o.status||'',deadline:/^\d{4}-\d{2}-\d{2}$/.test(o.deadline||'')?o.deadline:null,completed_at:/^\d{4}-\d{2}-\d{2}$/.test(o.completedAt||'')?o.completedAt:null,data:o,deleted:false,updated_at:now}}
-  function taskRow(t,active,now){return {workspace_id:WORKSPACE_ID,task_id:t.id,order_id:t.orderId,seq:Number(t.seq)||null,status:t.status||'',task_date:/^\d{4}-\d{2}-\d{2}$/.test(t.date||'')?t.date:null,employee:t.employee||null,machine:t.machine||null,task_type:t.type||(isExternalTask(t)?'external':isDryTask(t)?'wait':'internal'),order_active:!!active,data:t,deleted:false,updated_at:now}}
+  function orderRow(o,now){const del=!!o.deleted;return {workspace_id:WORKSPACE_ID,order_id:o.id,order_no:o.orderNo||'',active:!del&&o.active!==false&&o.status!=='completed',status:o.status||'',deadline:/^\d{4}-\d{2}-\d{2}$/.test(o.deadline||'')?o.deadline:null,completed_at:/^\d{4}-\d{2}-\d{2}$/.test(o.completedAt||'')?o.completedAt:null,data:o,deleted:del,updated_at:now}}
+  function taskRow(t,active,now){const del=!!t.deleted;return {workspace_id:WORKSPACE_ID,task_id:t.id,order_id:t.orderId,seq:Number(t.seq)||null,status:t.status||'',task_date:/^\d{4}-\d{2}-\d{2}$/.test(t.date||'')?t.date:null,employee:t.employee||null,machine:t.machine||null,task_type:t.type||(isExternalTask(t)?'external':isDryTask(t)?'wait':'internal'),order_active:!!active&&!del,data:t,deleted:del,updated_at:now}}
   async function upsertChunks(table,rows){for(let i=0;i<rows.length;i+=300){const {error}=await supabaseClient.from(table).upsert(rows.slice(i,i+300));if(error)throw error;await yieldUI()}}
 
   async function collectChanges(now){
