@@ -1,6 +1,6 @@
 // rAlabaster order-calculation workflow helpers: batch review flow + selectable standard steps.
 (()=>{
-  const VERSION='20260912-8';
+  const VERSION='20260912-9';
   const reviewed=new Set();
   const OPS=[
     ['Technisch uitwerken',0,30,'batch'],['Verpakking bestellen',30,30,'batch'],['Materiaal bestellen',11,30,'batch'],['Alabaster klaarzetten',11,30,'batch'],
@@ -42,7 +42,10 @@
     const internal=o.internalExpectedDate||'';
     if(promised&&internal&&internal>promised)return true;
     const h=window.RALAB_DEADLINE_PLANNER?.health?.(o);
-    return !!h && (h.status==='risk'||h.status==='bad');
+    if(!h)return false;
+    const accepted=!!o.planningRiskAcceptedAt&&o.planningRiskAcceptedFinish===h.finish&&o.planningRiskAcceptedDeadline===(o.communicatedDeadline||'');
+    if(accepted&&h.status!=='bad')return false;
+    return h.status==='risk'||h.status==='bad';
   }
   function reviewQueue(){
     const s=S();if(!s)return[];
@@ -119,8 +122,25 @@
       adviceHtml='<b>Wat doen:</b> nog geen harde overschrijding, maar weinig buffer. Plan deze order eerder of houd extra capaciteit vrij om rood te voorkomen.';
     }
 
+    let execute='';
+    if(h?.status==='bad'){
+      let adv=null;try{adv=window.RALAB_DEADLINE_PLANNER?.attentionAdvice?.(o.id)}catch(_){}
+      const proposal=adv?.peter&&adv.peter.status!=='bad'?'Peter inzetten':adv?.overtime&&adv.overtime.status!=='bad'?'Peter + zaterdag/overwerk inzetten':'';
+      execute=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,.14)">
+        <div style="font-weight:900;margin-bottom:8px">Beslis en voer direct uit</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          ${proposal?'<button class="btn primary" type="button" data-attention-enforce="'+esc(o.id)+'">Voer voorstel uit · '+esc(proposal)+'</button>':''}
+          <button class="btn primary" type="button" data-attention-enforce="${esc(o.id)}">Deadline moet gehaald worden</button>
+          <button class="btn" type="button" data-attention-accept="${esc(o.id)}">Planning zo accepteren + deadline verschuiven</button>
+          <span style="display:inline-flex;gap:6px;align-items:center"><input class="input" id="attentionShiftDays" type="number" inputmode="numeric" min="1" step="1" value="1" style="width:72px"><span>dagen</span><button class="btn" type="button" data-attention-shift="${esc(o.id)}">Deadline opschuiven</button></span>
+        </div>
+        <div class="muted" style="margin-top:7px">Elke keuze wordt direct in de planning opgeslagen. Bij “deadline moet gehaald worden” past de planner Peter/overwerk en de overige nog niet gestarte planning daadwerkelijk toe.</div>
+      </div>`;
+    }else if(h?.status==='risk'){
+      execute=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,.14)"><div style="font-weight:900;margin-bottom:8px">Beslis</div><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><button class="btn primary" type="button" data-attention-accept="${esc(o.id)}">Planning zo accepteren</button><span style="display:inline-flex;gap:6px;align-items:center"><input class="input" id="attentionShiftDays" type="number" inputmode="numeric" min="1" step="1" value="1" style="width:72px"><span>dagen</span><button class="btn" type="button" data-attention-shift="${esc(o.id)}">Deadline opschuiven</button></span></div></div>`;
+    }
     const panel=document.createElement('div');panel.id='ocAttentionPanel';panel.className='panel';panel.style.cssText='margin:12px 0;padding:14px;border:2px solid '+(h?.status==='bad'?'#c73b32':'#d59b2d')+';background:'+(h?.status==='bad'?'#fff0ee':'#fff7df');
-    panel.innerHTML=`<div style="font-size:18px;font-weight:900;margin-bottom:8px">${h?.status==='bad'?'🔴 Aandacht nodig':'🟠 Controleren'}</div><div style="line-height:1.55">${reasons.map(x=>'<div style="margin:4px 0">'+x+'</div>').join('')}<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.12)">${adviceHtml}</div></div>${h?.status==='bad'?'<div style="margin-top:10px"><button class="btn primary" type="button" data-optimize-order="'+esc(o.id)+'">Optimaliseer op deadlines</button></div>':''}`;
+    panel.innerHTML=`<div style="font-size:18px;font-weight:900;margin-bottom:8px">${h?.status==='bad'?'🔴 Aandacht nodig':'🟠 Controleren'}</div><div style="line-height:1.55">${reasons.map(x=>'<div style="margin:4px 0">'+x+'</div>').join('')}<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.12)">${adviceHtml}</div></div>${execute}`;
     const toolbar=editor.querySelector('.toolbar');toolbar?.after(panel);
   }
   function stepOptions(selected=''){
@@ -165,6 +185,9 @@
   document.addEventListener('click',e=>{
     const add=e.target.closest('[data-oc-add]');if(add){e.preventDefault();e.stopImmediatePropagation();addSelectableRow();return}
     const savePlan=e.target.closest('[data-oc-save-plan]');if(savePlan){e.preventDefault();e.stopImmediatePropagation();saveAndNext();return}
+    const enforce=e.target.closest('[data-attention-enforce]');if(enforce){e.preventDefault();e.stopImmediatePropagation();const r=window.RALAB_DEADLINE_PLANNER?.applyDeadlineMustBeMet?.(enforce.dataset.attentionEnforce);if(!r?.ok){alert(r?.message||'Deze deadline kan niet automatisch gehaald worden.');return}alert('Planning aangepast en opgeslagen. De gekozen extra capaciteit is nu echt ingepland.');setTimeout(()=>window.RALAB_ORDER_CALC?.open?.(enforce.dataset.attentionEnforce),50);return}
+    const accept=e.target.closest('[data-attention-accept]');if(accept){e.preventDefault();e.stopImmediatePropagation();const r=window.RALAB_DEADLINE_PLANNER?.acceptCurrentPlanAndMoveDeadline?.(accept.dataset.attentionAccept);if(!r?.ok){alert(r?.message||'Kon planning niet accepteren.');return}reviewed.add(accept.dataset.attentionAccept);alert('Planning geaccepteerd. Nieuwe deadline: '+r.newDate+'.');const n=nextOrder(accept.dataset.attentionAccept);if(n)setTimeout(()=>window.RALAB_ORDER_CALC?.open?.(n.id),50);else if(typeof window.switchView==='function')window.switchView('orders');return}
+    const shift=e.target.closest('[data-attention-shift]');if(shift){e.preventDefault();e.stopImmediatePropagation();const days=Math.max(0,Number(document.getElementById('attentionShiftDays')?.value)||0);const r=window.RALAB_DEADLINE_PLANNER?.shiftCustomerDeadline?.(shift.dataset.attentionShift,days);if(!r?.ok){alert(r?.message||'Kon deadline niet verschuiven.');return}alert('Deadline '+days+' dag(en) opgeschoven naar '+r.newDate+'. Planning is opnieuw doorgerekend.');setTimeout(()=>window.RALAB_ORDER_CALC?.open?.(shift.dataset.attentionShift),50);return}
   },true);
   document.addEventListener('change',e=>{
     const step=e.target.closest('#ocRows [data-oc-name]');if(step){applyStepPreset(step);return}
