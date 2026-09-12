@@ -147,21 +147,22 @@
       }catch(err){console.warn('Slimste keuze kon niet worden berekend',err)}
     }
     let execute='';
-    if(h?.status==='bad'){
+    const hasDeadline=!!promised;
+    if(hasDeadline){
       let adv=null;try{adv=window.RALAB_DEADLINE_PLANNER?.attentionAdvice?.(o.id)}catch(_){}
       const proposal=adv?.peter&&adv.peter.status!=='bad'?'Peter inzetten':adv?.overtime&&adv.overtime.status!=='bad'?'Peter + zaterdag/overwerk inzetten':'';
       execute=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,.14)">
         <div style="font-weight:900;margin-bottom:8px">Beslis en voer direct uit</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
           ${proposal?'<button class="btn primary" type="button" data-attention-enforce="'+esc(o.id)+'">Voer voorstel uit · '+esc(proposal)+'</button>':''}
-          <button class="btn primary" type="button" data-attention-enforce="${esc(o.id)}">Deadline moet gehaald worden</button>
-          <button class="btn" type="button" data-attention-accept="${esc(o.id)}">Planning zo accepteren + deadline verschuiven</button>
+          <button class="btn primary" type="button" data-attention-enforce="${esc(o.id)}" style="font-weight:900">Deadline moet gehaald worden</button>
+          <button class="btn" type="button" data-attention-accept="${esc(o.id)}">Planning zo accepteren</button>
           <span style="display:inline-flex;gap:6px;align-items:center"><input class="input" id="attentionShiftDays" type="number" inputmode="numeric" min="1" step="1" value="1" style="width:72px"><span>dagen</span><button class="btn" type="button" data-attention-shift="${esc(o.id)}">Deadline opschuiven</button></span>
         </div>
-        <div class="muted" style="margin-top:7px">Elke keuze wordt direct in de planning opgeslagen. Bij “deadline moet gehaald worden” past de planner Peter/overwerk en de overige nog niet gestarte planning daadwerkelijk toe.</div>
+        <div class="muted" style="margin-top:7px">“Deadline moet gehaald worden” probeert de beloofde datum vast te houden en herplant de nog niet gestarte werkzaamheden met de beschikbare herstelopties.</div>
       </div>`;
-    }else if(h?.status==='risk'){
-      execute=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,.14)"><div style="font-weight:900;margin-bottom:8px">Beslis</div><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><button class="btn primary" type="button" data-attention-accept="${esc(o.id)}">Planning zo accepteren</button><span style="display:inline-flex;gap:6px;align-items:center"><input class="input" id="attentionShiftDays" type="number" inputmode="numeric" min="1" step="1" value="1" style="width:72px"><span>dagen</span><button class="btn" type="button" data-attention-shift="${esc(o.id)}">Deadline opschuiven</button></span></div></div>`;
+    }else{
+      execute=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,.14)"><b>Geen gecommuniceerde deadline ingevuld.</b> Vul eerst de klantdeadline in; daarna kan de planner hem als harde datum bewaken.</div>`;
     }
     const panel=document.createElement('div');panel.id='ocAttentionPanel';panel.className='panel';panel.style.cssText='margin:12px 0;padding:14px;border:2px solid '+(h?.status==='bad'?'#c73b32':'#d59b2d')+';background:'+(h?.status==='bad'?'#fff0ee':'#fff7df');
     panel.innerHTML=`<div style="font-size:18px;font-weight:900;margin-bottom:8px">${h?.status==='bad'?'🔴 Aandacht nodig':'🟠 Controleren'}</div><div style="line-height:1.55">${reasons.map(x=>'<div style="margin:4px 0">'+x+'</div>').join('')}<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.12)">${adviceHtml}</div></div>${smartHtml}${execute}`;
