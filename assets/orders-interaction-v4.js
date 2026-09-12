@@ -1,6 +1,6 @@
 // Orders interaction v4 — direct hit testing for iPad/touch, no render wrapping or DOM mutation.
 (()=>{
-  const VERSION='20260912-5';
+  const VERSION='20260912-6';
   if(window.__ralabOrdersInteractionV4Installed)return;
   window.__ralabOrdersInteractionV4Installed=true;
 
@@ -12,7 +12,7 @@
 
   function go(view){
     try{
-      if(['dashboard','quotes','orders','completed','products','customers'].includes(view)&&window.RALAB_ERP?.show){
+      if(['dashboard','quotes','orders','orderoverview','completed','products','customers'].includes(view)&&window.RALAB_ERP?.show){
         window.RALAB_ERP.show(view);return true;
       }
       if(typeof window.switchView==='function'){window.switchView(view);return true}
