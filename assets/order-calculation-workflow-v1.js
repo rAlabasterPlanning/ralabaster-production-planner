@@ -1,6 +1,6 @@
 // rAlabaster order-calculation workflow helpers: batch review flow + selectable standard steps.
 (()=>{
-  const VERSION='20260912-2';
+  const VERSION='20260912-3';
   const reviewed=new Set();
   const OPS=[
     ['Technisch uitwerken',0,30,'batch'],['Verpakking bestellen',30,30,'batch'],['Materiaal bestellen',11,30,'batch'],['Alabaster klaarzetten',11,30,'batch'],
@@ -73,7 +73,7 @@
   }
   function addSelectableRow(){
     const tbody=document.getElementById('ocRows');if(!tbody)return;const id=uid();
-    tbody.insertAdjacentHTML('beforeend',`<tr data-oc-row data-task-id="${id}" data-status="open"><td style="white-space:nowrap"><button class="btn small" type="button" data-oc-up title="Omhoog">↑</button> <button class="btn small" type="button" data-oc-down title="Omlaag">↓</button></td><td><select class="input" data-oc-name>${stepOptions()}</select></td><td><select class="input" data-oc-machine>${machineOptions()}</select></td><td><select class="input" data-oc-mode><option value="batch">1× batch</option><option value="unit">per product</option><option value="external">extern</option><option value="wait">wachten 24/7</option></select></td><td><input class="input" data-oc-min type="number" min="0" step="0.1" value="0"></td><td><input class="input" data-oc-rate type="number" min="0" step="0.01" value="0"></td><td><input class="input" data-oc-ext type="number" min="0" step="0.01" value="0"></td><td><button class="btn small" type="button" data-oc-delete>Verwijder</button></td></tr>`);
+    tbody.insertAdjacentHTML('beforeend',`<tr data-oc-row data-task-id="${id}" data-status="open"><td style="white-space:nowrap"><button class="btn small" type="button" data-oc-up title="Omhoog">↑</button> <button class="btn small" type="button" data-oc-down title="Omlaag">↓</button></td><td><select class="input" data-oc-name>${stepOptions()}</select></td><td><select class="input" data-oc-machine>${machineOptions()}</select></td><td><select class="input" data-oc-mode><option value="batch">1× batch</option><option value="unit">per product</option><option value="external">extern</option><option value="wait">wachten 24/7</option></select></td><td><input class="input" data-oc-min type="text" inputmode="text" value="0" placeholder="min / 1,5u / 1d"></td><td><input class="input" data-oc-rate type="number" min="0" step="0.01" value="0"></td><td><input class="input" data-oc-ext type="number" min="0" step="0.01" value="0"></td><td><button class="btn small" type="button" data-oc-delete>Verwijder</button></td></tr>`);
   }
   function applyStepPreset(sel){
     const row=sel.closest('[data-oc-row]');if(!row)return;const p=OPS.find(x=>x.name===sel.value);if(!p)return;
