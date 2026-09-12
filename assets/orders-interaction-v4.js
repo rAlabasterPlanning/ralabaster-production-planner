@@ -1,6 +1,6 @@
 // Orders interaction v4 — direct hit testing for iPad/touch, no render wrapping or DOM mutation.
 (()=>{
-  const VERSION='20260912-8';
+  const VERSION='20260912-9';
   if(window.__ralabOrdersInteractionV4Installed)return;
   window.__ralabOrdersInteractionV4Installed=true;
 
@@ -30,7 +30,7 @@
     if(m)return {type:'confirmation',id:m[1]};
     m=raw.match(/RALAB_ERP\.deleteOrder\(['"]([^'"]+)['"]\)/);
     if(m)return {type:'delete',id:m[1]};
-    if(/RALAB_ORDER_CALC_WORKFLOW\?\.startReview\?\.\(\)/.test(raw)||raw.includes('RALAB_ORDER_CALC_WORKFLOW.startReview'))return {type:'review'};
+    if(btn.matches('[data-start-review]')||raw.includes('startReview'))return {type:'review'};
     m=raw.match(/RALAB_ERP\.openCustomer\(['"]([^'"]+)['"]\)/);
     if(m)return {type:'customer',id:m[1]};
     if(raw.includes("RALAB_ERP.show('calculation')")||raw.includes('RALAB_ERP.show("calculation")'))return {type:'calculation'};
