@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260911-2';
+const VERSION='20260912-7';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=60;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -25,8 +25,8 @@ function rememberMachinePreference(t){if(!t||t.machinePreference)return;if(isZL1
 function machineOptions(t){rememberMachinePreference(t);const b=machineBase(t);if(isZL15(b))return MORI_FLEX.slice();if(isSL25(b))return ['Mori SL25'];return [cleanMachine(t?.assignedMachine||t?.machine||t?.name||'')].filter(Boolean)}
 function setAssignedMachine(t,machine){if(!t||!machine)return;rememberMachinePreference(t);t.assignedMachine=machine;if(t.machinePreference){t.machine=isSetup(t)?`${machine} - Instellen`:machine}}
 function resetMachineAssignment(t){if(!t)return;rememberMachinePreference(t);if(t.machinePreference){t.machine=isSetup(t)?`${t.machinePreference} - Instellen`:t.machinePreference;delete t.assignedMachine}}
-const hardDate=o=>o?.maximumReadyDate||o?.deadline||'';
-const targetDate=o=>o?.internalTargetDate||(hardDate(o)?addCal(hardDate(o),-3):'');
+const hardDate=o=>o?.communicatedDeadline||o?.maximumReadyDate||o?.deadline||'';
+const targetDate=o=>{const h=hardDate(o);const t=o?.internalTargetDate||'';return t&&(!h||t<=h)?t:(h?addCal(h,-2):'')};
 const fmt=d=>d?fmtShort(d):'—';
 function workdaySlack(a,b){if(!a||!b)return null;return workdaysBetween(a,b)}
 function setDerivedDates(o){if(!o)return;o.maximumReadyDate=o.maximumReadyDate||o.deadline||'';if(o.maximumReadyDate&&!o.internalTargetDate)o.internalTargetDate=addCal(o.maximumReadyDate,-3)}
@@ -113,6 +113,27 @@ function cmpOrder(a,b){const A=priority(a),B=priority(b);for(let i=0;i<A.length;
 function optimizeAll(opts={}){normalizeSequences();const os=(S()?.orders||[]).filter(o=>o.active&&!o.isGeneralWork&&hardDate(o)).slice().sort(cmpOrder);clearMovablePlanning();for(const o of os)planOrderStrict(o,opts);return os}
 function finishDate(o){const ts=orderTasks(o.id).filter(t=>!isGeneral(t));let f='';for(const t of ts){const x=taskFinishDate(t);if(x>f)f=x}return f||today()}
 function health(o){setDerivedDates(o);const finish=finishDate(o),target=targetDate(o),hard=hardDate(o),promised=o?.communicatedDeadline||'',internal=o?.internalExpectedDate||'',customerSlack=promised?workdaySlack(finish,promised):null,slack=promised?customerSlack:(hard?workdaySlack(finish,hard):null);let status='ok',label='Ruim haalbaar';if(promised&&internal&&internal>promised){status='bad';label='Interne gereeddatum na klantdeadline'}else if(promised&&finish>promised){status='bad';label='Niet haalbaar voor klantdeadline'}else if(promised&&customerSlack!==null&&customerSlack<=2){status='risk';label='Weinig speling tot klantdeadline'}else if(!promised&&!hard){status='risk';label='Geen maximumdatum'}else if(!promised&&finish>hard){status='bad';label='Niet haalbaar'}else if(!promised&&target&&finish>target){status='risk';label='In bufferzone'}else if(!promised&&slack!==null&&slack<=2){status='risk';label='Weinig speling'}return {finish,target,hard,promised,internal,slack,status,label}}
+function attentionAdvice(orderId){
+ const backup=clone(S()),out={orderId,normal:null,peter:null,overtime:null,peterMinutesTarget:0,peterMinutesTotal:0,saturdayMinutesTarget:0,saturdayMinutesTotal:0,rescuedByPeter:0,rescuedByOvertime:0,peterHelpedOrders:[],overtimeHelpedOrders:[]};
+ const active=()=> (S()?.orders||[]).filter(o=>o.active&&!o.deleted&&!o.isGeneralWork);
+ const mapHealth=()=>{const m={};for(const o of active())m[o.id]=health(o);return m};
+ const sumMinutes=(pred,onlyOrder='')=>{let n=0;for(const t of S()?.tasks||[]){if(onlyOrder&&t.orderId!==onlyOrder)continue;if(t.deleted||taskDone(t)||isGeneral(t))continue;for(const g of taskSegments(t)||[]){if(pred(g,t))n+=Number(g.minutes)||0}}return n};
+ try{
+   normalizeSequences();optimizeAll({allowPeter:false,allowSaturday:false});
+   const normal=mapHealth();out.normal=normal[orderId]||null;
+   state=clone(backup);normalizeSequences();optimizeAll({allowPeter:true,allowSaturday:false});
+   const peter=mapHealth();out.peter=peter[orderId]||null;
+   out.peterMinutesTarget=sumMinutes(g=>g.employee==='Peter',orderId);
+   out.peterMinutesTotal=sumMinutes(g=>g.employee==='Peter');
+   for(const o of active()){const a=normal[o.id],b=peter[o.id];if(a?.status==='bad'&&b&&b.status!=='bad'){out.rescuedByPeter++;out.peterHelpedOrders.push(o.orderNo||o.id)}}
+   state=clone(backup);normalizeSequences();optimizeAll({allowPeter:true,allowSaturday:true});
+   const overtime=mapHealth();out.overtime=overtime[orderId]||null;
+   out.saturdayMinutesTarget=sumMinutes(g=>g.date&&parseDate(g.date).getDay()===6,orderId);
+   out.saturdayMinutesTotal=sumMinutes(g=>g.date&&parseDate(g.date).getDay()===6);
+   for(const o of active()){const a=normal[o.id],b=overtime[o.id];if(a?.status==='bad'&&b&&b.status!=='bad'){out.rescuedByOvertime++;out.overtimeHelpedOrders.push(o.orderNo||o.id)}}
+ }finally{state=backup}
+ return out;
+}
 function scenario(){const backup=clone(S()),result={};try{optimizeAll({allowPeter:false,allowSaturday:false});for(const o of S().orders||[])if(o.active&&!o.isGeneralWork)result[o.id]={normal:health(o)};state=clone(backup);optimizeAll({allowPeter:true,allowSaturday:false});for(const o of S().orders||[])if(result[o.id])result[o.id].peter=health(o);state=clone(backup);optimizeAll({allowPeter:true,allowSaturday:true});for(const o of S().orders||[])if(result[o.id])result[o.id].overtime=health(o)}finally{state=backup}return result}
 function recommendation(o,sc){const x=sc?.[o.id];if(!x)return'';if(x.normal.status!=='bad')return x.normal.status==='ok'?'Normale capaciteit':'Buffer wordt gebruikt';if(x.peter?.status!=='bad')return'Peter nodig';if(x.overtime?.status!=='bad')return'Peter + zaterdagoverwerk nodig';return'Niet haalbaar met huidige capaciteit'}
 function changedTasks(before,after){const map=new Map((before.tasks||[]).map(t=>[t.id,t]));const out=[];for(const t of after.tasks||[]){const b=map.get(t.id);if(!b||isGeneral(t)||taskDone(t))continue;const a1=JSON.stringify(b.planSegments||[]),a2=JSON.stringify(t.planSegments||[]);if(a1!==a2||String(b.machine||'')!==String(t.machine||'')){const o=(after.orders||[]).find(x=>x.id===t.orderId);out.push({orderNo:o?.orderNo||'',product:o?.product||'',task:t.name,from:(b.planSegments||[])[0]?.date||'',to:(t.planSegments||[])[0]?.date||'',machine:t.machine||''})}}return out}
@@ -136,7 +157,7 @@ function install(){if(typeof window.renderOrders!=='function'||typeof window.ope
  window.openPlanEntireOrder=function(id){const o=order(id);showModal(`<div class="modalhead"><h3>Order inplannen – ${esc(o.orderNo)} – ${esc(o.product)}</h3></div><div class="modalbody"><div class="notice"><b>Vaste procesvolgorde actief.</b> Instellen door Ralph blijft direct gekoppeld aan de uitvoerende machinebewerking. ZL15-werk mag automatisch over ZL15 #1, ZL15 #2 en SL25 worden verdeeld.</div><div class="grid2"><div class="panel" style="padding:12px"><b>Zonder andere orders te wijzigen</b><p class="muted">Plant deze order in om de bestaande planning heen. De taakvolgorde blijft vast.</p><button class="btn" type="button" data-plan-current="${esc(id)}">Alleen deze order plannen</button></div><div class="panel" style="padding:12px"><b>Optimaliseer op deadlines</b><p class="muted">Herschikt nog niet gestarte planning na de freeze-horizon en controleert Peter/overwerk.</p><button class="btn primary" type="button" data-optimize-order="${esc(id)}">Deadline-optimalisatie</button></div></div></div><div class="modalfoot"><button class="btn" onclick="closeModal()">Sluiten</button></div>`)};
  const st=document.createElement('style');st.textContent=`.deadline-health{margin-top:8px;padding:7px 9px;border-radius:7px;background:#eef7ef;font-size:12px}.deadline-health.risk{background:#fff4d8}.deadline-health.bad{background:#ffe5e2}.deadline-v2-box{background:#fbfcfb}`;document.head.appendChild(st);
  document.addEventListener('click',e=>{const pc=e.target.closest('[data-plan-current]');if(pc){e.preventDefault();const id=pc.dataset.planCurrent,o=order(id);clearMovablePlanning([id]);planOrderStrict(o,{allowPeter:false,allowSaturday:false});save();closeModal();render();return}const b=e.target.closest('[data-optimize-order]');if(b){e.preventDefault();openOptimize(b.dataset.optimizeOrder);return}const a=e.target.closest('[data-apply-deadline-opt]');if(a){e.preventDefault();if(window.__ralabOptimizedState){const n=window.__ralabOptimizedState;window.__ralabOptimizedState=null;closeModal();applyState(n)}return}const l=e.target.closest('[data-lock-order]');if(l){e.preventDefault();lockOrder(l.dataset.lockOrder);return}},true);
- window.RALAB_DEADLINE_PLANNER={version:VERSION,optimizeAll,planOrderStrict,health,scenario,openOptimize,normalizeSequences,enforceManualMove,machineOptions,allocateInternal,scheduleWaitStrict};
+ window.RALAB_DEADLINE_PLANNER={version:VERSION,optimizeAll,planOrderStrict,health,scenario,attentionAdvice,openOptimize,normalizeSequences,enforceManualMove,machineOptions,allocateInternal,scheduleWaitStrict};
  if(typeof currentView!=='undefined'&&currentView==='orders')renderOrders();
 }
 install();
