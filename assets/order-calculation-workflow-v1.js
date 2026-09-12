@@ -1,6 +1,6 @@
 // rAlabaster order-calculation workflow helpers: batch review flow + selectable standard steps.
 (()=>{
-  const VERSION='20260912-10';
+  const VERSION='20260912-11';
   const reviewed=new Set();
   const OPS=[
     ['Technisch uitwerken',0,30,'batch'],['Verpakking bestellen',30,30,'batch'],['Materiaal bestellen',11,30,'batch'],['Alabaster klaarzetten',11,30,'batch'],
@@ -90,7 +90,7 @@
     alert(left?`Alle orders zijn in deze controle-ronde langs geweest. Er zijn nog ${left} order(s) met resterende ongeplande stappen.`:'Alle actieve orders zijn volledig ingepland.');
     try{if(typeof window.switchView==='function')window.switchView('today');else window.RALAB_ERP?.show?.('today')}catch(_){ }
   }
-  function fmtHours(mins){const h=(Number(mins)||0)/60;return h<0.1?'0 uur':(Math.round(h*10)/10).toFixed(h%1?1:0).replace('.',',')+' uur'}
+  function fmtHours(mins){const n=Math.max(0,Math.round(Number(mins)||0));if(n<60)return n===1?'1 minuut':`${n} minuten`;const h=n/60;return(Math.round(h*10)/10).toFixed(Number.isInteger(Math.round(h*10)/10)?0:1).replace('.',',')+' uur'}
   function renderAttentionPanel(){
     const editor=document.getElementById('orderCalcEditor');if(!editor||editor.querySelector('#ocAttentionPanel'))return;
     const o=currentOrder();if(!o)return;
