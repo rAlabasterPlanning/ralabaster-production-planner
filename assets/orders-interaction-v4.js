@@ -1,6 +1,6 @@
 // Orders interaction v4 — direct hit testing for iPad/touch, no render wrapping or DOM mutation.
 (()=>{
-  const VERSION='20260912-4';
+  const VERSION='20260912-5';
   if(window.__ralabOrdersInteractionV4Installed)return;
   window.__ralabOrdersInteractionV4Installed=true;
 
@@ -28,6 +28,8 @@
     if(m)return {type:'open',id:m[1]};
     m=raw.match(/RALAB_ERP\.orderConfirmation\(['"]([^'"]+)['"]\)/);
     if(m)return {type:'confirmation',id:m[1]};
+    m=raw.match(/RALAB_ERP\.deleteOrder\(['"]([^'"]+)['"]\)/);
+    if(m)return {type:'delete',id:m[1]};
     if(raw.includes("RALAB_ERP.show('calculation')")||raw.includes('RALAB_ERP.show("calculation")'))return {type:'calculation'};
     return null;
   }
@@ -44,6 +46,11 @@
       if(action.type==='confirmation'){
         const fn=window.RALAB_ERP?.orderConfirmation;
         if(typeof fn!=='function')throw new Error('orderConfirmation unavailable');
+        fn(action.id);return true;
+      }
+      if(action.type==='delete'){
+        const fn=window.RALAB_ERP?.deleteOrder;
+        if(typeof fn!=='function')throw new Error('deleteOrder unavailable');
         fn(action.id);return true;
       }
       if(action.type==='calculation'){go('calculation');return true}
