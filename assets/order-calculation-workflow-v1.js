@@ -1,6 +1,6 @@
 // rAlabaster order-calculation workflow helpers: batch review flow + selectable standard steps.
 (()=>{
-  const VERSION='20260912-7';
+  const VERSION='20260912-8';
   const reviewed=new Set();
   const OPS=[
     ['Technisch uitwerken',0,30,'batch'],['Verpakking bestellen',30,30,'batch'],['Materiaal bestellen',11,30,'batch'],['Alabaster klaarzetten',11,30,'batch'],
@@ -87,6 +87,42 @@
     alert(left?`Alle orders zijn in deze controle-ronde langs geweest. Er zijn nog ${left} order(s) met resterende ongeplande stappen.`:'Alle actieve orders zijn volledig ingepland.');
     try{if(typeof window.switchView==='function')window.switchView('today');else window.RALAB_ERP?.show?.('today')}catch(_){ }
   }
+  function fmtHours(mins){const h=(Number(mins)||0)/60;return h<0.1?'0 uur':(Math.round(h*10)/10).toFixed(h%1?1:0).replace('.',',')+' uur'}
+  function renderAttentionPanel(){
+    const editor=document.getElementById('orderCalcEditor');if(!editor||editor.querySelector('#ocAttentionPanel'))return;
+    const o=currentOrder();if(!o)return;
+    const a=audit(o),h=window.RALAB_DEADLINE_PLANNER?.health?.(o),promised=o.communicatedDeadline||'',internal=o.internalExpectedDate||'';
+    const reasons=[];
+    if(a&&!a.ok){const names=(a.missing||[]).slice(0,8).map(t=>`${t.seq||'?'}. ${t.name||t.machine||'Stap'}`);reasons.push('<b>Niet volledig ingepland:</b> '+(names.length?names.map(esc).join(', '):'er ontbreken planningsblokken'))}
+    if(promised&&internal&&internal>promised)reasons.push(`<b>Deadlineprobleem:</b> intern verwacht gereed <b>${esc(internal)}</b>, maar aan klant gecommuniceerd <b>${esc(promised)}</b>.`);
+    if(h?.status==='bad'&&!reasons.some(x=>x.includes('Deadlineprobleem')))reasons.push(`<b>Niet haalbaar:</b> verwachte einddatum ${esc(h.finish||'—')} ligt te laat voor de klantdeadline ${esc(promised||h.hard||'—')}.`);
+    if(h?.status==='risk')reasons.push(`<b>Spannend:</b> ${esc(h.label||'weinig speling')} ${h.slack!=null?'('+esc(String(h.slack))+' werkdagen speling)':''}.`);
+    if(!reasons.length)return;
+
+    let adviceHtml='<b>Advies:</b> controleer de gemarkeerde planning.';
+    if(a&&!a.ok){
+      adviceHtml='<b>Wat doen:</b> vul/controleer de ontbrekende stappen en druk daarna op <b>Opslaan en direct inplannen</b>. De hele keten moet daarna een planning hebben.';
+    }else if(h?.status==='bad'){
+      let adv=null;try{adv=window.RALAB_DEADLINE_PLANNER?.attentionAdvice?.(o.id)}catch(err){console.warn('Capaciteitsadvies kon niet worden berekend',err)}
+      if(adv?.peter&&adv.peter.status!=='bad'){
+        const target=fmtHours(adv.peterMinutesTarget),total=fmtHours(adv.peterMinutesTotal);
+        adviceHtml=`<b>Slimste herstel:</b> Peter inzetten maakt deze order volgens de simulatie haalbaar. Peter wordt ca. <b>${target}</b> op deze order ingezet (${total} in de totale herplanning). Daarmee worden <b>${adv.rescuedByPeter}</b> momenteel rode order(s) haalbaar.`;
+      }else if(adv?.overtime&&adv.overtime.status!=='bad'){
+        const target=fmtHours(adv.saturdayMinutesTarget),total=fmtHours(adv.saturdayMinutesTotal);
+        adviceHtml=`<b>Slimste herstel:</b> Peter alleen is niet genoeg. Met Peter + zaterdag/overwerk is deze order wel haalbaar. De simulatie gebruikt ca. <b>${total}</b> extra zaterdaguren in de totale planning${Number(adv.saturdayMinutesTarget)>0?' ('+target+' direct op deze order)':''}. Daarmee worden <b>${adv.rescuedByOvertime}</b> rode order(s) haalbaar.`;
+      }else if(adv){
+        adviceHtml='<b>Capaciteitstekort:</b> zelfs met Peter en het huidige zaterdag/overwerkmodel blijft deze order te laat. Dan moet je capaciteit/machinekeuze wijzigen, een eerdere order verschuiven of de klantdeadline aanpassen.';
+      }else{
+        adviceHtml='<b>Capaciteitstekort:</b> probeer deadline-optimalisatie of extra capaciteit; deze order staat nu na de beloofde klantdatum.';
+      }
+    }else if(h?.status==='risk'){
+      adviceHtml='<b>Wat doen:</b> nog geen harde overschrijding, maar weinig buffer. Plan deze order eerder of houd extra capaciteit vrij om rood te voorkomen.';
+    }
+
+    const panel=document.createElement('div');panel.id='ocAttentionPanel';panel.className='panel';panel.style.cssText='margin:12px 0;padding:14px;border:2px solid '+(h?.status==='bad'?'#c73b32':'#d59b2d')+';background:'+(h?.status==='bad'?'#fff0ee':'#fff7df');
+    panel.innerHTML=`<div style="font-size:18px;font-weight:900;margin-bottom:8px">${h?.status==='bad'?'🔴 Aandacht nodig':'🟠 Controleren'}</div><div style="line-height:1.55">${reasons.map(x=>'<div style="margin:4px 0">'+x+'</div>').join('')}<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.12)">${adviceHtml}</div></div>${h?.status==='bad'?'<div style="margin-top:10px"><button class="btn primary" type="button" data-optimize-order="'+esc(o.id)+'">Optimaliseer op deadlines</button></div>':''}`;
+    const toolbar=editor.querySelector('.toolbar');toolbar?.after(panel);
+  }
   function stepOptions(selected=''){
     const names=OPS.map(x=>x.name),extra=selected&&!names.includes(selected)?`<option value="${esc(selected)}" selected>${esc(selected)}</option>`:'';
     return `<option value="">— kies stap —</option>${extra}${OPS.map(o=>`<option value="${esc(o.name)}" ${o.name===selected?'selected':''}>${esc(o.name)}</option>`).join('')}`;
@@ -135,10 +171,10 @@
     const machine=e.target.closest('#ocRows [data-oc-machine]');if(machine)applyMachinePreset(machine);
   },true);
 
-  const observer=new MutationObserver(()=>upgradeExistingRows());
+  const observer=new MutationObserver(()=>{upgradeExistingRows();renderAttentionPanel()});
   observer.observe(document.documentElement,{childList:true,subtree:true});
   setInterval(upgradeExistingRows,700);
-  upgradeExistingRows();
+  upgradeExistingRows();renderAttentionPanel();
 
-  window.RALAB_ORDER_CALC_WORKFLOW={version:VERSION,reviewed,nextOrder,needsPlanning,needsReview,reviewQueue,reviewCount,startReview,audit,ensureFullyPlanned};
+  window.RALAB_ORDER_CALC_WORKFLOW={version:VERSION,reviewed,nextOrder,needsPlanning,needsReview,reviewQueue,reviewCount,startReview,audit,ensureFullyPlanned,renderAttentionPanel};
 })();
