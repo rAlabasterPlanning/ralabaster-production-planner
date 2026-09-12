@@ -40,3 +40,8 @@ input.np-active{outline:3px solid rgba(32,61,55,.28)!important;outline-offset:1p
   #ralabNumericOverlay .np-card{width:min(390px,calc(100vw - 24px));padding:14px}
   #ralabNumericOverlay .np-grid button{min-height:60px;font-size:24px}
 }
+
+#ralabNumericOverlay .np-units{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+#ralabNumericOverlay .np-units[hidden]{display:none}
+#ralabNumericOverlay .np-units button{min-height:54px;border:1px solid rgba(32,61,55,.28);border-radius:14px;background:#eef4f2;color:#203d37;font:700 16px system-ui,-apple-system,sans-serif;touch-action:manipulation}
+#ralabNumericOverlay .np-units button:active{transform:translateY(1px);background:#dde9e5}
