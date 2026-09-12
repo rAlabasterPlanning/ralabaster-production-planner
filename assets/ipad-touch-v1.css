@@ -1,0 +1,77 @@
+/* rAlabaster iPad 13-inch touch layer v1 — presentation only. */
+@media (pointer:coarse) and (min-width:768px) and (max-width:1400px){
+  :root{--ipad-touch:48px;--ipad-gap:12px}
+  html,body{overscroll-behavior-x:none}
+  body{font-size:15px;padding-bottom:env(safe-area-inset-bottom)}
+  header{height:auto;min-height:64px;padding:8px max(12px,env(safe-area-inset-left));gap:12px;align-items:center}
+  .brand-logo{height:38px!important}
+  header nav{min-width:0;flex:1 1 auto;display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:3px 0}
+  header nav::-webkit-scrollbar{display:none}
+  .navbtn{flex:0 0 auto;min-height:var(--ipad-touch);padding:10px 14px;font-size:14px;white-space:nowrap;touch-action:manipulation}
+  main{padding:16px max(14px,env(safe-area-inset-right)) 24px max(14px,env(safe-area-inset-left));overflow-x:hidden}
+
+  .toolbar{display:flex;flex-wrap:wrap!important;align-items:center;gap:10px!important;min-width:0}
+  .toolbar>.spacer{flex:1 1 24px}
+  .toolbar>.btn,.toolbar>.input,.toolbar>select{max-width:100%;min-height:var(--ipad-touch)}
+  .toolbar h2,.toolbar h3{min-width:0;overflow-wrap:anywhere}
+
+  .btn{min-height:var(--ipad-touch);padding:10px 14px;font-size:14px;touch-action:manipulation}
+  .btn.small{min-height:44px;padding:8px 12px;font-size:13px}
+  .input,input,select,textarea{font-size:16px;min-height:var(--ipad-touch)}
+  input[type="checkbox"],input[type="radio"]{width:22px;height:22px;min-height:22px}
+  select{padding-right:34px}
+  textarea{min-height:100px}
+
+  .grid2{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:var(--ipad-gap)}
+  .grid3{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:var(--ipad-gap)}
+  .field{min-width:0}
+  .field>.input,.field>input,.field>select,.field>textarea{width:100%;max-width:100%}
+
+  .panel{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .panel>table,.taskedit{min-width:860px}
+  #view-calculation .panel>table,#orderCalcEditor table{min-width:1080px}
+  #orderCalcEditor{overflow:visible!important}
+  #orderCalcEditor>div[style*="overflow:auto"]{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+  #orderCalcEditor [data-oc-row] input,#orderCalcEditor [data-oc-row] select{min-width:120px}
+  #orderCalcEditor [data-oc-row] [data-oc-name]{min-width:180px}
+  #orderCalcEditor [data-oc-row] [data-oc-machine]{min-width:190px}
+  #orderCalcEditor [data-oc-up],#orderCalcEditor [data-oc-down],#orderCalcEditor [data-oc-delete]{min-width:44px}
+
+  .modalback{padding:18px;align-items:center}
+  .modal{width:min(980px,calc(100vw - 36px));max-width:980px;max-height:calc(100dvh - 36px);display:flex;flex-direction:column;overflow:hidden}
+  .modalhead{flex:0 0 auto;padding:14px 16px}
+  .modalbody{flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:16px}
+  .modalfoot{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:10px;padding:12px 16px max(12px,env(safe-area-inset-bottom))}
+  .modalfoot .btn{flex:1 1 180px}
+
+  .ordercards{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .ordercard{padding:14px}
+  .dayboard{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  .weekgrid{min-width:1100px}
+  .weeks{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  #view-calculation .calc-order-actions,
+  #orderCalcEditor>.toolbar:first-child{position:sticky;top:0;z-index:12;background:rgba(245,246,248,.97);backdrop-filter:blur(10px);padding:8px;border-radius:10px}
+
+  /* Custom numeric pad */
+  #ralabIpadNumpad{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:10050;width:318px;padding:12px;background:#fff;border:1px solid rgba(0,0,0,.14);border-radius:16px;box-shadow:0 18px 55px rgba(0,0,0,.24);display:none;user-select:none;-webkit-user-select:none}
+  #ralabIpadNumpad.open{display:block}
+  #ralabIpadNumpad .np-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  #ralabIpadNumpad .np-label{font-weight:700;min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #ralabIpadNumpad .np-value{font-size:24px;font-weight:700;text-align:right;padding:8px 10px;border-radius:10px;background:#f3f5f5;min-height:48px;overflow:hidden;text-overflow:ellipsis}
+  #ralabIpadNumpad .np-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  #ralabIpadNumpad button{min-height:54px;border:1px solid rgba(0,0,0,.13);border-radius:11px;background:#f7f8f8;font:600 20px system-ui,-apple-system,sans-serif;touch-action:manipulation}
+  #ralabIpadNumpad button:active{transform:translateY(1px);background:#e9eded}
+  #ralabIpadNumpad .np-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  #ralabIpadNumpad .np-actions button{font-size:15px}
+  #ralabIpadNumpad .np-ok{background:#203d37;color:#fff;border-color:#203d37}
+  #ralabIpadNumpad .np-active{outline:3px solid rgba(32,61,55,.28);outline-offset:1px}
+}
+
+@media (pointer:coarse) and (min-width:768px) and (max-width:1100px){
+  .grid3{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .ordercards{grid-template-columns:1fr}
+  #ralabIpadNumpad{left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));width:auto;max-width:none;border-radius:16px}
+  #ralabIpadNumpad .np-grid{grid-template-columns:repeat(6,1fr)}
+  #ralabIpadNumpad button{min-height:50px}
+}
