@@ -41,6 +41,9 @@ function renderQuotes(page=quotePage){if(!init())return;quotePage=Math.max(0,+pa
 function quoteOrder(id){const s=S(),q=s.quotes.find(x=>x.id===id);if(!q)return;const cust=s.customers.find(c=>c.id===q.customerId);const oid='o_'+Date.now();s.orders.push({id:oid,orderNo:q.orderNo||('ORD-'+Date.now().toString().slice(-6)),customerId:q.customerId,customerName:cust?.name||'',project:q.project||'',product:q.name,qty:q.qty,deadline:q.communicatedDate,internalExpectedDate:q.internalReady,communicatedDeadline:'',deliveryBufferDays:14,costing:structuredClone(q),costUnit:q.costUnit,saleUnit:q.saleUnit,totalSale:q.total,created:iso(),active:true,status:'confirmed'});(q.ops||[]).forEach((o,i)=>s.tasks.push({id:'t_'+Date.now()+'_'+i,orderId:oid,seq:i+1,name:o.name,machine:o.name,estimate:(+o.minutes||0)*(o.mode==='unit'?q.qty:1),dependsPrev:i>0,type:o.mode==='external'?'external':o.mode==='wait'?'wait':'internal',employee:null,date:null,start:'',planSegments:[],status:'open',actual:0,doneQty:0,note:'',externalLeadDays:o.mode==='external'?Math.max(1,Math.ceil((+o.minutes||20160)/1440)):null,expectedExternalCostBatch:o.externalBatch||0,expectedExternalCostUnit:o.externalUnit||0}));q.status='accepted';q.orderId=oid;persist();show('orders')}
 function orderFeasibility(o){
  if(o.waitingMaterial||o.materialStatus==='waiting')return {key:'waiting',label:'Wacht op materiaal',detail:'Niet beoordeeld'};
+ const promised=o.communicatedDeadline||'';
+ const internal=o.internalExpectedDate||'';
+ if(promised&&internal&&internal>promised)return {key:'bad',label:'Niet haalbaar',detail:'Intern verwacht '+internal+' · klant beloofd '+promised};
  const h=window.RALAB_DEADLINE_PLANNER?.health?.(o);
  if(!h)return {key:'unknown',label:'Nog te beoordelen',detail:'Planning ontbreekt'};
  if(h.status==='bad')return {key:'bad',label:'Niet haalbaar',detail:h.finish?('Verwacht '+h.finish):'Planning niet haalbaar'};
