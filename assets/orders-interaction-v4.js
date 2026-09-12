@@ -1,6 +1,6 @@
 // Orders interaction v4 — direct hit testing for iPad/touch, no render wrapping or DOM mutation.
 (()=>{
-  const VERSION='20260912-6';
+  const VERSION='20260912-7';
   if(window.__ralabOrdersInteractionV4Installed)return;
   window.__ralabOrdersInteractionV4Installed=true;
 
@@ -62,8 +62,10 @@
     const x=e.clientX,y=e.clientY;
     if(!Number.isFinite(x)||!Number.isFinite(y))return;
 
-    // If a visible numeric modal is open, let it own the screen.
+    // If a modal is open, let that modal own the screen. Never hit-test buttons behind it.
     if(document.getElementById('ralabNumericOverlay')?.classList.contains('open'))return;
+    const modalRoot=document.getElementById('modalRoot');
+    if(modalRoot&&modalRoot.children.length)return;
 
     // Header/navigation: coordinate hit-testing still works even if an invisible layer is sitting above it.
     const nav=hit('header .navbtn',x,y);
