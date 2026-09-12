@@ -1,0 +1,42 @@
+/* rAlabaster numeric keypad modal v2 — global overlay; does not depend on pointer media queries. */
+#ralabNumericOverlay{
+  position:fixed;
+  inset:0;
+  z-index:200000;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:max(18px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));
+  background:rgba(10,20,18,.48);
+  backdrop-filter:blur(2px);
+  -webkit-backdrop-filter:blur(2px);
+}
+#ralabNumericOverlay.open{display:flex}
+#ralabNumericOverlay .np-card{
+  width:min(420px,calc(100vw - 36px));
+  max-height:calc(100dvh - 36px);
+  overflow:auto;
+  background:#fff;
+  border:1px solid rgba(0,0,0,.14);
+  border-radius:20px;
+  box-shadow:0 24px 80px rgba(0,0,0,.35);
+  padding:16px;
+  user-select:none;
+  -webkit-user-select:none;
+}
+#ralabNumericOverlay .np-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+#ralabNumericOverlay .np-label{font:700 18px/1.2 system-ui,-apple-system,sans-serif;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ralabNumericOverlay .np-close{width:46px;min-width:46px;height:46px;border:0;border-radius:12px;background:#eef1f1;font:700 25px/1 system-ui,-apple-system,sans-serif}
+#ralabNumericOverlay .np-value{font:700 34px/1.2 system-ui,-apple-system,sans-serif;text-align:right;padding:14px 16px;border-radius:14px;background:#f1f4f3;min-height:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ralabNumericOverlay .np-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+#ralabNumericOverlay .np-grid button{min-height:68px;border:1px solid rgba(0,0,0,.13);border-radius:14px;background:#f8f9f9;font:700 26px system-ui,-apple-system,sans-serif;touch-action:manipulation}
+#ralabNumericOverlay .np-grid button:active{transform:translateY(1px);background:#e8eded}
+#ralabNumericOverlay .np-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+#ralabNumericOverlay .np-actions button{min-height:56px;border:1px solid rgba(0,0,0,.14);border-radius:14px;font:700 16px system-ui,-apple-system,sans-serif;background:#f4f6f6;touch-action:manipulation}
+#ralabNumericOverlay .np-actions .np-ok{background:#203d37;color:#fff;border-color:#203d37}
+input.np-active{outline:3px solid rgba(32,61,55,.28)!important;outline-offset:1px}
+
+@media (max-width:760px){
+  #ralabNumericOverlay .np-card{width:min(390px,calc(100vw - 24px));padding:14px}
+  #ralabNumericOverlay .np-grid button{min-height:60px;font-size:24px}
+}
