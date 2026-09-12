@@ -1,6 +1,6 @@
 // rAlabaster order-calculation workflow helpers: batch review flow + selectable standard steps.
 (()=>{
-  const VERSION='20260912-6';
+  const VERSION='20260912-7';
   const reviewed=new Set();
   const OPS=[
     ['Technisch uitwerken',0,30,'batch'],['Verpakking bestellen',30,30,'batch'],['Materiaal bestellen',11,30,'batch'],['Alabaster klaarzetten',11,30,'batch'],
@@ -36,8 +36,13 @@
   }
   function needsPlanning(o){return !audit(o).ok}
   function needsReview(o){
-    if(!o||o.active===false||o.status==='completed'||o.waitingMaterial||o.materialStatus==='waiting')return false;
-    return needsPlanning(o)||!o.planningCheckedAt;
+    if(!o||o.deleted||o.active===false||o.status==='completed'||o.waitingMaterial||o.materialStatus==='waiting')return false;
+    if(needsPlanning(o))return true;
+    const promised=o.communicatedDeadline||'';
+    const internal=o.internalExpectedDate||'';
+    if(promised&&internal&&internal>promised)return true;
+    const h=window.RALAB_DEADLINE_PLANNER?.health?.(o);
+    return !!h && (h.status==='risk'||h.status==='bad');
   }
   function reviewQueue(){
     const s=S();if(!s)return[];
