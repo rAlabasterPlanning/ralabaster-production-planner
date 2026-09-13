@@ -1,7 +1,8 @@
 /* Interaction cleanup v1 — only prevent truly hidden layers from stealing input. */
 #modalRoot:empty{pointer-events:none!important}
 #ralabNumericOverlay:not(.open){display:none!important;pointer-events:none!important}
-#modalRoot:not(:empty){pointer-events:auto}
-.modalback{z-index:1000}
-#ralabNumericOverlay.open{z-index:2000}
+#modalRoot:not(:empty){position:fixed!important;inset:0!important;z-index:1000000!important;pointer-events:auto!important;isolation:isolate}
+#modalRoot:not(:empty)>.modalback{position:absolute!important;inset:0!important;z-index:1!important;pointer-events:auto!important}
+#modalRoot .modal,#modalRoot .modal *{pointer-events:auto}
+#ralabNumericOverlay.open{z-index:2000000}
 header{z-index:30}
