@@ -49,7 +49,7 @@ function dependentChainAfter(t){
 function freeIntervalsForEmployee(date,emp,includeSaturday=false,excludeIds=new Set()){
  const cap=employeeCapacity(date,emp,includeSaturday);if(cap<=0)return[];
  const ws=timeToMin(dayStartTime(date,emp)),we=workdayEndMinutes(date,emp);if(we<=ws)return[];
- const busy=[];
+ const busy=(typeof planningBreaks==='function'?planningBreaks(date,emp):[]).map(x=>[x[0],x[1]]);
  for(const x of scheduledEntries(date,emp)){
    if(excludeIds.has(x.task.id))continue;
    const st=timeToMin(x.seg.start||dayStartTime(date,emp));const en=Math.min(we,st+(Number(x.seg.minutes)||0));if(en>ws&&st<we)busy.push([Math.max(ws,st),en]);
