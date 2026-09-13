@@ -1,19 +1,23 @@
-// rAlabaster order modal buttons v1 — touch-safe actions only inside #modalRoot.
+// rAlabaster order modal buttons v1 — top-layer touch actions only inside #modalRoot.
 (()=>{
-  const VERSION='20260912-2';
+  const VERSION='20260913-3';
   if(window.__ralabOrderModalButtonsV1Installed)return;
   window.__ralabOrderModalButtonsV1Installed=true;
 
   const inRect=(r,x,y)=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom;
-  const hitButton=(x,y)=>[...document.querySelectorAll('#modalRoot .modalfoot button')].find(btn=>{
-    const r=btn.getBoundingClientRect();
-    return r.width>0&&r.height>0&&inRect(r,x,y);
-  })||null;
+  const hitButton=(x,y)=>{
+    for(const layer of document.elementsFromPoint(x,y)){
+      const btn=layer.closest?.('#modalRoot .modalfoot button');if(!btn)continue;
+      const r=btn.getBoundingClientRect();if(r.width>0&&r.height>0&&inRect(r,x,y))return btn;
+    }
+    return null;
+  };
 
   function actionFor(btn){
     if(!btn)return null;
     if(btn.matches('[data-order-to-calc]'))return {type:'calc',id:btn.dataset.orderToCalc};
     if(btn.matches('[data-delete-confirm]'))return {type:'deleteConfirm',id:btn.dataset.deleteConfirm};
+    if(btn.matches('[data-confirm-delete-order]'))return {type:'deleteConfirm',id:btn.dataset.confirmDeleteOrder};
     if(btn.matches('[data-delete-cancel]'))return {type:'deleteCancel'};
     if(btn.matches('[data-customer-print]'))return {type:'customerPrint',id:btn.dataset.customerPrint};
     const raw=btn.getAttribute('onclick')||'';
