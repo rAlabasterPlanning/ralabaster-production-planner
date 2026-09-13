@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260913-4';
+const VERSION='20260913-5';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -15,7 +15,7 @@ const movable=t=>!general(t)&&!done(t)&&!started(t);
 const segments=t=>Array.isArray(t?.planSegments)?t.planSegments:[];
 const fmtDate=d=>{try{return typeof fmtShort==='function'?fmtShort(d):d}catch(_){return d||'—'}};
 const fmtMinutes=m=>{const n=Math.max(0,Math.round(Number(m)||0));if(n<60)return n===1?'1 minuut':`${n} minuten`;const h=Math.round(n/6)/10;return`${String(h).replace('.',',')} uur`};
-let unplanPointerUntil=0,unplanAllArmed=false;
+let unplanPointerUntil=0,unplanAllArmed=false,planRemainingArmed=false;
 function invalidate(){try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}}
 function setState(next){state=clone(next);invalidate()}
 function clearOneTask(t){
@@ -32,6 +32,9 @@ function unplanOrderInternal(id){
  return{cleared,protected:protectedCount};
 }
 function activeOrders(){return(S()?.orders||[]).filter(o=>!o.deleted&&o.active!==false&&o.status!=='completed'&&!o.isGeneralWork)}
+function hasPlanning(t){if(t.type==='wait'||/droog|wacht/i.test((t.name||'')+' '+(t.machine||'')))return!!(t.waitStartAt&&t.waitEndAt);if(t.type==='external'||/extern/i.test((t.name||'')+' '+(t.machine||'')))return!!(t.date&&t.expectedReturnDate);return!!(segments(t).length||t.date)}
+function remainingOrders(){return activeOrders().filter(o=>!o.waitingMaterial&&o.materialStatus!=='waiting').filter(o=>{const ts=tasksFor(o.id).filter(movable);return ts.length&&ts.every(t=>!hasPlanning(t))}).sort((a,b)=>(deadlineOf(a)||'9999-12-31').localeCompare(deadlineOf(b)||'9999-12-31')||(a.orderNo||'').localeCompare(b.orderNo||''))}
+function isolateTargets(next,baseline,targetIds){const ids=new Set(targetIds),orders=new Map((baseline.orders||[]).map(o=>[o.id,o])),tasks=new Map((baseline.tasks||[]).map(t=>[t.id,t]));next.orders=(next.orders||[]).map(o=>ids.has(o.id)?o:clone(orders.get(o.id)||o));next.tasks=(next.tasks||[]).map(t=>ids.has(t.orderId)?t:clone(tasks.get(t.id)||t));return next}
 function persistAndRender(){invalidate();try{save()}catch(e){console.error(e)}try{closeModal()}catch(_){ }setTimeout(()=>window.RALAB_ERP?.renderOrders?.(0),0)}
 function showConfirm(title,body,confirmText,action,value=''){
  const root=document.getElementById('modalRoot');if(!root)return;
@@ -53,9 +56,20 @@ function simulate(id,opts){
  if(!o||!p?.planOrderStrict){setState(backup);return null}
  p.normalizeSequences?.();p.planOrderStrict(o,opts);invalidate();let h=p.health(o);
  if(h?.finish){o.internalExpectedDate=h.finish;h=p.health(o)}
- const result={state:clone(S()),health:h,peterMinutes:countMinutes(id,g=>g.employee==='Peter'),saturdayMinutes:countMinutes(id,g=>g.date&&typeof parseDate==='function'&&parseDate(g.date).getDay()===6)};
+ const result={state:isolateTargets(clone(S()),backup,[id]),health:h,peterMinutes:countMinutes(id,g=>g.employee==='Peter'),saturdayMinutes:countMinutes(id,g=>g.date&&typeof parseDate==='function'&&parseDate(g.date).getDay()===6)};
  setState(backup);return result;
 }
+function simulateRemaining(){
+ const backup=clone(S()),all=remainingOrders(),orders=all.filter(o=>deadlineOf(o)),missingDeadline=all.filter(o=>!deadlineOf(o));if(!orders.length)return{state:backup,orders:[],missingDeadline,late:[]};
+ setState(backup);const p=planner();if(!p?.planOrderStrict){setState(backup);return null}const ids=orders.map(o=>o.id),health=[];
+ try{p.normalizeSequences?.();for(const original of orders){const o=findOrder(original.id);if(!o)continue;p.planOrderStrict(o,{allowPeter:false,allowSaturday:false});let h=p.health?.(o)||{};if(h.finish){o.internalExpectedDate=h.finish;h=p.health?.(o)||h}health.push({id:o.id,orderNo:o.orderNo||'',deadline:deadlineOf(o),health:h})}const next=isolateTargets(clone(S()),backup,ids);setState(backup);return{state:next,orders:health,missingDeadline,late:health.filter(x=>x.health?.status==='bad')}}catch(e){console.error(e);setState(backup);return null}
+}
+function confirmPlanRemaining(){
+ const preview=simulateRemaining();if(!preview)return alert('De planningsmodule is nog niet gereed. Ververs de app en probeer opnieuw.');if(!preview.orders.length)return alert(preview.missingDeadline.length?'De resterende orders hebben nog geen klantdeadline. Vul die eerst in.':'Er zijn geen volledig ongeplande orders meer.');
+ window.__ralabPendingRemainingPlan=preview;planRemainingArmed=true;const first=preview.orders.slice(0,6).map(x=>`<li><b>${esc(x.orderNo)}</b> · deadline ${esc(fmtDate(x.deadline))} · verwacht gereed ${esc(fmtDate(x.health?.finish))}${x.health?.status==='bad'?' <b style="color:#b42318">(te laat)</b>':''}</li>`).join('');
+ const root=document.getElementById('modalRoot');if(!root)return;root.innerHTML=`<div class="modalback"><div class="modal" style="width:min(680px,94vw)"><div class="modalhead"><h3>Resterende orders inplannen</h3></div><div class="modalbody"><p>De planner voegt <b>${preview.orders.length} order(s) waarvan alle resterende stappen nog los staan</b> toe, met de eerste klantdeadline eerst. Alles wat al ingepland staat blijft ongewijzigd.</p><ol>${first}</ol>${preview.orders.length>6?`<p class="muted">En nog ${preview.orders.length-6} order(s).</p>`:''}${preview.late.length?`<div class="notice"><b>${preview.late.length} order(s) blijven met normale capaciteit te laat.</b> Je kunt die daarna per order openen voor een voorstel met Peter, overwerk of een deadlinewijziging.</div>`:''}${preview.missingDeadline.length?`<p class="muted">${preview.missingDeadline.length} order(s) zonder klantdeadline worden overgeslagen.</p>`:''}</div><div class="modalfoot"><button class="btn" type="button" data-plan-control-cancel>Annuleren</button><div class="spacer"></div><button class="btn primary" type="button" data-confirm-plan-remaining>Planning accepteren</button></div></div></div>`
+}
+function executePlanRemaining(){const preview=window.__ralabPendingRemainingPlan;if(!planRemainingArmed||!preview)return confirmPlanRemaining();planRemainingArmed=false;window.__ralabPendingRemainingPlan=null;setState(preview.state);const now=new Date().toISOString();for(const x of preview.orders){const o=findOrder(x.id);if(o){o.planningCheckedAt=now;o.planningDecision='planned_remaining_deadline_order';o.planningDecisionAt=now}}persistAndRender();alert(`${preview.orders.length} resterende order(s) zijn op deadlinevolgorde ingepland. Reeds geplande orders zijn niet verplaatst.${preview.late.length?` ${preview.late.length} order(s) vragen nog aandacht.`:''}`)}
 function daysLate(deadline,finish){if(!deadline||!finish)return 0;const a=new Date(deadline+'T12:00:00'),b=new Date(finish+'T12:00:00');return Math.max(0,Math.ceil((b-a)/86400000))}
 function applyPlannedState(result,id,decision){
  if(!result?.state)return;setState(result.state);const o=findOrder(id);if(o){o.planningCheckedAt=new Date().toISOString();o.planningDecision=decision;o.planningDecisionAt=new Date().toISOString()}
@@ -100,12 +114,12 @@ function applyPending(kind){
    const d=p.normal.health?.finish;if(!d)return;return openPlanReview(p.normal,p.id,'planned_deadline_shift',d)
  }
 }
-function planControlAt(e){const selector='[data-plan-order],[data-unplan-order],[data-unplan-all],[data-confirm-unplan-order],[data-confirm-unplan-all],[data-apply-order-plan],[data-plan-review-recalc],[data-plan-review-accept],[data-plan-review-cancel],[data-plan-control-cancel]';let control=e.target?.closest?.(selector);if(e.type==='pointerup'&&Number.isFinite(e.clientX)&&Number.isFinite(e.clientY)){for(const layer of document.elementsFromPoint?.(e.clientX,e.clientY)||[]){const found=layer.closest?.(selector);if(found){control=found;break}}}return control}
-function handlePlanControl(e){const control=planControlAt(e);if(!control)return false;if(e.type==='click'&&Date.now()<unplanPointerUntil){e.preventDefault();e.stopImmediatePropagation();return true}e.preventDefault();e.stopImmediatePropagation();if(control.disabled)return true;if(e.type==='pointerup')unplanPointerUntil=Date.now()+800;if(control.matches('[data-confirm-unplan-all]'))executeUnplanAll();else if(control.matches('[data-confirm-unplan-order]'))executeUnplanOrder(control.dataset.confirmUnplanOrder);else if(control.matches('[data-unplan-all]'))confirmUnplanAll();else if(control.matches('[data-unplan-order]'))confirmUnplanOrder(control.dataset.unplanOrder);else if(control.matches('[data-plan-order]'))planAndCheck(control.dataset.planOrder);else if(control.matches('[data-apply-order-plan]'))applyPending(control.dataset.applyOrderPlan);else if(control.matches('[data-plan-review-recalc]'))recalculateReview();else if(control.matches('[data-plan-review-accept]'))acceptReview();else{if(control.matches('[data-plan-review-cancel]'))window.__ralabOrderPlanReview=null;unplanAllArmed=false;window.__ralabPendingOrderPlan=null;try{closeModal()}catch(_){document.getElementById('modalRoot').innerHTML=''}}return true}
+function planControlAt(e){const selector='[data-plan-order],[data-plan-remaining],[data-confirm-plan-remaining],[data-unplan-order],[data-unplan-all],[data-confirm-unplan-order],[data-confirm-unplan-all],[data-apply-order-plan],[data-plan-review-recalc],[data-plan-review-accept],[data-plan-review-cancel],[data-plan-control-cancel]';let control=e.target?.closest?.(selector);if(e.type==='pointerup'&&Number.isFinite(e.clientX)&&Number.isFinite(e.clientY)){for(const layer of document.elementsFromPoint?.(e.clientX,e.clientY)||[]){const found=layer.closest?.(selector);if(found){control=found;break}}}return control}
+function handlePlanControl(e){const control=planControlAt(e);if(!control)return false;if(e.type==='click'&&Date.now()<unplanPointerUntil){e.preventDefault();e.stopImmediatePropagation();return true}e.preventDefault();e.stopImmediatePropagation();if(control.disabled)return true;if(e.type==='pointerup')unplanPointerUntil=Date.now()+800;if(control.matches('[data-confirm-plan-remaining]'))executePlanRemaining();else if(control.matches('[data-plan-remaining]'))confirmPlanRemaining();else if(control.matches('[data-confirm-unplan-all]'))executeUnplanAll();else if(control.matches('[data-confirm-unplan-order]'))executeUnplanOrder(control.dataset.confirmUnplanOrder);else if(control.matches('[data-unplan-all]'))confirmUnplanAll();else if(control.matches('[data-unplan-order]'))confirmUnplanOrder(control.dataset.unplanOrder);else if(control.matches('[data-plan-order]'))planAndCheck(control.dataset.planOrder);else if(control.matches('[data-apply-order-plan]'))applyPending(control.dataset.applyOrderPlan);else if(control.matches('[data-plan-review-recalc]'))recalculateReview();else if(control.matches('[data-plan-review-accept]'))acceptReview();else{if(control.matches('[data-plan-review-cancel]'))window.__ralabOrderPlanReview=null;unplanAllArmed=false;planRemainingArmed=false;window.__ralabPendingOrderPlan=null;window.__ralabPendingRemainingPlan=null;try{closeModal()}catch(_){document.getElementById('modalRoot').innerHTML=''}}return true}
 document.addEventListener('pointerup',e=>{handlePlanControl(e)},true);
 document.addEventListener('click',e=>{
  handlePlanControl(e);
 },true);
-window.RALAB_ORDER_CONTROLS={version:VERSION,planAndCheck,confirmUnplanOrder,confirmUnplanAll,executeUnplanOrder,executeUnplanAll,openPlanReview,recalculateReview,reviewWarnings};
+window.RALAB_ORDER_CONTROLS={version:VERSION,planAndCheck,confirmPlanRemaining,executePlanRemaining,confirmUnplanOrder,confirmUnplanAll,executeUnplanOrder,executeUnplanAll,openPlanReview,recalculateReview,reviewWarnings,simulate,simulateRemaining,remainingOrders};
 const style=document.createElement('style');style.textContent=`.plan-review-modal{width:min(1180px,96vw)!important}.plan-review-table{overflow:auto;max-height:55vh;border:1px solid #d9dfdc;border-radius:8px}.plan-review-table table{min-width:920px}.plan-review-table th{position:sticky;top:0;background:#f5f7f6;z-index:1}.plan-review-table td{vertical-align:top}.plan-review-table .input{min-width:125px}.plan-review-summary{padding:11px 13px;border-radius:8px;margin-bottom:12px}.plan-review-summary.ok{background:#e8f6ec}.plan-review-summary.risk{background:#fff4d8}.plan-review-summary.bad{background:#ffe5e2}@media(max-width:800px){.plan-review-modal{width:98vw!important}.plan-review-table{max-height:58vh}}`;document.head.appendChild(style);
 })();
