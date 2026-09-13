@@ -1,7 +1,7 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20260913-9';
+  const VERSION='20260913-10';
   const PENDING_KEY='ralabaster_planner_pending_v1';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
@@ -91,7 +91,23 @@
 
   function orderRow(o,now){const del=!!o.deleted;return {workspace_id:WORKSPACE_ID,order_id:o.id,order_no:o.orderNo||'',active:!del&&o.active!==false&&o.status!=='completed',status:o.status||'',deadline:/^\d{4}-\d{2}-\d{2}$/.test(o.deadline||'')?o.deadline:null,completed_at:/^\d{4}-\d{2}-\d{2}$/.test(o.completedAt||'')?o.completedAt:null,data:o,deleted:del,updated_at:now}}
   function taskRow(t,active,now){const del=!!t.deleted;return {workspace_id:WORKSPACE_ID,task_id:t.id,order_id:t.orderId,seq:Number(t.seq)||null,status:t.status||'',task_date:/^\d{4}-\d{2}-\d{2}$/.test(t.date||'')?t.date:null,employee:t.employee||null,machine:t.machine||null,task_type:t.type||(isExternalTask(t)?'external':isDryTask(t)?'wait':'internal'),order_active:!!active&&!del,data:t,deleted:del,updated_at:now}}
-  async function upsertChunks(table,rows){for(let i=0;i<rows.length;i+=300){const {error}=await supabaseClient.from(table).upsert(rows.slice(i,i+300));if(error)throw error;await yieldUI()}}
+  function uniqueRows(table,rows){
+    const idColumn=table==='planner_tasks_v2'?'task_id':'order_id',byKey=new Map();
+    for(const row of rows||[]){
+      const id=String(row?.[idColumn]||'').trim();
+      if(!id)continue;
+      byKey.set(String(row.workspace_id||WORKSPACE_ID)+'|'+id,row);
+    }
+    return [...byKey.values()];
+  }
+  async function upsertChunks(table,rows){
+    const clean=uniqueRows(table,rows);
+    for(let i=0;i<clean.length;i+=300){
+      const chunk=clean.slice(i,i+300),{error}=await supabaseClient.from(table).upsert(chunk);
+      if(error){error.message=`${table}: ${error.message||'opslaan mislukt'}`;throw error}
+      await yieldUI();
+    }
+  }
 
   async function collectChanges(now,source=state){
     const orders=source.orders||[],tasks=source.tasks||[],activeByOrder=new Map(orders.map(o=>[o.id,o.active!==false&&o.status!=='completed']));
