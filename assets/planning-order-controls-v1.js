@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260913-2';
+const VERSION='20260913-4';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -15,6 +15,7 @@ const movable=t=>!general(t)&&!done(t)&&!started(t);
 const segments=t=>Array.isArray(t?.planSegments)?t.planSegments:[];
 const fmtDate=d=>{try{return typeof fmtShort==='function'?fmtShort(d):d}catch(_){return d||'—'}};
 const fmtMinutes=m=>{const n=Math.max(0,Math.round(Number(m)||0));if(n<60)return n===1?'1 minuut':`${n} minuten`;const h=Math.round(n/6)/10;return`${String(h).replace('.',',')} uur`};
+let unplanPointerUntil=0,unplanAllArmed=false;
 function invalidate(){try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}}
 function setState(next){state=clone(next);invalidate()}
 function clearOneTask(t){
@@ -42,10 +43,10 @@ function confirmUnplanOrder(id){
 }
 function confirmUnplanAll(){
  const orders=activeOrders(),movableCount=orders.reduce((n,o)=>n+tasksFor(o.id).filter(movable).length,0),protectedCount=orders.reduce((n,o)=>n+tasksFor(o.id).filter(t=>!general(t)&&(done(t)||started(t))).length,0);
- showConfirm('Alle orders ontplannen',`<p>Je verwijdert de planning van <b>${movableCount} nog niet gestarte stappen</b> verdeeld over <b>${orders.length} actieve orders</b>.</p><p>Daarna kun je bij de eerste deadline beginnen en de orders één voor één opnieuw inplannen.</p>${protectedCount?`<p class="muted">${protectedCount} afgeronde, gestarte of extern lopende stap(pen) blijven behouden.</p>`:''}`,'Alles ontplannen','confirm-unplan-all');
+ unplanAllArmed=true;showConfirm('Alle orders ontplannen',`<p><b>Weet je het zeker?</b></p><p>Je verwijdert de planning van <b>${movableCount} nog niet gestarte stappen</b> verdeeld over <b>${orders.length} actieve orders</b>.</p><p>Dit kan niet automatisch ongedaan worden gemaakt. Daarna kun je bij de eerste deadline beginnen en de orders één voor één opnieuw inplannen.</p>${protectedCount?`<p class="muted">${protectedCount} afgeronde, gestarte of extern lopende stap(pen) blijven behouden.</p>`:''}`,'Ja, alles ontplannen','confirm-unplan-all');
 }
 function executeUnplanOrder(id){const r=unplanOrderInternal(id);persistAndRender();alert(`${r.cleared} stap(pen) van deze order zijn ontpland.${r.protected?` ${r.protected} gestarte/afgeronde stappen zijn behouden.`:''}`)}
-function executeUnplanAll(){let cleared=0,protectedCount=0;for(const o of activeOrders()){const r=unplanOrderInternal(o.id);cleared+=r.cleared;protectedCount+=r.protected}persistAndRender();alert(`${cleared} nog niet gestarte stappen zijn ontpland.${protectedCount?` ${protectedCount} gestarte/afgeronde stappen zijn behouden.`:''}`)}
+function executeUnplanAll(){if(!unplanAllArmed)return confirmUnplanAll();unplanAllArmed=false;let cleared=0,protectedCount=0;for(const o of activeOrders()){const r=unplanOrderInternal(o.id);cleared+=r.cleared;protectedCount+=r.protected}persistAndRender();alert(`${cleared} nog niet gestarte stappen zijn ontpland.${protectedCount?` ${protectedCount} gestarte/afgeronde stappen zijn behouden.`:''}`)}
 function countMinutes(orderId,pred){let n=0;for(const t of tasksFor(orderId))for(const g of segments(t))if(pred(g,t))n+=Number(g.minutes)||0;return n}
 function simulate(id,opts){
  const backup=clone(S());setState(backup);unplanOrderInternal(id);const o=findOrder(id),p=planner();
@@ -99,17 +100,11 @@ function applyPending(kind){
    const d=p.normal.health?.finish;if(!d)return;return openPlanReview(p.normal,p.id,'planned_deadline_shift',d)
  }
 }
+function planControlAt(e){const selector='[data-plan-order],[data-unplan-order],[data-unplan-all],[data-confirm-unplan-order],[data-confirm-unplan-all],[data-apply-order-plan],[data-plan-review-recalc],[data-plan-review-accept],[data-plan-review-cancel],[data-plan-control-cancel]';let control=e.target?.closest?.(selector);if(e.type==='pointerup'&&Number.isFinite(e.clientX)&&Number.isFinite(e.clientY)){for(const layer of document.elementsFromPoint?.(e.clientX,e.clientY)||[]){const found=layer.closest?.(selector);if(found){control=found;break}}}return control}
+function handlePlanControl(e){const control=planControlAt(e);if(!control)return false;if(e.type==='click'&&Date.now()<unplanPointerUntil){e.preventDefault();e.stopImmediatePropagation();return true}e.preventDefault();e.stopImmediatePropagation();if(control.disabled)return true;if(e.type==='pointerup')unplanPointerUntil=Date.now()+800;if(control.matches('[data-confirm-unplan-all]'))executeUnplanAll();else if(control.matches('[data-confirm-unplan-order]'))executeUnplanOrder(control.dataset.confirmUnplanOrder);else if(control.matches('[data-unplan-all]'))confirmUnplanAll();else if(control.matches('[data-unplan-order]'))confirmUnplanOrder(control.dataset.unplanOrder);else if(control.matches('[data-plan-order]'))planAndCheck(control.dataset.planOrder);else if(control.matches('[data-apply-order-plan]'))applyPending(control.dataset.applyOrderPlan);else if(control.matches('[data-plan-review-recalc]'))recalculateReview();else if(control.matches('[data-plan-review-accept]'))acceptReview();else{if(control.matches('[data-plan-review-cancel]'))window.__ralabOrderPlanReview=null;unplanAllArmed=false;window.__ralabPendingOrderPlan=null;try{closeModal()}catch(_){document.getElementById('modalRoot').innerHTML=''}}return true}
+document.addEventListener('pointerup',e=>{handlePlanControl(e)},true);
 document.addEventListener('click',e=>{
- const plan=e.target.closest('[data-plan-order]');if(plan){e.preventDefault();e.stopImmediatePropagation();planAndCheck(plan.dataset.planOrder);return}
- const one=e.target.closest('[data-unplan-order]');if(one){e.preventDefault();e.stopImmediatePropagation();confirmUnplanOrder(one.dataset.unplanOrder);return}
- if(e.target.closest('[data-unplan-all]')){e.preventDefault();e.stopImmediatePropagation();confirmUnplanAll();return}
- const confirmOne=e.target.closest('[data-confirm-unplan-order]');if(confirmOne){e.preventDefault();e.stopImmediatePropagation();executeUnplanOrder(confirmOne.dataset.confirmUnplanOrder);return}
- if(e.target.closest('[data-confirm-unplan-all]')){e.preventDefault();e.stopImmediatePropagation();executeUnplanAll();return}
- const apply=e.target.closest('[data-apply-order-plan]');if(apply){e.preventDefault();e.stopImmediatePropagation();applyPending(apply.dataset.applyOrderPlan);return}
- if(e.target.closest('[data-plan-review-recalc]')){e.preventDefault();e.stopImmediatePropagation();recalculateReview();return}
- if(e.target.closest('[data-plan-review-accept]')){e.preventDefault();e.stopImmediatePropagation();acceptReview();return}
- if(e.target.closest('[data-plan-review-cancel]')){e.preventDefault();e.stopImmediatePropagation();window.__ralabOrderPlanReview=null;try{closeModal()}catch(_){document.getElementById('modalRoot').innerHTML=''}return}
- if(e.target.closest('[data-plan-control-cancel]')){e.preventDefault();e.stopImmediatePropagation();window.__ralabPendingOrderPlan=null;try{closeModal()}catch(_){document.getElementById('modalRoot').innerHTML=''} }
+ handlePlanControl(e);
 },true);
 window.RALAB_ORDER_CONTROLS={version:VERSION,planAndCheck,confirmUnplanOrder,confirmUnplanAll,executeUnplanOrder,executeUnplanAll,openPlanReview,recalculateReview,reviewWarnings};
 const style=document.createElement('style');style.textContent=`.plan-review-modal{width:min(1180px,96vw)!important}.plan-review-table{overflow:auto;max-height:55vh;border:1px solid #d9dfdc;border-radius:8px}.plan-review-table table{min-width:920px}.plan-review-table th{position:sticky;top:0;background:#f5f7f6;z-index:1}.plan-review-table td{vertical-align:top}.plan-review-table .input{min-width:125px}.plan-review-summary{padding:11px 13px;border-radius:8px;margin-bottom:12px}.plan-review-summary.ok{background:#e8f6ec}.plan-review-summary.risk{background:#fff4d8}.plan-review-summary.bad{background:#ffe5e2}@media(max-width:800px){.plan-review-modal{width:98vw!important}.plan-review-table{max-height:58vh}}`;document.head.appendChild(style);
