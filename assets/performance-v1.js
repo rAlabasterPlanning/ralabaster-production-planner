@@ -1,15 +1,16 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20260912-6';
+  const VERSION='20260913-7';
+  const PENDING_KEY='ralabaster_planner_pending_v1';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
   const DIFF_CHUNK=500;
   let installed=false,indexesValid=false,normalizedReady=false,normalizedInitBusy=false;
   let taskIndex=new Map(),orderIndex=new Map(),dateEmpIndex=new Map(),uniqueMachines=[];
-  let analysisCache=new Map(),lastOrderHashes=new Map(),lastTaskHashes=new Map();
+  let analysisCache=new Map(),lastOrderHashes=new Map(),lastTaskHashes=new Map(),lastTaskSnapshots=new Map();
   let pendingViewFrame=0,cloudStamp='',exactMode=false,localPersistTimer=0;
-  let syncInFlight=false,syncQueued=false;
+  let syncInFlight=false,syncQueued=false,cloudDirty=false;
 
   const hash=x=>JSON.stringify(x);
   const yieldUI=()=>new Promise(resolve=>requestAnimationFrame(()=>resolve()));
@@ -60,7 +61,7 @@
     localPersistTimer=setTimeout(()=>{const txt=compactLocalState();if(txt)try{localStorage.setItem(KEY,txt)}catch(_){}},50);
   }
   async function fetchPaged(makeQuery){const out=[];let from=0;while(true){const {data,error}=await makeQuery(from,from+PAGE_SIZE-1);if(error)throw error;const rows=data||[];out.push(...rows);if(rows.length<PAGE_SIZE)break;from+=PAGE_SIZE;if(from>200000)break;await yieldUI()}return out}
-  function seedHashes(){lastOrderHashes=new Map((state.orders||[]).map(o=>[o.id,hash(o)]));lastTaskHashes=new Map((state.tasks||[]).map(t=>[t.id,hash(t)]))}
+  function seedHashes(source=state){lastOrderHashes=new Map((source.orders||[]).map(o=>[o.id,hash(o)]));lastTaskHashes=new Map((source.tasks||[]).map(t=>[t.id,hash(t)]));lastTaskSnapshots=new Map((source.tasks||[]).map(t=>[t.id,structuredClone(t)]))}
 
   async function loadNormalizedCloud(silent=false){
     if(!supabaseClient||!cloudUser||normalizedInitBusy)return false;normalizedInitBusy=true;
@@ -70,10 +71,18 @@
       const taskReq=fetchPaged((a,b)=>supabaseClient.from('planner_tasks_v2').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).eq('deleted',false).eq('order_active',true).range(a,b));
       const [metaRes,orderRows,taskRows]=await Promise.all([metaReq,orderReq,taskReq]);if(metaRes.error)throw metaRes.error;
       const meta=metaRes.data?.data||{};
-      state={...state,...meta,orders:orderRows.map(r=>r.data),tasks:taskRows.map(r=>r.data)};
+      const remoteState={...state,...meta,orders:orderRows.map(r=>r.data),tasks:taskRows.map(r=>r.data)};
+      const pending=localStorage.getItem(PENDING_KEY);
+      if(pending){
+        // Keep newer local edits and compare them with the last cloud snapshot.
+        seedHashes(remoteState);cloudDirty=true;
+      }else{
+        state=remoteState;seedHashes();
+      }
       if(!Array.isArray(state.deletedTasks))state.deletedTasks=[];if(!Array.isArray(state.history))state.history=[];
-      cloudStamp=metaRes.data?.updated_at||cloudStamp;normalizedReady=true;invalidate();seedHashes();scheduleLocalPersist();
+      cloudStamp=metaRes.data?.updated_at||cloudStamp;normalizedReady=true;invalidate();scheduleLocalPersist();
       cloudStatus='online';renderOnlineBadge();
+      if(pending)setTimeout(saveNormalizedCloud,0);
       // Do not force a render here. The currently visible UI keeps responding; the next user action reads fresh state.
       return true;
     }catch(e){console.warn('Genormaliseerde plannerdata laden mislukt; lokale planner blijft actief.',e);cloudStatus='error';renderOnlineBadge();return false}
@@ -84,11 +93,13 @@
   function taskRow(t,active,now){const del=!!t.deleted;return {workspace_id:WORKSPACE_ID,task_id:t.id,order_id:t.orderId,seq:Number(t.seq)||null,status:t.status||'',task_date:/^\d{4}-\d{2}-\d{2}$/.test(t.date||'')?t.date:null,employee:t.employee||null,machine:t.machine||null,task_type:t.type||(isExternalTask(t)?'external':isDryTask(t)?'wait':'internal'),order_active:!!active&&!del,data:t,deleted:del,updated_at:now}}
   async function upsertChunks(table,rows){for(let i=0;i<rows.length;i+=300){const {error}=await supabaseClient.from(table).upsert(rows.slice(i,i+300));if(error)throw error;await yieldUI()}}
 
-  async function collectChanges(now){
-    const orders=state.orders||[],tasks=state.tasks||[],activeByOrder=new Map(orders.map(o=>[o.id,o.active!==false&&o.status!=='completed']));
-    const changedOrders=[],changedTasks=[];
+  async function collectChanges(now,source=state){
+    const orders=source.orders||[],tasks=source.tasks||[],activeByOrder=new Map(orders.map(o=>[o.id,o.active!==false&&o.status!=='completed']));
+    const changedOrders=[],changedTasks=[],currentTaskIds=new Set(tasks.map(t=>t.id));
     for(let i=0;i<orders.length;i++){const o=orders[i],h=hash(o);if(lastOrderHashes.get(o.id)!==h)changedOrders.push(orderRow(o,now));if(i&&i%DIFF_CHUNK===0)await yieldUI()}
     for(let i=0;i<tasks.length;i++){const t=tasks[i],h=hash(t);if(lastTaskHashes.get(t.id)!==h)changedTasks.push(taskRow(t,activeByOrder.get(t.orderId)!==false,now));if(i&&i%DIFF_CHUNK===0)await yieldUI()}
+    // A removed task must remain as a tombstone in Supabase; otherwise it returns on the next reload.
+    for(const [id,old] of lastTaskSnapshots){if(currentTaskIds.has(id))continue;const deleted={...structuredClone(old),deleted:true};changedTasks.push({...taskRow(deleted,false,now),deleted:true,order_active:false})}
     return {changedOrders,changedTasks};
   }
 
@@ -97,14 +108,16 @@
     if(!normalizedReady)return window.__RALAB_ORIGINAL_SAVE_CLOUD_STATE?.();
     if(syncInFlight){syncQueued=true;return}
     syncInFlight=true;syncQueued=false;
-    const now=new Date().toISOString();
+    const now=new Date().toISOString(),snapshot=structuredClone(state);
     try{
-      const {changedOrders,changedTasks}=await collectChanges(now);
+      const {changedOrders,changedTasks}=await collectChanges(now,snapshot);
       if(changedOrders.length)await upsertChunks('planner_orders_v2',changedOrders);
       if(changedTasks.length)await upsertChunks('planner_tasks_v2',changedTasks);
-      const meta={...state,orders:[],tasks:[],normalizedVersion:2};
+      const meta={...snapshot,orders:[],tasks:[],normalizedVersion:2};
       const {error}=await supabaseClient.from('planner_shared_state').upsert({workspace_id:WORKSPACE_ID,data:meta,updated_at:now},{onConflict:'workspace_id'});if(error)throw error;
-      cloudStamp=now;seedHashes();cloudStatus='online';renderOnlineBadge();
+      cloudStamp=now;seedHashes(snapshot);cloudDirty=hash(state)!==hash(snapshot);
+      if(!cloudDirty)localStorage.removeItem(PENDING_KEY);else syncQueued=true;
+      cloudStatus='online';renderOnlineBadge();
     }catch(e){cloudStatus='error';renderOnlineBadge();console.error(e)}
     finally{
       syncInFlight=false;
@@ -137,11 +150,16 @@
     if(typeof confirmPlanEntireOrder==='function'){const originalConfirm=confirmPlanEntireOrder;confirmPlanEntireOrder=function(){exactMode=true;try{return originalConfirm.apply(this,arguments)}finally{exactMode=false}}}
 
     render=function(){ensureIndexes();return originalRender.apply(this,arguments)};
-    save=function(){invalidate();scheduleLocalPersist();scheduleCloudSave()};
+    save=function(){
+      invalidate();cloudDirty=true;
+      // Store immediately so even a quick screen refresh cannot undo the action.
+      const txt=compactLocalState();if(txt)try{localStorage.setItem(KEY,txt);localStorage.setItem(PENDING_KEY,new Date().toISOString())}catch(_){}
+      scheduleCloudSave();
+    };
     saveCloudState=saveNormalizedCloud;
     loadCloudState=async function(silent=false){
       if(!normalizedReady)return originalLoadCloudState(silent);
-      if(!supabaseClient||!cloudUser||cloudLoading)return;
+      if(!supabaseClient||!cloudUser||cloudLoading||cloudDirty||syncInFlight)return;
       try{const {data,error}=await supabaseClient.from('planner_shared_state').select('updated_at').eq('workspace_id',WORKSPACE_ID).maybeSingle();if(error)throw error;const next=data?.updated_at||'';if(next&&next===cloudStamp)return;return loadNormalizedCloud(true)}catch(e){console.warn(e)}
     };
     switchView=function(v){currentView=v;document.querySelectorAll('section[id^="view-"]').forEach(x=>x.classList.add('hidden'));document.getElementById('view-'+v)?.classList.remove('hidden');document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));if(pendingViewFrame)cancelAnimationFrame(pendingViewFrame);pendingViewFrame=requestAnimationFrame(()=>{pendingViewFrame=0;render()})};
