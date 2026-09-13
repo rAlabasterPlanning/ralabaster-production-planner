@@ -1,7 +1,7 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20260913-8';
+  const VERSION='20260913-9';
   const PENDING_KEY='ralabaster_planner_pending_v1';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
@@ -34,7 +34,7 @@
   function invalidate(){indexesValid=false;analysisCache.clear()}
   function getOrder(id){ensureIndexes();return orderIndex.get(id)||null}
   function getOrderTasks(id){ensureIndexes();return taskIndex.get(id)||[]}
-  function activeOrders(){return (state.orders||[]).filter(o=>!o.deleted&&o.active!==false&&o.status!=='completed')}
+  function activeOrders(){return (state.orders||[]).filter(o=>!o.deleted&&o.active!==false&&o.status!=='completed'&&!o.isGeneralWork&&!o.isManualTasks)}
 
   function lightweightAnalysis(o){
     const ts=getOrderTasks(o?.id),today=isoDate(new Date());let rem=0,unp=0,last='';
@@ -52,7 +52,7 @@
   }
 
   function compactLocalState(){
-    const ids=new Set(activeOrders().map(o=>o.id));
+    const ids=new Set((state.orders||[]).filter(o=>!o.deleted&&o.active!==false&&o.status!=='completed').map(o=>o.id));
     const compact={...state,orders:(state.orders||[]).filter(o=>ids.has(o.id)),tasks:(state.tasks||[]).filter(t=>ids.has(t.orderId)||t.orderId==='__workshop_general__'),normalizedVersion:2};
     try{let txt=JSON.stringify(compact);if(txt.length>3800000){compact.orders=[];compact.tasks=[];txt=JSON.stringify(compact)}return txt}catch(_){return null}
   }
