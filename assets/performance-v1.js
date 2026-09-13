@@ -1,7 +1,7 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20260913-10';
+  const VERSION='20260913-11';
   const PENDING_KEY='ralabaster_planner_pending_v1';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
@@ -89,8 +89,10 @@
     finally{normalizedInitBusy=false}
   }
 
-  function orderRow(o,now){const del=!!o.deleted;return {workspace_id:WORKSPACE_ID,order_id:o.id,order_no:o.orderNo||'',active:!del&&o.active!==false&&o.status!=='completed',status:o.status||'',deadline:/^\d{4}-\d{2}-\d{2}$/.test(o.deadline||'')?o.deadline:null,completed_at:/^\d{4}-\d{2}-\d{2}$/.test(o.completedAt||'')?o.completedAt:null,data:o,deleted:del,updated_at:now}}
-  function taskRow(t,active,now){const del=!!t.deleted;return {workspace_id:WORKSPACE_ID,task_id:t.id,order_id:t.orderId,seq:Number(t.seq)||null,status:t.status||'',task_date:/^\d{4}-\d{2}-\d{2}$/.test(t.date||'')?t.date:null,employee:t.employee||null,machine:t.machine||null,task_type:t.type||(isExternalTask(t)?'external':isDryTask(t)?'wait':'internal'),order_active:!!active&&!del,data:t,deleted:del,updated_at:now}}
+  function validDate(x){if(!/^\d{4}-\d{2}-\d{2}$/.test(x||''))return null;const d=new Date(x+'T12:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===x?x:null}
+  function safeSeq(x){const n=Number(x);return Number.isInteger(n)&&n>=-2147483648&&n<=2147483647?n:null}
+  function orderRow(o,now){const del=!!o.deleted;return {workspace_id:WORKSPACE_ID,order_id:String(o.id||''),order_no:o.orderNo||'',active:!del&&o.active!==false&&o.status!=='completed',status:o.status||'',deadline:validDate(o.deadline),completed_at:validDate(o.completedAt),data:o,deleted:del,updated_at:now}}
+  function taskRow(t,active,now){const del=!!t.deleted;return {workspace_id:WORKSPACE_ID,task_id:String(t.id||''),order_id:String(t.orderId||''),seq:safeSeq(t.seq),status:t.status||'',task_date:validDate(t.date),employee:t.employee||null,machine:t.machine||null,task_type:t.type||(isExternalTask(t)?'external':isDryTask(t)?'wait':'internal'),order_active:!!active&&!del,data:t,deleted:del,updated_at:now}}
   function uniqueRows(table,rows){
     const idColumn=table==='planner_tasks_v2'?'task_id':'order_id',byKey=new Map();
     for(const row of rows||[]){
@@ -102,9 +104,10 @@
   }
   async function upsertChunks(table,rows){
     const clean=uniqueRows(table,rows);
-    for(let i=0;i<clean.length;i+=300){
-      const chunk=clean.slice(i,i+300),{error}=await supabaseClient.from(table).upsert(chunk);
-      if(error){error.message=`${table}: ${error.message||'opslaan mislukt'}`;throw error}
+    const conflict=table==='planner_tasks_v2'?'workspace_id,task_id':'workspace_id,order_id';
+    for(let i=0;i<clean.length;i+=50){
+      const chunk=clean.slice(i,i+50),{error}=await supabaseClient.from(table).upsert(chunk,{onConflict:conflict});
+      if(error){throw new Error(`${table} (${chunk.length} records): ${error.message||'opslaan mislukt'}${error.code?' ['+error.code+']':''}`)}
       await yieldUI();
     }
   }
@@ -135,7 +138,7 @@
       cloudStamp=now;seedHashes(snapshot);cloudDirty=hash(state)!==hash(snapshot);
       if(!cloudDirty)localStorage.removeItem(PENDING_KEY);else syncQueued=true;
       cloudStatus='online';renderOnlineBadge();
-    }catch(e){cloudStatus='error';renderOnlineBadge();console.error(e)}
+    }catch(e){window.__RALAB_LAST_SYNC_ERROR=String(e?.message||e);cloudStatus='error';renderOnlineBadge();const badge=document.getElementById('onlineBadge');if(badge){badge.title=window.__RALAB_LAST_SYNC_ERROR;badge.style.cursor='help'}console.error(e)}
     finally{
       syncInFlight=false;
       if(syncQueued){syncQueued=false;setTimeout(saveNormalizedCloud,100)}
