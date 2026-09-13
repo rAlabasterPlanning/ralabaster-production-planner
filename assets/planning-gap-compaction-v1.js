@@ -46,7 +46,7 @@ function compactEmployeeDay(date,employee){
  let cursor=dayStart(date,employee),moved=0;
  for(const item of items){const {t,g}=item,old=toMin(g.start),duration=Math.max(1,Number(g.minutes)||0),dependency=dependencyEarliest(t,date);let earliest=Math.max(cursor,Number.isFinite(dependency)?dependency:old);
    const own=segs(t),idx=own.indexOf(g);if(idx>0&&own[idx-1].date===date)earliest=Math.max(earliest,toMin(own[idx-1].start)+Number(own[idx-1].minutes||0));
-   const candidate=firstMachineSlot(earliest,duration,machineBusy(date,employee,t,g));
+   const pauses=typeof planningBreaks==='function'?planningBreaks(date,employee).map(x=>[x[0],x[1]]):[],candidate=firstMachineSlot(earliest,duration,[...machineBusy(date,employee,t,g),...pauses].sort((a,b)=>a[0]-b[0]));
    if(candidate<old){g.start=toTime(candidate);if(g.__fallback)t.start=g.start;moved++}
    const actualStart=candidate<old?candidate:old;cursor=Math.max(cursor,actualStart+duration);
  }
