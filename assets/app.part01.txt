@@ -110,7 +110,8 @@ function durationBetween(start,end){return Math.max(0,timeToMin(end)-timeToMin(s
 const NORMAL_DAY_MIN=durationBetween(CFG.schedule?.monThu?.start||'08:15',CFG.schedule?.monThu?.end||'16:30');
 const FRIDAY_RALPH_MIN=durationBetween(CFG.schedule?.friday?.Ralph?.start||'08:15',CFG.schedule?.friday?.Ralph?.end||'15:00');
 const SATURDAY_OT_MIN=durationBetween(CFG.schedule?.saturdayOvertime?.start||'08:00',CFG.schedule?.saturdayOvertime?.end||'12:00');
-function employeeCapacity(date,emp,includeSaturday=false){const dow=parseDate(date).getDay();if(dow>=1&&dow<=4)return NORMAL_DAY_MIN;if(dow===5)return emp==='Ralph'?FRIDAY_RALPH_MIN:0;if(dow===6)return includeSaturday?SATURDAY_OT_MIN:0;return 0}
+function planningBreaks(date,emp){const ws=timeToMin(dayStartTime(date,emp)),we=workdayEndMinutes(date,emp);if(we<=ws)return[];return(CFG.schedule?.breaks||[]).map(x=>[Math.max(ws,timeToMin(x.start)),Math.min(we,timeToMin(x.end)),x.label||'Pauze']).filter(x=>x[1]>x[0])}
+function employeeCapacity(date,emp,includeSaturday=false){const dow=parseDate(date).getDay();let raw=0;if(dow>=1&&dow<=4)raw=NORMAL_DAY_MIN;else if(dow===5)raw=emp==='Ralph'?FRIDAY_RALPH_MIN:0;else if(dow===6)raw=includeSaturday?SATURDAY_OT_MIN:0;return Math.max(0,raw-planningBreaks(date,emp).reduce((n,x)=>n+x[1]-x[0],0))}
 function workWindow(date,emp){const dow=parseDate(date).getDay();if(dow>=1&&dow<=4)return `${CFG.schedule?.monThu?.start||'08:15'}–${CFG.schedule?.monThu?.end||'16:30'}`;if(dow===5&&emp==='Ralph')return `${CFG.schedule?.friday?.Ralph?.start||'08:15'}–${CFG.schedule?.friday?.Ralph?.end||'15:00'}`;if(dow===6)return `${CFG.schedule?.saturdayOvertime?.start||'08:00'}–${CFG.schedule?.saturdayOvertime?.end||'12:00'} (overwerk)`;return 'Niet aanwezig'}
 function nextRegularDateForEmployee(date,emp){let d=addDays(date,1),guard=0;while(guard++<30){if(employeeCapacity(d,emp||'Ralph',false)>0)return d;d=addDays(d,1)}return d}
 function expectedExternalReturn(t){const sent=t.externalSentDate||t.date||'';const lead=Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14);return t.expectedReturnDate||(sent?addDays(sent,lead):'')}
@@ -126,4 +127,3 @@ function employeeFreeMinutes(date,emp,includeSaturday=false,excludeOrderId='',ex
 function teamCapacityOn(date,includeSaturday=false){return EMPLOYEES.reduce((a,e)=>a+employeeCapacity(date,e,includeSaturday),0)}
 function teamFreeMinutesUntil(deadline,includeSaturday=false,excludeOrderId=''){if(!deadline)return 999999;let d=isoDate(new Date()),total=0,guard=0;while(d<=deadline&&guard++<120){total+=EMPLOYEES.reduce((a,e)=>a+employeeFreeMinutes(d,e,includeSaturday,excludeOrderId),0);d=addDays(d,1)}return total}
 function lastPlannedDate(orderId){const ds=orderTasks(orderId).filter(t=>t.status!=='done'&&t.date).map(t=>t.date).sort();return ds.at(-1)||''}
-function nextCapacity
