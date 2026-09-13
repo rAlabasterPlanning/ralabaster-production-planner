@@ -1,7 +1,7 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20260913-11';
+  const VERSION='20260913-12';
   const PENDING_KEY='ralabaster_planner_pending_v1';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
@@ -138,7 +138,7 @@
       cloudStamp=now;seedHashes(snapshot);cloudDirty=hash(state)!==hash(snapshot);
       if(!cloudDirty)localStorage.removeItem(PENDING_KEY);else syncQueued=true;
       cloudStatus='online';renderOnlineBadge();
-    }catch(e){window.__RALAB_LAST_SYNC_ERROR=String(e?.message||e);cloudStatus='error';renderOnlineBadge();const badge=document.getElementById('onlineBadge');if(badge){badge.title=window.__RALAB_LAST_SYNC_ERROR;badge.style.cursor='help'}console.error(e)}
+    }catch(e){window.__RALAB_LAST_SYNC_ERROR=String(e?.message||e);cloudStatus='error';renderOnlineBadge();const badge=document.getElementById('onlineBadge');if(badge){badge.title=window.__RALAB_LAST_SYNC_ERROR;badge.style.cursor='help';badge.onclick=()=>alert('Supabase synchronisatiefout:\n\n'+window.__RALAB_LAST_SYNC_ERROR)}console.error(e)}
     finally{
       syncInFlight=false;
       if(syncQueued){syncQueued=false;setTimeout(saveNormalizedCloud,100)}
