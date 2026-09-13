@@ -6,7 +6,11 @@ window.RALAB_CONFIG = {
   schedule: {
     monThu: { start: '08:15', end: '16:30' },
     friday: { Ralph: { start: '08:15', end: '15:00' } },
-    saturdayOvertime: { start: '08:00', end: '12:00' }
+    saturdayOvertime: { start: '08:00', end: '12:00' },
+    breaks: [
+      { start: '10:00', end: '10:15', label: 'Pauze' },
+      { start: '12:15', end: '12:45', label: 'Lunchpauze' }
+    ]
   },
   online: {
     supabaseUrl: 'https://gspqapzowtktdobltkcl.supabase.co',
