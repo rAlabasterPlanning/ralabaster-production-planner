@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260912-10';
+const VERSION='20260913-2';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=60;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -34,11 +34,11 @@ function migrateOrderBuffers(){const s=S();if(!s)return false;let changed=false;
 function normalizeSequences(){const s=S();if(!s)return;for(const o of s.orders||[]){if(isGeneral({orderId:o.id,isGeneralWork:o.isGeneralWork}))continue;const ts=(s.tasks||[]).filter(t=>t.orderId===o.id&&!isGeneral(t)).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));ts.forEach((t,i)=>{t.seq=i+1;t.dependsPrev=i>0;t.sequenceLocked=true;rememberMachinePreference(t)})}}
 function frozen(t){if(taskDone(t)||taskStarted(t)||t.lockedPlanning)return true;const f=addCal(today(),FREEZE_DAYS);return (taskSegments(t)||[]).some(g=>g.date&&g.date<=f)}
 function intervalsForEmployee(date,emp,excludeIds=new Set()){
- const out=[];for(const t of S()?.tasks||[]){if(excludeIds.has(t.id)||taskDone(t))continue;for(const g of taskSegments(t)||[]){if(g.date!==date||g.employee!==emp||!g.start)continue;out.push([min(g.start),min(g.start)+Number(g.minutes||0),t.id])}}
+ const out=[];for(const t of S()?.tasks||[]){if(excludeIds.has(t.id)||taskDone(t))continue;for(const g of taskSegments(t)||[]){if(g.date!==date||g.employee!==emp||!g.start)continue;out.push([min(g.start),min(g.start)+(typeof segmentElapsedMinutes==='function'?segmentElapsedMinutes(g):Number(g.minutes||0)),t.id])}}
  return out.sort((a,b)=>a[0]-b[0]);
 }
 function intervalsForMachine(date,key,excludeIds=new Set()){
- if(!key)return[];const out=[];for(const t of S()?.tasks||[]){if(excludeIds.has(t.id)||taskDone(t)||machineKey(t)!==key)continue;for(const g of taskSegments(t)||[]){if(g.date!==date||!g.start)continue;out.push([min(g.start),min(g.start)+Number(g.minutes||0),t.id])}}
+ if(!key)return[];const out=[];for(const t of S()?.tasks||[]){if(excludeIds.has(t.id)||taskDone(t)||machineKey(t)!==key)continue;for(const g of taskSegments(t)||[]){if(g.date!==date||!g.start)continue;out.push([min(g.start),min(g.start)+(typeof segmentElapsedMinutes==='function'?segmentElapsedMinutes(g):Number(g.minutes||0)),t.id])}}
  return out.sort((a,b)=>a[0]-b[0]);
 }
 function workBounds(date,emp,allowSaturday=false,allowPeter=false){
@@ -60,9 +60,9 @@ function allocateInternal(t,earliestAt,opts={}){
  let need=Math.max(0,Number(t.estimate)||0);if(need===0){t.planSegments=[];t.date=dtDate(earliestAt);return earliestAt}
  let d=dtDate(earliestAt),firstDay=true,segs=[],guard=0,selectedMachine=t.assignedMachine||null;
  while(need>0&&guard++<240){let best=null;const machines=selectedMachine?[selectedMachine]:machineOptions(t);for(const machine of machines){const key=cleanMachine(machine).toLowerCase();for(const emp of employees){for(const w of freeWindows(d,emp,key,excludeIds,allowSaturday,allowPeter)){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));const free=z-a;if(free<=0)continue;if(!best||a<best.a||(a===best.a&&free>best.free))best={emp,a,z,free,machine}}}}
-   if(best){if(!selectedMachine){selectedMachine=best.machine;setAssignedMachine(t,selectedMachine)}let take=Math.min(need,best.free);if(need>take&&take<MIN_USEFUL_BLOCK){d=addCal(d,1);firstDay=false;continue}segs.push({date:d,employee:best.emp,start:tm(best.a),minutes:take});need-=take;firstDay=false;if(need>0)d=addCal(d,1)}else{d=addCal(d,1);firstDay=false}
+   if(best){if(!selectedMachine){selectedMachine=best.machine;setAssignedMachine(t,selectedMachine)}const key=cleanMachine(selectedMachine).toLowerCase(),windows=freeWindows(d,best.emp,key,excludeIds,allowSaturday,allowPeter);for(const w of windows){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));if(a>=z)continue;const take=Math.min(need,z-a);if(take>0){segs.push({date:d,employee:best.emp,start:tm(a),minutes:take});need-=take;if(!need)break}}firstDay=false;if(need>0)d=addCal(d,1)}else{d=addCal(d,1);firstDay=false}
  }
- t.planSegments=segs;t.employee=segs[0]?.employee||preferred||null;t.date=segs[0]?.date||dtDate(earliestAt);t.start=segs[0]?.start||'';return taskFinishAt(t)||earliestAt;
+ segs=typeof mergePauseSegments==='function'?mergePauseSegments(segs):segs;t.planSegments=segs;t.employee=segs[0]?.employee||preferred||null;t.date=segs[0]?.date||dtDate(earliestAt);t.start=segs[0]?.start||'';return taskFinishAt(t)||earliestAt;
 }
 function pairSetupWithExecution(setup,run,earliestAt,opts={}){
  const sd=Math.max(1,Number(setup.estimate)||30),exclude=new Set([setup.id,run.id]);let d=dtDate(earliestAt),guard=0;
@@ -145,19 +145,12 @@ function applyDeadlineMustBeMet(id){
 function acceptCurrentPlanAndMoveDeadline(id){
  const o=order(id);if(!o)return{ok:false,message:'Order niet gevonden'};
  const h=health(o),newDate=[h.finish,o.internalExpectedDate||''].filter(Boolean).sort().at(-1)||h.finish||today();
- o.communicatedDeadline=newDate;o.deadline=newDate;o.maximumReadyDate=newDate;o.internalTargetDate=newDate;
- o.planningRiskAcceptedAt=new Date().toISOString();o.planningRiskAcceptedFinish=newDate;o.planningRiskAcceptedDeadline=newDate;
+ o.planningRiskAcceptedAt=new Date().toISOString();o.planningRiskAcceptedFinish=newDate;o.planningRiskAcceptedDeadline=o.communicatedDeadline||hardDate(o);
  o.planningDecision='accept_current_plan';o.planningDecisionAt=new Date().toISOString();save();render();
  return{ok:true,newDate};
 }
 function shiftCustomerDeadline(id,days){
- const o=order(id),n=Math.max(0,Math.round(Number(days)||0));if(!o)return{ok:false,message:'Order niet gevonden'};if(!n)return{ok:false,message:'Vul het aantal dagen in waarmee de deadline mag opschuiven.'};
- const base=o.communicatedDeadline||hardDate(o)||today(),newDate=addCal(base,n);
- o.communicatedDeadline=newDate;o.deadline=newDate;o.maximumReadyDate=newDate;o.internalTargetDate=addCal(newDate,-2);
- o.planningRiskAcceptedAt='';o.planningRiskAcceptedFinish='';o.planningRiskAcceptedDeadline='';
- o.planningDecision='deadline_shift_'+n+'_days';o.planningDecisionAt=new Date().toISOString();
- normalizeSequences();optimizeAll({allowPeter:false,allowSaturday:false});save();render();
- return{ok:true,newDate,health:health(o)};
+ return{ok:false,message:'De gecommuniceerde klantdeadline kan alleen in de order zelf worden aangepast.'};
 }
 function healthMap(){
  const m={};for(const o of (S()?.orders||[]).filter(x=>x.active&&!x.deleted&&!x.isGeneralWork))m[o.id]=health(o);return m;
@@ -177,15 +170,6 @@ function strategicRecommendation(focusId){
    state=clone(original);const overtime=run({allowPeter:true,allowSaturday:true});let satMin=0;for(const t of S()?.tasks||[])for(const g of taskSegments(t)||[])if(g.date&&parseDate(g.date).getDay()===6)satMin+=Number(g.minutes)||0;
    // Het overwerkscenario mag alleen worden voorgesteld als er echt zaterdagcapaciteit wordt gebruikt.
    if(satMin>0)addOption({kind:'overtime',label:'Peter + zaterdag/overwerk',map:overtime.map,state:overtime.state,extraMinutes:satMin});
-   const candidates=active().filter(o=>baseBad.has(o.id)||base.map[o.id]?.status==='risk').slice(0,12);
-   for(const cand of candidates){
-     for(const days of [1,2,3,5,7]){
-       state=clone(original);const o=order(cand.id),old=o?.communicatedDeadline||hardDate(o);if(!o||!old)continue;
-       const nd=addCal(old,days);o.communicatedDeadline=nd;o.deadline=nd;o.maximumReadyDate=nd;o.internalTargetDate=addCal(nd,-2);
-       const r=run({allowPeter:false,allowSaturday:false});
-       addOption({kind:'shift',label:'Deadline verschuiven',shiftOrderId:cand.id,shiftOrderNo:cand.orderNo||cand.id,shiftProduct:cand.product||'',days,newDate:nd,map:r.map,state:r.state,extraMinutes:0});
-     }
-   }
    const score=x=>{
      const saved=x.saved.length,other=x.savedOther.length,focus=x.focusImproved?1:0;
      // Eerst zoveel mogelijk deadlines redden. Bij gelijk resultaat liever geen klantdeadline verschuiven;

@@ -1,6 +1,6 @@
 (async()=>{
   try{
-    const ver='20260913-3';
+    const ver='20260913-4';
     const parts=['app.part01.txt','app.part02.txt','app.part03.txt','app.part04.txt','app.part05.txt','app.part06.txt','app.part07.txt'];
     const texts=await Promise.all(parts.map(async p=>{
       const r=await fetch('assets/'+p+'?v='+ver,{cache:'default'});

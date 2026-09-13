@@ -8,9 +8,9 @@ function scheduleTaskAcrossCapacity(t,emp,startDate,preferFirst=false,includeSat
  const total=Math.max(0,Number(t.estimate)||0);let need=total,d=startDate,guard=0,segs=[];
  while(need>0&&guard++<60){const gaps=freeIntervalsForEmployee(d,emp,includeSaturday,new Set([t.id]));for(const [a,b] of gaps){if(need<=0)break;const take=Math.min(need,b-a);if(take>0){segs.push({date:d,employee:emp,start:minToTime(a),minutes:take});need-=take}}if(need>0)d=addDays(d,1);
  }
- t.planSegments=segs;t.employee=emp;t.date=segs[0]?.date||startDate;t.start=segs[0]?.start||'';
+ segs=mergePauseSegments(segs);t.planSegments=segs;t.employee=emp;t.date=segs[0]?.date||startDate;t.start=segs[0]?.start||'';
 }
-function taskFinishAt(t){if(isDryTask(t))return t.waitEndAt||'';if(isExternalTask(t)){const d=expectedExternalReturn(t)||t.date||'';return d?dtString(d,'00:00'):''}const ss=taskSegments(t).slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.start||'').localeCompare(b.start||''));if(ss.length){const x=ss.at(-1);return dtString(x.date,endTime(x.start||dayStartTime(x.date,x.employee),x.minutes))}return t.date?dtString(t.date,t.start||'00:00'):''}
+function taskFinishAt(t){if(isDryTask(t))return t.waitEndAt||'';if(isExternalTask(t)){const d=expectedExternalReturn(t)||t.date||'';return d?dtString(d,'00:00'):''}const ss=taskSegments(t).slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.start||'').localeCompare(b.start||''));if(ss.length){const x=ss.at(-1);return dtString(x.date,endTime(x.start||dayStartTime(x.date,x.employee),segmentElapsedMinutes(x)))}return t.date?dtString(t.date,t.start||'00:00'):''}
 function taskFinishDate(t){const x=taskFinishAt(t);return x?dtDate(x):(t.date||'')}
 function clearTaskPlanning(t){t.planSegments=[];t.date=null;t.start='';if(isDryTask(t)){t.waitStartAt='';t.waitEndAt=''}}
 function scheduleDryTask(t,startAt){const start=startAt||dtString(isoDate(new Date()),'00:00');t.employee=null;t.planSegments=[];t.waitStartAt=start;t.waitEndAt=addMinutesDT(start,Number(t.estimate)||(CFG.rules?.dryRoomMinutes||540));t.date=dtDate(start);t.start=dtTime(start)}
@@ -50,9 +50,9 @@ function minToTime(x){return String(Math.floor(x/60)).padStart(2,'0')+':'+String
 function earliestCandidateForEmployee(emp,startAt,includeSaturday=false,excludeTaskId=''){
  let date=dtDate(startAt),guard=0;while(guard++<120){const wanted=date===dtDate(startAt)?timeToMin(dtTime(startAt)):0;for(const[a,b]of freeIntervalsForEmployee(date,emp,includeSaturday,new Set([excludeTaskId]))){const startMin=Math.max(a,wanted);if(startMin<b)return{date,start:minToTime(startMin),free:b-startMin,at:dtString(date,minToTime(startMin))}}date=addDays(date,1)}return null}
 function scheduleTaskFromDateTime(t,emp,startAt,includeSaturday=false){
- clearTaskPlanning(t);let need=Math.max(0,Number(t.estimate)||0),candidate=earliestCandidateForEmployee(emp,startAt,includeSaturday,t.id),segments=[],guard=0;if(!candidate)return'';
- while(need>0&&candidate&&guard++<120){const take=Math.min(need,candidate.free);segments.push({date:candidate.date,employee:emp,start:candidate.start,minutes:take});need-=take;if(need>0)candidate=earliestCandidateForEmployee(emp,dtString(addDays(candidate.date,1),'00:00'),includeSaturday,t.id)}
- t.planSegments=segments;t.employee=emp;t.date=segments[0]?.date||null;t.start=segments[0]?.start||'';return taskFinishAt(t)
+ clearTaskPlanning(t);let need=Math.max(0,Number(t.estimate)||0),date=dtDate(startAt),first=date,wanted=timeToMin(dtTime(startAt)),segments=[],guard=0;
+ while(need>0&&guard++<180){for(const[a,b]of freeIntervalsForEmployee(date,emp,includeSaturday,new Set([t.id]))){const st=date===first?Math.max(a,wanted):a;if(st>=b)continue;const take=Math.min(need,b-st);if(take>0){segments.push({date,employee:emp,start:minToTime(st),minutes:take});need-=take;if(!need)break}}if(need){date=addDays(date,1);wanted=0}}
+ segments=mergePauseSegments(segments);t.planSegments=segments;t.employee=emp;t.date=segments[0]?.date||null;t.start=segments[0]?.start||'';return taskFinishAt(t)
 }
 function bestEmployeeForTask(t,startAt,includeSaturday=false){if(t.employee)return t.employee;let best=null;for(const e of EMPLOYEES){const c=earliestCandidateForEmployee(e,startAt,includeSaturday,t.id);if(c&&(!best||c.at<best.at))best={emp:e,at:c.at}}return best?.emp||'Ralph'}
 function planEntireOrderNow(orderId,startDate,includeSaturday=false){

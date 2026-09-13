@@ -52,7 +52,7 @@ function freeIntervalsForEmployee(date,emp,includeSaturday=false,excludeIds=new 
  const busy=(typeof planningBreaks==='function'?planningBreaks(date,emp):[]).map(x=>[x[0],x[1]]);
  for(const x of scheduledEntries(date,emp)){
    if(excludeIds.has(x.task.id))continue;
-   const st=timeToMin(x.seg.start||dayStartTime(date,emp));const en=Math.min(we,st+(Number(x.seg.minutes)||0));if(en>ws&&st<we)busy.push([Math.max(ws,st),en]);
+   const st=timeToMin(x.seg.start||dayStartTime(date,emp));const en=Math.min(we,st+segmentElapsedMinutes(x.seg));if(en>ws&&st<we)busy.push([Math.max(ws,st),en]);
  }
  busy.sort((a,b)=>a[0]-b[0]);const merged=[];for(const b of busy){if(!merged.length||b[0]>merged.at(-1)[1])merged.push(b);else merged.at(-1)[1]=Math.max(merged.at(-1)[1],b[1])}
  const gaps=[];let cur=ws;for(const [a,b] of merged){if(a>cur)gaps.push([cur,a]);cur=Math.max(cur,b)}if(cur<we)gaps.push([cur,we]);return gaps;

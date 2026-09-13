@@ -90,18 +90,21 @@ function dtString(date,time='00:00'){return date+'T'+time}
 function dtDate(x){return (x||'').slice(0,10)}
 function dtTime(x){return (x||'').slice(11,16)||'00:00'}
 function addMinutesDT(x,mins){const d=new Date(x);d.setMinutes(d.getMinutes()+(Number(mins)||0));const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,16)}
-function taskSegments(t){if(Array.isArray(t.planSegments)&&t.planSegments.length)return t.planSegments;return t.date&&t.employee?[{date:t.date,employee:t.employee,start:t.start||'',minutes:Number(t.estimate)||0}]:[]}
+function segmentElapsedMinutes(g){return Math.max(0,Number(g?.elapsedMinutes)||Number(g?.minutes)||0)}
+function pauseOnlyGap(date,emp,from,to){if(to<=from)return true;const pauses=typeof planningBreaks==='function'?planningBreaks(date,emp):[];let p=from;for(const x of pauses){if(x[1]<=p||x[0]>=to)continue;if(x[0]>p)return false;p=Math.max(p,x[1]);if(p>=to)return true}return p>=to}
+function mergePauseSegments(list){const sorted=(list||[]).map(x=>({...x})).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.employee||'').localeCompare(b.employee||'')||(a.start||'').localeCompare(b.start||'')),out=[];for(const g of sorted){const last=out.at(-1),a=timeToMin(g.start||'00:00'),z=a+segmentElapsedMinutes(g);if(last&&last.date===g.date&&last.employee===g.employee){const la=timeToMin(last.start||'00:00'),lz=la+segmentElapsedMinutes(last);if(a>=lz&&pauseOnlyGap(g.date,g.employee,lz,a)){last.minutes=(Number(last.minutes)||0)+(Number(g.minutes)||0);last.elapsedMinutes=z-la;continue}}out.push(g)}return out}
+function taskSegments(t){if(Array.isArray(t.planSegments)&&t.planSegments.length)return mergePauseSegments(t.planSegments);return t.date&&t.employee?[{date:t.date,employee:t.employee,start:t.start||'',minutes:Number(t.estimate)||0}]:[]}
 function hasPlanning(t){if(isDryTask(t))return !!t.waitStartAt;if(isExternalTask(t))return !!(t.date||t.externalSentDate);return taskSegments(t).length>0}
 function firstSegment(t){return taskSegments(t).slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.start||'').localeCompare(b.start||''))[0]||null}
 function taskCard(t,compact=false,seg=null){
- const o=order(t.orderId);const s=displayStatus(t),u=orderUrgency(o);const x=seg||firstSegment(t);const mins=x?Number(x.minutes)||0:Number(t.estimate)||0;const total=Number(t.estimate)||0;
+ const o=order(t.orderId);const s=displayStatus(t),u=orderUrgency(o);const x=seg||firstSegment(t);const mins=x?Number(x.minutes)||0:Number(t.estimate)||0;const elapsed=x?segmentElapsedMinutes(x):mins,total=Number(t.estimate)||0;
  let special='';
  if(isDryTask(t)&&t.waitStartAt)special=`<div class="deadline">Droogtijd 24/7 · ${fmtShort(dtDate(t.waitStartAt))} ${dtTime(t.waitStartAt)} → ${fmtShort(dtDate(t.waitEndAt))} ${dtTime(t.waitEndAt)}</div>`;
  else if(isExternalTask(t))special=`<div class="deadline">Extern · ${expectedExternalReturn(t)?'verwacht retour '+fmtShort(expectedExternalReturn(t)):'standaard '+(CFG.rules?.externalLeadDays||14)+' dagen'}</div>`;
  const canComplete=!isDryTask(t)&&!isExternalTask(t)&&!isTaskComplete(t);
  const completeBtn=canComplete?`<button class="btn small task-complete-btn" onclick="event.stopPropagation();openQuickComplete('${t.id}')">✓ Afronden</button>`:'';
  return `<div class="task urg-${u.level}" draggable="true" data-task="${t.id}" data-status="${s}" onclick="openTask('${t.id}')" ondragstart="dragStart(event,'${t.id}')">
-<div class="top">${esc(o?.orderNo||'')} – ${esc(o?.product||'')}</div><div class="op">${esc(t.name)} · ${o?.qty||0} st.</div><div class="machine"><b>Machine:</b> ${esc(t.machine||'-')}</div><div class="meta">${isDryTask(t)?'Geen personeel · '+fmtMin(total):(x?.start?esc(x.start)+(mins?'–'+endTime(x.start,mins):'')+' · ':'')+fmtMin(mins)+(x&&mins!==total?' van '+fmtMin(total):'')+(x?.employee?' · '+esc(x.employee):'')}</div>${special}${o?.deadline?`<div class="deadline">Deadline: ${fmtShort(o.deadline)} · ${u.label}</div>`:''}<div class="task-actions"><span class="badge ${s}">${statusLabel(t)}</span>${completeBtn}</div></div>`
+<div class="top">${esc(o?.orderNo||'')} – ${esc(o?.product||'')}</div><div class="op">${esc(t.name)} · ${o?.qty||0} st.</div><div class="machine"><b>Machine:</b> ${esc(t.machine||'-')}</div><div class="meta">${isDryTask(t)?'Geen personeel · '+fmtMin(total):(x?.start?esc(x.start)+(mins?'–'+endTime(x.start,elapsed):'')+' · ':'')+fmtMin(mins)+(elapsed>mins?' werktijd · pauze inbegrepen':'')+(x&&mins!==total?' van '+fmtMin(total):'')+(x?.employee?' · '+esc(x.employee):'')}</div>${special}${o?.deadline?`<div class="deadline">Deadline: ${fmtShort(o.deadline)} · ${u.label}</div>`:''}<div class="task-actions"><span class="badge ${s}">${statusLabel(t)}</span>${completeBtn}</div></div>`
 }
 
 // Werkweek rAlabaster. Ma-do 08:15-16:30 voor iedereen; vrijdag alleen Ralph 08:15-15:00.
