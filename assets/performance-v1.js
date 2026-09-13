@@ -1,14 +1,14 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20260913-7';
+  const VERSION='20260913-8';
   const PENDING_KEY='ralabaster_planner_pending_v1';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
   const DIFF_CHUNK=500;
   let installed=false,indexesValid=false,normalizedReady=false,normalizedInitBusy=false;
   let taskIndex=new Map(),orderIndex=new Map(),dateEmpIndex=new Map(),uniqueMachines=[];
-  let analysisCache=new Map(),lastOrderHashes=new Map(),lastTaskHashes=new Map(),lastTaskSnapshots=new Map();
+  let analysisCache=new Map(),lastOrderHashes=new Map(),lastTaskHashes=new Map(),lastOrderSnapshots=new Map(),lastTaskSnapshots=new Map();
   let pendingViewFrame=0,cloudStamp='',exactMode=false,localPersistTimer=0;
   let syncInFlight=false,syncQueued=false,cloudDirty=false;
 
@@ -61,7 +61,7 @@
     localPersistTimer=setTimeout(()=>{const txt=compactLocalState();if(txt)try{localStorage.setItem(KEY,txt)}catch(_){}},50);
   }
   async function fetchPaged(makeQuery){const out=[];let from=0;while(true){const {data,error}=await makeQuery(from,from+PAGE_SIZE-1);if(error)throw error;const rows=data||[];out.push(...rows);if(rows.length<PAGE_SIZE)break;from+=PAGE_SIZE;if(from>200000)break;await yieldUI()}return out}
-  function seedHashes(source=state){lastOrderHashes=new Map((source.orders||[]).map(o=>[o.id,hash(o)]));lastTaskHashes=new Map((source.tasks||[]).map(t=>[t.id,hash(t)]));lastTaskSnapshots=new Map((source.tasks||[]).map(t=>[t.id,structuredClone(t)]))}
+  function seedHashes(source=state){lastOrderHashes=new Map((source.orders||[]).map(o=>[o.id,hash(o)]));lastTaskHashes=new Map((source.tasks||[]).map(t=>[t.id,hash(t)]));lastOrderSnapshots=new Map((source.orders||[]).map(o=>[o.id,structuredClone(o)]));lastTaskSnapshots=new Map((source.tasks||[]).map(t=>[t.id,structuredClone(t)]))}
 
   async function loadNormalizedCloud(silent=false){
     if(!supabaseClient||!cloudUser||normalizedInitBusy)return false;normalizedInitBusy=true;
@@ -95,10 +95,11 @@
 
   async function collectChanges(now,source=state){
     const orders=source.orders||[],tasks=source.tasks||[],activeByOrder=new Map(orders.map(o=>[o.id,o.active!==false&&o.status!=='completed']));
-    const changedOrders=[],changedTasks=[],currentTaskIds=new Set(tasks.map(t=>t.id));
+    const changedOrders=[],changedTasks=[],currentOrderIds=new Set(orders.map(o=>o.id)),currentTaskIds=new Set(tasks.map(t=>t.id));
     for(let i=0;i<orders.length;i++){const o=orders[i],h=hash(o);if(lastOrderHashes.get(o.id)!==h)changedOrders.push(orderRow(o,now));if(i&&i%DIFF_CHUNK===0)await yieldUI()}
     for(let i=0;i<tasks.length;i++){const t=tasks[i],h=hash(t);if(lastTaskHashes.get(t.id)!==h)changedTasks.push(taskRow(t,activeByOrder.get(t.orderId)!==false,now));if(i&&i%DIFF_CHUNK===0)await yieldUI()}
-    // A removed task must remain as a tombstone in Supabase; otherwise it returns on the next reload.
+    // Removed records must remain as tombstones in Supabase; otherwise they return on the next reload.
+    for(const [id,old] of lastOrderSnapshots){if(currentOrderIds.has(id))continue;const deleted={...structuredClone(old),deleted:true,active:false,status:'deleted'};changedOrders.push({...orderRow(deleted,now),deleted:true,active:false})}
     for(const [id,old] of lastTaskSnapshots){if(currentTaskIds.has(id))continue;const deleted={...structuredClone(old),deleted:true};changedTasks.push({...taskRow(deleted,false,now),deleted:true,order_active:false})}
     return {changedOrders,changedTasks};
   }
