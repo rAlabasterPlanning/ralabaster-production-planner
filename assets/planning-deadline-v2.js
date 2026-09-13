@@ -49,7 +49,7 @@ function workBounds(date,emp,allowSaturday=false,allowPeter=false){
  if(dow>=1&&dow<=4)return [8*60+15,16*60+30];return null;
 }
 function freeWindows(date,emp,key,excludeIds,allowSaturday,allowPeter){
- const b=workBounds(date,emp,allowSaturday,allowPeter);if(!b)return[];let busy=[...intervalsForEmployee(date,emp,excludeIds),...intervalsForMachine(date,key,excludeIds)].sort((a,b)=>a[0]-b[0]);
+ const b=workBounds(date,emp,allowSaturday,allowPeter);if(!b)return[];let busy=[...intervalsForEmployee(date,emp,excludeIds),...intervalsForMachine(date,key,excludeIds),...(typeof planningBreaks==='function'?planningBreaks(date,emp).map(x=>[x[0],x[1]]):[])].sort((a,b)=>a[0]-b[0]);
  const merged=[];for(const x of busy){const a=Math.max(b[0],x[0]),z=Math.min(b[1],x[1]);if(z<=a)continue;const last=merged.at(-1);if(last&&a<=last[1])last[1]=Math.max(last[1],z);else merged.push([a,z])}
  const out=[];let p=b[0];for(const x of merged){if(x[0]>p)out.push([p,x[0]]);p=Math.max(p,x[1])}if(p<b[1])out.push([p,b[1]]);return out;
 }
