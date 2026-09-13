@@ -1,14 +1,18 @@
-// Orders interaction v4 — direct hit testing for iPad/touch, no render wrapping or DOM mutation.
+// Orders interaction v4 — top-layer hit testing for iPad/touch, no render wrapping or DOM mutation.
 (()=>{
-  const VERSION='20260912-9';
+  const VERSION='20260913-10';
   if(window.__ralabOrdersInteractionV4Installed)return;
   window.__ralabOrdersInteractionV4Installed=true;
 
   const inRect=(r,x,y)=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom;
-  const hit=(selector,x,y)=>[...document.querySelectorAll(selector)].find(el=>{
-    const r=el.getBoundingClientRect();
-    return r.width>0&&r.height>0&&inRect(r,x,y);
-  })||null;
+  const hit=(selector,x,y)=>{
+    const seen=new Set();
+    for(const layer of document.elementsFromPoint(x,y)){
+      const el=layer.closest?.(selector);if(!el||seen.has(el))continue;seen.add(el);
+      const r=el.getBoundingClientRect();if(r.width>0&&r.height>0&&inRect(r,x,y))return el;
+    }
+    return null;
+  };
 
   function go(view){
     try{
