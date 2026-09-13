@@ -1,6 +1,6 @@
 // rAlabaster calculatie UI - één stabiele renderer
 (()=>{
-const OPS_NAMES=['Technisch uitwerken','Verpakking bestellen','Materiaal bestellen','Alabaster klaarzetten','Zagerij Ermelo (extern)','Ruw materiaal boren','Doppen lijmen','Droogruimte','Mori - Instellen','Mori ZL15 #1','Mori ZL15 #2','Mori SL25','Teach-In draaibank - instellen','Teach-In Draaibank (RALAB)','Reichenbacher - Instellen','Reichenbacher','KUKA KR210 - Instellen','KUKA KR210','Kawasaki Boorrobot','Kolomboormachine','Schuren','Polijsten','Assemblage','Inpakken','INTERN - Algemeen','Zagen (Wiseco)','Waterjetten (extern)'];
+const OPS_NAMES=['Technisch uitwerken','Verpakking bestellen','Materiaal bestellen','Alabaster klaarzetten','Zagerij Ermelo (extern)','Ruw materiaal boren','Doppen lijmen','Droogruimte','Mori - Instellen','Mori ZL15 #1','Mori ZL15 #2','Mori SL25','Teach-In draaibank - instellen','Teach-In Draaibank (RALAB)','Reichenbacher - Instellen','Reichenbacher','KUKA KR210 - Instellen','KUKA KR210','Kawasaki Boorrobot','Kolomboormachine','Schuren','Polijsten','Assemblage','Inpakken','INTERN - Algemeen','Zagen (Wiseco)','Waterjetten (extern)','Gildemeister - Instellen','Gildemeister'];
 const UI=window.RALAB_CALC_UI={products:[],active:0,selectionMode:true,rendered:false};
 const num=v=>{const n=Number(String(v??'').replace(',','.'));return Number.isFinite(n)?n:0};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
