@@ -1,6 +1,6 @@
 // rAlabaster order modal buttons v1 — top-layer touch actions only inside #modalRoot.
 (()=>{
-  const VERSION='20260913-3';
+  const VERSION='20260913-4';
   if(window.__ralabOrderModalButtonsV1Installed)return;
   window.__ralabOrderModalButtonsV1Installed=true;
 
@@ -60,6 +60,8 @@
   function handle(e){
     const root=document.getElementById('modalRoot');
     if(!root||!root.querySelector('.modalback'))return;
+    // Native controls must receive the complete touch/click sequence on iPad.
+    if(e.target?.closest?.('select,input,textarea,[contenteditable="true"]'))return;
     const x=e.clientX,y=e.clientY;
     if(!Number.isFinite(x)||!Number.isFinite(y))return;
     const btn=hitButton(x,y);
