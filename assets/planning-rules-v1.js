@@ -16,7 +16,7 @@ function hasExplicitPeterWork(date){const s=S();if(!s)return false;return (s.tas
 function capacity(date,emp,includeSaturday=false){
  if(dayOverride(date,emp)){
    const dow=parseDate(date).getDay();
-   if(dow===6)return 240;if(dow===0)return 495;return emp==='Ralph'&&dow===5?405:495;
+   const raw=dow===6?240:dow===0?495:emp==='Ralph'&&dow===5?405:495,pauses=typeof planningBreaks==='function'?planningBreaks(date,emp).reduce((n,x)=>n+x[1]-x[0],0):0;return Math.max(0,raw-pauses);
  }
  if(emp==='Peter'){
    if(window.__ralabPeterForecastFrom&&date>=window.__ralabPeterForecastFrom)return baseEmployeeCapacity(date,emp,includeSaturday);
