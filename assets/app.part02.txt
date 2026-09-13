@@ -1,4 +1,4 @@
-Date(start,emp,includeSaturday){let d=start,guard=0;while(guard++<120){if(employeeCapacity(d,emp,includeSaturday)>0)return d;d=addDays(d,1)}return d}
+function nextCapacityDate(start,emp,includeSaturday){let d=start,guard=0;while(guard++<120){if(employeeCapacity(d,emp,includeSaturday)>0)return d;d=addDays(d,1)}return d}
 function dayStartTime(date,emp){const dow=parseDate(date).getDay();if(dow===6)return CFG.schedule?.saturdayOvertime?.start||'08:00';if(dow===5&&emp==='Ralph')return CFG.schedule?.friday?.Ralph?.start||'08:15';return CFG.schedule?.monThu?.start||'08:15'}
 function addMinutesToTime(t,m){let [h,mm]=t.split(':').map(Number);let x=h*60+mm+m;return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0')}
 function scheduledEntries(date,emp=''){const out=[];for(const t of state.tasks){if(t.status==='done')continue;for(const seg of taskSegments(t)){if(seg.date===date&&(!emp||seg.employee===emp))out.push({task:t,seg})}}return out}
@@ -6,10 +6,7 @@ function nextWorkingDateFor(emp,date,includeSaturday=false,includeSame=false){le
 function scheduleTaskAcrossCapacity(t,emp,startDate,preferFirst=false,includeSaturday=false){
  if(isDryTask(t)){t.employee=null;t.planSegments=[];t.date=startDate||null;return}if(!emp||isExternalTask(t)){t.employee=emp||null;t.date=startDate||null;t.planSegments=[];return}
  const total=Math.max(0,Number(t.estimate)||0);let need=total,d=startDate,guard=0,segs=[];
- while(need>0&&guard++<60){let cap=employeeCapacity(d,emp,includeSaturday);if(cap<=0){d=addDays(d,1);continue}
-   const used=employeePlannedMinutes(d,emp,'',t.id);let free=Math.max(0,cap-used);if(free<=0){d=addDays(d,1);continue}
-   const take=Math.min(need,free);const start=preferFirst&&segs.length===0?dayStartTime(d,emp):addMinutesToTime(dayStartTime(d,emp),used);
-   segs.push({date:d,employee:emp,start,minutes:take});need-=take;if(need>0)d=addDays(d,1);
+ while(need>0&&guard++<60){const gaps=freeIntervalsForEmployee(d,emp,includeSaturday,new Set([t.id]));for(const [a,b] of gaps){if(need<=0)break;const take=Math.min(need,b-a);if(take>0){segs.push({date:d,employee:emp,start:minToTime(a),minutes:take});need-=take}}if(need>0)d=addDays(d,1);
  }
  t.planSegments=segs;t.employee=emp;t.date=segs[0]?.date||startDate;t.start=segs[0]?.start||'';
 }
@@ -51,8 +48,7 @@ function workdayEndMinutes(date,emp){const d=parseDate(date).getDay();if(d>=1&&d
 function timeToMin(t){const [h,m]=(t||'00:00').split(':').map(Number);return h*60+m}
 function minToTime(x){return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0')}
 function earliestCandidateForEmployee(emp,startAt,includeSaturday=false,excludeTaskId=''){
- let date=dtDate(startAt),guard=0;
- while(guard++<120){const cap=employeeCapacity(date,emp,includeSaturday);if(cap<=0){date=addDays(date,1);continue}const used=employeePlannedMinutes(date,emp,'',excludeTaskId);let startMin=timeToMin(dayStartTime(date,emp))+used;if(date===dtDate(startAt))startMin=Math.max(startMin,timeToMin(dtTime(startAt)));const endMin=workdayEndMinutes(date,emp);if(startMin<endMin)return {date,start:minToTime(startMin),free:endMin-startMin,at:dtString(date,minToTime(startMin))};date=addDays(date,1)}return null}
+ let date=dtDate(startAt),guard=0;while(guard++<120){const wanted=date===dtDate(startAt)?timeToMin(dtTime(startAt)):0;for(const[a,b]of freeIntervalsForEmployee(date,emp,includeSaturday,new Set([excludeTaskId]))){const startMin=Math.max(a,wanted);if(startMin<b)return{date,start:minToTime(startMin),free:b-startMin,at:dtString(date,minToTime(startMin))}}date=addDays(date,1)}return null}
 function scheduleTaskFromDateTime(t,emp,startAt,includeSaturday=false){
  clearTaskPlanning(t);let need=Math.max(0,Number(t.estimate)||0),candidate=earliestCandidateForEmployee(emp,startAt,includeSaturday,t.id),segments=[],guard=0;if(!candidate)return'';
  while(need>0&&candidate&&guard++<120){const take=Math.min(need,candidate.free);segments.push({date:candidate.date,employee:emp,start:candidate.start,minutes:take});need-=take;if(need>0)candidate=earliestCandidateForEmployee(emp,dtString(addDays(candidate.date,1),'00:00'),includeSaturday,t.id)}
