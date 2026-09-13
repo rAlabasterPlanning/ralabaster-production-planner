@@ -8,7 +8,8 @@
     ['Mori - Instellen',60,30,'batch'],['Mori ZL15 #1',20.5,0,'unit'],['Mori ZL15 #2',20.5,0,'unit'],['Mori SL25',20.5,0,'unit'],
     ['Teach-In draaibank - instellen',40,30,'batch'],['Teach-In Draaibank (RALAB)',41,0,'unit'],['Reichenbacher - Instellen',30,30,'batch'],['Reichenbacher',26,0,'unit'],
     ['KUKA KR210 - Instellen',30,60,'batch'],['KUKA KR210',41,0,'unit'],['Kawasaki Boorrobot',11,0,'unit'],['Kolomboormachine',11,0,'unit'],
-    ['Schuren',26,0,'unit'],['Polijsten',26,0,'unit'],['Assemblage',11,0,'unit'],['Inpakken',11,0,'unit'],['INTERN - Algemeen',11,0,'unit'],['Zagen (Wiseco)',16,0,'unit'],['Waterjetten (extern)',0,20160,'external']
+    ['Schuren',26,0,'unit'],['Polijsten',26,0,'unit'],['Assemblage',11,0,'unit'],['Inpakken',11,0,'unit'],['INTERN - Algemeen',11,0,'unit'],['Zagen (Wiseco)',16,0,'unit'],['Waterjetten (extern)',0,20160,'external'],
+    ['Gildemeister - Instellen',60,30,'batch'],['Gildemeister',20.5,0,'unit']
   ].map(x=>({name:x[0],rate:x[1],minutes:x[2],mode:x[3]}));
   const WORKPLACES=[...new Set(OPS.map(x=>x.name))];
   const S=()=>{try{return state}catch(_){return null}};
@@ -209,7 +210,7 @@
 
   document.addEventListener('click',e=>{
     const add=e.target.closest('[data-oc-add]');if(add){e.preventDefault();e.stopImmediatePropagation();addSelectableRow();return}
-    const savePlan=e.target.closest('[data-oc-save-plan]');if(savePlan){e.preventDefault();e.stopImmediatePropagation();saveAndNext();return}
+    const savePlan=e.target.closest('[data-oc-save-plan]');if(savePlan){e.preventDefault();e.stopImmediatePropagation();window.RALAB_ORDER_CALC?.save?.(false,true);return}
     const smart=e.target.closest('[data-apply-smart-choice]');if(smart){e.preventDefault();e.stopImmediatePropagation();const choice=window.__ralabSmartChoice;if(!choice){alert('Het voorstel is niet meer beschikbaar. Open de order opnieuw om opnieuw te berekenen.');return}const r=window.RALAB_DEADLINE_PLANNER?.applyStrategicRecommendation?.(choice);if(!r?.ok){alert(r?.message||'Kon de beste keuze niet uitvoeren.');return}window.__ralabSmartChoice=null;alert('Beste keuze uitgevoerd en de volledige planning is opnieuw opgeslagen.');setTimeout(()=>window.RALAB_ORDER_CALC?.open?.(choice.focusId),60);return}
     const enforce=e.target.closest('[data-attention-enforce]');if(enforce){e.preventDefault();e.stopImmediatePropagation();const r=window.RALAB_DEADLINE_PLANNER?.applyDeadlineMustBeMet?.(enforce.dataset.attentionEnforce);if(!r?.ok){alert(r?.message||'Deze deadline kan niet automatisch gehaald worden.');return}alert('Planning aangepast en opgeslagen. De gekozen extra capaciteit is nu echt ingepland.');setTimeout(()=>window.RALAB_ORDER_CALC?.open?.(enforce.dataset.attentionEnforce),50);return}
     const accept=e.target.closest('[data-attention-accept]');if(accept){e.preventDefault();e.stopImmediatePropagation();const r=window.RALAB_DEADLINE_PLANNER?.acceptCurrentPlanAndMoveDeadline?.(accept.dataset.attentionAccept);if(!r?.ok){alert(r?.message||'Kon planning niet accepteren.');return}reviewed.add(accept.dataset.attentionAccept);alert('Planning geaccepteerd. Nieuwe deadline: '+r.newDate+'.');const n=nextOrder(accept.dataset.attentionAccept);if(n)setTimeout(()=>window.RALAB_ORDER_CALC?.open?.(n.id),50);else if(typeof window.switchView==='function')window.switchView('orders');return}
