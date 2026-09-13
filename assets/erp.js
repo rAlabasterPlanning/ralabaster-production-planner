@@ -54,7 +54,7 @@ function renderOrderOverview(){
  if(!init())return;
  const root=document.getElementById('view-orderoverview'),s=S();
  if(!root)return;
- const all=(perf()?.getActiveOrders?perf().getActiveOrders():s.orders.filter(o=>o.active!==false&&o.status!=='completed'&&!o.deleted))
+ const all=(perf()?.getActiveOrders?perf().getActiveOrders():s.orders.filter(o=>o.active!==false&&o.status!=='completed'&&!o.deleted)).filter(o=>!o.isGeneralWork&&!o.isManualTasks)
    .filter(o=>!o.deleted)
    .sort((a,b)=>(a.deadline||a.communicatedDeadline||'9999-12-31').localeCompare(b.deadline||b.communicatedDeadline||'9999-12-31')||(a.orderNo||'').localeCompare(b.orderNo||''));
  const palette={
@@ -84,7 +84,7 @@ function orderHasUnplannedWork(o){return taskList(o.id).some(t=>{if(['done','com
 function renderOrders(page=orderPage){
  if(!init())return;orderPage=Math.max(0,+page||0);
  const root=document.getElementById('view-orders'),s=S(),q=(root?.dataset.q||'').toLowerCase(),sort=root?.dataset.orderSort||'deadline-asc',onlyUnplanned=root?.dataset.onlyUnplanned==='1';
- let arr=(perf()?.getActiveOrders?perf().getActiveOrders():s.orders.filter(o=>o.active!==false&&o.status!=='completed'))
+ let arr=(perf()?.getActiveOrders?perf().getActiveOrders():s.orders.filter(o=>o.active!==false&&o.status!=='completed')).filter(o=>!o.isGeneralWork&&!o.isManualTasks)
    .filter(o=>!q||[o.orderNo,o.customerName,o.product,o.project].join(' ').toLowerCase().includes(q))
    .filter(o=>!onlyUnplanned||orderHasUnplannedWork(o));
  arr.sort((a,b)=>{const d=orderDeadlineValue(a).localeCompare(orderDeadlineValue(b));return(sort==='deadline-desc'?-d:d)||(a.orderNo||'').localeCompare(b.orderNo||'')});
