@@ -2,7 +2,7 @@
 // --- v11.2 Orderafsluiting, rendement, rapporten en afgeronde orders ---
 (function(){
   const _origOpenQuickComplete = openQuickComplete;
-  const _origSaveQuickComplete = saveQuickComplete;
+  const _origSaveQuickComplete = confirmQuickComplete;
   const _origRenderSettings = renderSettings;
   const _origSwitchView = switchView;
 
@@ -43,7 +43,7 @@
     },0);
   };
 
-  saveQuickComplete=function(id){
+  confirmQuickComplete=function(id){
     const t=state.tasks.find(x=>x.id===id),o=t&&order(t.orderId);
     const consumption=document.getElementById('qcConsumption')?.value?.trim()||'';
     const startWeight=num(document.getElementById('qcStartWeight')?.value);

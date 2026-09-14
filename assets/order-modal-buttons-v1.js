@@ -1,17 +1,8 @@
-// rAlabaster order modal buttons v1 — top-layer touch actions only inside #modalRoot.
+// Order modal actions are scoped to the actual footer button clicked.
 (()=>{
-  const VERSION='20260913-4';
+  const VERSION='20260914-2';
   if(window.__ralabOrderModalButtonsV1Installed)return;
   window.__ralabOrderModalButtonsV1Installed=true;
-
-  const inRect=(r,x,y)=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom;
-  const hitButton=(x,y)=>{
-    for(const layer of document.elementsFromPoint(x,y)){
-      const btn=layer.closest?.('#modalRoot .modalfoot button');if(!btn)continue;
-      const r=btn.getBoundingClientRect();if(r.width>0&&r.height>0&&inRect(r,x,y))return btn;
-    }
-    return null;
-  };
 
   function actionFor(btn){
     if(!btn)return null;
@@ -64,7 +55,7 @@
     if(e.target?.closest?.('select,input,textarea,[contenteditable="true"]'))return;
     const x=e.clientX,y=e.clientY;
     if(!Number.isFinite(x)||!Number.isFinite(y))return;
-    const btn=hitButton(x,y);
+    const btn=e.target.closest?.('#modalRoot .modalfoot button');
     const action=actionFor(btn);
     if(!action)return;
     e.preventDefault();
@@ -73,7 +64,7 @@
   }
 
   // Touch is the problem case on iPad. Keep this scoped to the modal only.
-  document.addEventListener('pointerup',handle,true);
+  // Only the actual click target may activate an action.
   document.addEventListener('click',e=>{
     if(e.detail===0)return;
     handle(e);

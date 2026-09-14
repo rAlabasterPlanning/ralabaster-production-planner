@@ -1,18 +1,8 @@
-// Orders interaction v4 — top-layer hit testing for iPad/touch, no render wrapping or DOM mutation.
+// Orders actions use the actual clicked element, never coordinate hits below it.
 (()=>{
-  const VERSION='20260913-11';
+  const VERSION='20260914-2';
   if(window.__ralabOrdersInteractionV4Installed)return;
   window.__ralabOrdersInteractionV4Installed=true;
-
-  const inRect=(r,x,y)=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom;
-  const hit=(selector,x,y)=>{
-    const seen=new Set();
-    for(const layer of document.elementsFromPoint(x,y)){
-      const el=layer.closest?.(selector);if(!el||seen.has(el))continue;seen.add(el);
-      const r=el.getBoundingClientRect();if(r.width>0&&r.height>0&&inRect(r,x,y))return el;
-    }
-    return null;
-  };
 
   function go(view){
     try{
@@ -76,11 +66,12 @@
 
     // If a modal is open, let that modal own the screen. Never hit-test buttons behind it.
     if(document.getElementById('ralabNumericOverlay')?.classList.contains('open'))return;
+    if(e.target.closest?.('input,select,textarea,[data-temporal-dialog]'))return;
     const modalRoot=document.getElementById('modalRoot');
     if(modalRoot&&modalRoot.children.length)return;
 
-    // Header/navigation: coordinate hit-testing still works even if an invisible layer is sitting above it.
-    const nav=hit('header .navbtn',x,y);
+    // Header/navigation only when the header was actually clicked.
+    const nav=e.target.closest?.('header .navbtn');
     if(nav){
       e.preventDefault();e.stopImmediatePropagation();
       if(nav.id==='refreshAppBtn'){
@@ -93,23 +84,23 @@
 
     const orders=document.getElementById('view-orders');
     if(orders&&!orders.classList.contains('hidden')){
-      const btn=hit('#view-orders button',x,y);
+      const btn=e.target.closest?.('#view-orders button');
       const action=orderAction(btn);
       if(action){e.preventDefault();e.stopImmediatePropagation();runOrderAction(action)}
       return;
     }
     const customers=document.getElementById('view-customers');
     if(customers&&!customers.classList.contains('hidden')){
-      const btn=hit('#view-customers button',x,y);
+      const btn=e.target.closest?.('#view-customers button');
       const action=orderAction(btn);
       if(action){e.preventDefault();e.stopImmediatePropagation();runOrderAction(action);return}
-      const row=hit('#view-customers tr[data-customer-id]',x,y);
+      const row=e.target.closest?.('#view-customers tr[data-customer-id]');
       if(row){e.preventDefault();e.stopImmediatePropagation();window.RALAB_ERP?.openCustomer?.(row.dataset.customerId)}
     }
   }
 
-  // pointerup is most reliable for iPad touch; click is the fallback for mouse/trackpad.
-  document.addEventListener('pointerup',handlePoint,true);
+  // A single native click works for touch, mouse and keyboard activation.
+  // Native click is the only activation; never search for buttons beneath inputs.
   document.addEventListener('click',e=>{
     if(e.detail===0)return;
     handlePoint(e);

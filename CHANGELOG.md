@@ -153,3 +153,12 @@ After a meaningful work session, add a short entry containing:
 - any regression or performance lesson that must not be forgotten.
 
 Do not use this file as a dump of every tiny CSS or text change. Keep it useful for resuming development in a future chat.
+# 2026-09-14 — betrouwbare schermbediening (20260914-2)
+
+- Zoeken en deadlineprioriteit gebruiken vaste gedelegeerde events; sterren blijven werken na zoeken/pagineren en schrijven naar de actuele order.
+- Datum, tijd en datum+tijd openen een gedeelde, expliciete keuzebox met kalender en invoer van uren/minuten; oorspronkelijke velden blijven de gegevensbron voor opslaan en herberekenen.
+- Pointerup/coordinate-workarounds activeren geen knoppen meer achter invoervelden. Elke tik heeft één klikactie.
+- Commerciële orderknoppen worden niet meer continu verwijderd en opnieuw toegevoegd; de observer stopt zodra het scherm is bijgewerkt.
+- Opstartfout door de niet-bestaande saveQuickComplete-referentie hersteld naar de bestaande confirmQuickComplete-functie.
+- Integratietests laden nu alle lokale scripts uit index.html in beide opstartvolgordes, met synthetische gegevens en zonder netwerk/databaseverbinding.
+- 29 regressietests: zoeken met focusbehoud, sterren opslaan, openblijvende datum-/tijdkeuze, validatie/annuleren, toekomstige pop-ups, onveranderde andere taken.
