@@ -4,6 +4,16 @@ This is a practical development log, not a full semantic-versioning history. It 
 
 ## 2026-09-14
 
+### Automatic planning no longer starts in the past
+
+- Automatic order planning now starts at the current time rounded up to the next
+  15-minute boundary when planning from today.
+- Before 08:15 it still starts at 08:15; after the workday the allocator advances
+  to the next available work period.
+- Existing planned work is preserved, and explicitly entered manual times remain
+  allowed through the existing manual override flow.
+- Relevant files: `assets/app.part02.txt`, `assets/planning-deadline-v2.js`.
+
 ### Manual task editing and Orders input fixes
 
 - Replaced the one-day-only save restriction with a single manual task save route.
