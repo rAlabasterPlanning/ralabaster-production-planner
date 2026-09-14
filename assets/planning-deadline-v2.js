@@ -77,7 +77,7 @@ function pairSetupWithExecution(setup,run,earliestAt,opts={}){
  return allocateInternal(setup,earliestAt,opts);
 }
 function clearMovablePlanning(orderIds=null){const ids=orderIds?new Set(orderIds):null;for(const t of S()?.tasks||[]){if(isGeneral(t)||taskDone(t)||frozen(t)||(ids&&!ids.has(t.orderId)))continue;clearTaskPlanning(t);resetMachineAssignment(t);if(isExternalTask(t)&&t.status!=='external'){t.externalSentDate='';t.expectedReturnDate=''}}}
-function chainStartForOrder(o){const ts=orderTasks(o.id).sort((a,b)=>a.seq-b.seq),fixed=ts.filter(frozen);let cursor=dtString(today(),'08:15');for(const t of fixed){const f=taskFinishAt(t);if(f&&f>cursor)cursor=f}return cursor}
+function chainStartForOrder(o){const ts=orderTasks(o.id).sort((a,b)=>a.seq-b.seq),fixed=ts.filter(frozen);let cursor=typeof automaticPlanningStart==='function'?automaticPlanningStart(today()):dtString(today(),'08:15');for(const t of fixed){const f=taskFinishAt(t);if(f&&f>cursor)cursor=f}return cursor}
 function scheduleWaitStrict(t,startAt){
  const start=(startAt&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(startAt))?startAt.slice(0,16):dtString(today(),'00:00');
  const m=String(start).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
