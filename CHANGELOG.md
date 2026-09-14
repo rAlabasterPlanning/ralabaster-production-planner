@@ -4,6 +4,15 @@ This is a practical development log, not a full semantic-versioning history. It 
 
 ## 2026-09-14
 
+### Editable intended task duration in planning review
+
+- Each internal task now shows an editable `Beoogd` duration in hours.
+- Changing that duration replans the task from its selected employee, date and
+  start time, then recalculates the end time and all required day blocks.
+- Shorter durations remove unnecessary later days; longer durations add them.
+- Both comma and point decimal hour input are accepted.
+- Relevant file: `assets/planning-order-controls-v1.js`.
+
 ### Every day of a multi-day task is editable in planning review
 
 - Multi-day tasks now render one editable row per workday in the order planning
