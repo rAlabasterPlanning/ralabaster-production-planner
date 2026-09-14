@@ -4,6 +4,16 @@ This is a practical development log, not a full semantic-versioning history. It 
 
 ## 2026-09-14
 
+### Every day of a multi-day task is editable in planning review
+
+- Multi-day tasks now render one editable row per workday in the order planning
+  review, including employee, date, start time and end time.
+- Extending an earlier day consumes the task's remaining minutes on later days;
+  later rows shrink or disappear when no work remains.
+- If the entered earlier end time exceeds all remaining planned work, that exact
+  end time becomes the task finish and the task estimate is updated accordingly.
+- Relevant file: `assets/planning-order-controls-v1.js`.
+
 ### Automatic planning no longer starts in the past
 
 - Automatic order planning now starts at the current time rounded up to the next
