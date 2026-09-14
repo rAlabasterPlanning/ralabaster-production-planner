@@ -1,5 +1,8 @@
 function nextCapacityDate(start,emp,includeSaturday){let d=start,guard=0;while(guard++<120){if(employeeCapacity(d,emp,includeSaturday)>0)return d;d=addDays(d,1)}return d}
 function dayStartTime(date,emp){const dow=parseDate(date).getDay();if(dow===6)return CFG.schedule?.saturdayOvertime?.start||'08:00';if(dow===5&&emp==='Ralph')return CFG.schedule?.friday?.Ralph?.start||'08:15';return CFG.schedule?.monThu?.start||'08:15'}
+// Automatic planning may never start in the past. Manual date/time edits bypass
+// this helper and therefore remain possible (with their existing warning flow).
+function automaticPlanningStart(date=isoDate(new Date())){const d=date||isoDate(new Date()),base=dtString(d,'08:15'),now=new Date(),today=isoDate(now);if(d!==today)return base;const minutes=now.getHours()*60+now.getMinutes()+(now.getSeconds()||now.getMilliseconds()?1:0),rounded=Math.ceil(minutes/15)*15;if(rounded>=1440)return dtString(addDays(d,1),'00:00');return [base,dtString(d,minToTime(rounded))].sort().at(-1)}
 function addMinutesToTime(t,m){let [h,mm]=t.split(':').map(Number);let x=h*60+mm+m;return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0')}
 function scheduledEntries(date,emp=''){const out=[];for(const t of state.tasks){if(t.status==='done')continue;for(const seg of taskSegments(t)){if(seg.date===date&&(!emp||seg.employee===emp))out.push({task:t,seg})}}return out}
 function nextWorkingDateFor(emp,date,includeSaturday=false,includeSame=false){let d=includeSame?date:addDays(date,1),guard=0;while(guard++<40){if(employeeCapacity(d,emp,includeSaturday)>0)return d;d=addDays(d,1)}return d}
@@ -56,9 +59,9 @@ function scheduleTaskFromDateTime(t,emp,startAt,includeSaturday=false){
 }
 function bestEmployeeForTask(t,startAt,includeSaturday=false){if(t.employee)return t.employee;let best=null;for(const e of EMPLOYEES){const c=earliestCandidateForEmployee(e,startAt,includeSaturday,t.id);if(c&&(!best||c.at<best.at))best={emp:e,at:c.at}}return best?.emp||'Ralph'}
 function planEntireOrderNow(orderId,startDate,includeSaturday=false){
- const o=order(orderId);if(!o)return;const remaining=orderTasks(orderId).filter(x=>!isTaskComplete(x));for(const t of remaining){clearTaskPlanning(t);if(isExternalTask(t)&&t.status!=='external'){t.expectedReturnDate='';t.externalSentDate=''}}let cursor=dtString(startDate||isoDate(new Date()),'08:15');
+ const o=order(orderId);if(!o)return;const remaining=orderTasks(orderId).filter(x=>!isTaskComplete(x));for(const t of remaining){clearTaskPlanning(t);if(isExternalTask(t)&&t.status!=='external'){t.expectedReturnDate='';t.externalSentDate=''}}let cursor=automaticPlanningStart(startDate||isoDate(new Date()));
  for(const t of remaining){
-   if(!t.dependsPrev)cursor=dtString(startDate||isoDate(new Date()),'08:15');
+   if(!t.dependsPrev)cursor=automaticPlanningStart(startDate||isoDate(new Date()));
    if(isDryTask(t)){scheduleDryTask(t,cursor);cursor=t.waitEndAt;continue}
    if(isExternalTask(t)){const sendDate=dtDate(cursor);t.employee=null;t.planSegments=[];t.date=sendDate;t.start='';t.expectedReturnDate=addDays(sendDate,Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14));if(t.status==='external'&&t.externalSentDate)t.expectedReturnDate=addDays(t.externalSentDate,Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14));cursor=dtString(t.expectedReturnDate,'00:00');continue}
    const emp=bestEmployeeForTask(t,cursor,includeSaturday);const f=scheduleTaskFromDateTime(t,emp,cursor,includeSaturday);if(f)cursor=f;
