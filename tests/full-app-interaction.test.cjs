@@ -58,3 +58,10 @@ test('planning review shows every task day and overtime consumes later remainder
  assert.equal(w.RALAB_ORDER_CONTROLS.recalculateReview(false),true);const planned=w.__ralabOrderPlanReview.result.state.tasks.find(x=>x.id==='test-task');
  assert.equal(planned.planSegments.length,1);assert.equal(planned.planSegments[0].date,'2026-09-16');assert.equal(planned.planSegments[0].elapsedMinutes,715);assert.deepEqual(f.errors,[]);
 });
+test('changing intended hours recalculates end time and removes unnecessary days',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document,result={state:f.state(),health:{status:'ok',finish:'2026-09-17'}};
+ w.RALAB_ORDER_CONTROLS.openPlanReview(result,'o1','test');await f.wait(40);const estimate=d.querySelector('[data-review-task="test-task"] [data-review-estimate]');
+ assert.equal(estimate.value,'12,5');estimate.value='5';assert.equal(w.RALAB_ORDER_CONTROLS.recalculateReview(true),true);await f.wait(40);
+ const planned=w.__ralabOrderPlanReview.result.state.tasks.find(x=>x.id==='test-task'),rows=[...d.querySelectorAll('[data-review-task="test-task"][data-review-segment]')];
+ assert.equal(planned.estimate,300);assert.equal(planned.planSegments.length,1);assert.equal(rows.length,1);assert.equal(rows[0].querySelector('[data-review-end]').value,'14:50',JSON.stringify(planned.planSegments));assert.match(rows[0].textContent,/Beoogd/);assert.deepEqual(f.errors,[]);
+});
