@@ -49,3 +49,12 @@ test('an input tap never triggers a coordinate-matching button underneath it',as
  const f=await fullApp(t),w=f.w,d=w.document;const searchInput=d.querySelector('[data-order-search]'),btn=d.querySelector('[data-unplan-all]');
  d.elementsFromPoint=()=>[searchInput,btn];btn.getBoundingClientRect=()=>({left:0,top:0,right:300,bottom:200,width:300,height:200});tap(w,searchInput);assert.equal(d.querySelector('#modalRoot').children.length,0);assert.deepEqual(f.errors,[]);
 });
+test('planning review shows every task day and overtime consumes later remainder',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document,result={state:f.state(),health:{status:'ok',finish:'2026-09-17'}};const task=result.state.tasks.find(x=>x.id==='test-task');
+ task.estimate=600;task.planSegments[0].minutes=400;task.planSegments[1].minutes=200;task.planSegments[1].elapsedMinutes=245;
+ w.RALAB_ORDER_CONTROLS.openPlanReview(result,'o1','test');await f.wait(40);
+ let rows=[...d.querySelectorAll('[data-review-task="test-task"][data-review-segment]')];assert.equal(rows.length,2);assert.match(rows[1].textContent,/Dag 2/);
+ const end=rows[0].querySelector('[data-review-end]');end.value='21:00';end.dispatchEvent(new w.Event('input',{bubbles:true}));
+ assert.equal(w.RALAB_ORDER_CONTROLS.recalculateReview(false),true);const planned=w.__ralabOrderPlanReview.result.state.tasks.find(x=>x.id==='test-task');
+ assert.equal(planned.planSegments.length,1);assert.equal(planned.planSegments[0].date,'2026-09-16');assert.equal(planned.planSegments[0].elapsedMinutes,715);assert.deepEqual(f.errors,[]);
+});
