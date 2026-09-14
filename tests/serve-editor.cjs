@@ -1,0 +1,6 @@
+const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const helpers=['segmentElapsedMinutes','pauseOnlyGap','mergePauseSegments','planningBreaks','employeeCapacity'];
+const base=fs.readFileSync(path.join(root,'assets/app.part01.txt'),'utf8').split('\n').filter(l=>helpers.some(n=>l.startsWith('function '+n+'('))).join('\n')+'\n'+fs.readFileSync(path.join(root,'assets/app.part06.txt'),'utf8').split('\n').filter(l=>/^function (openTask|saveTask)\(/.test(l)).join('\n');
+http.createServer((req,res)=>{const url=new URL(req.url,'http://localhost');let name=url.pathname;if(name==='/test-base.js'){res.setHeader('Content-Type','text/javascript');return res.end(base)}if(name==='/')name='/tests/editor-fixture.html';const file=path.resolve(root,'.'+name);if(!file.startsWith(root+path.sep)||name.includes('config.js')||!/^\/(assets|tests)\//.test(name)){res.writeHead(404);return res.end()}
+try{const data=fs.readFileSync(file);res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(data)}catch{res.writeHead(404);res.end()}}).listen(8765,'0.0.0.0',()=>console.log('Synthetic editor tests: http://localhost:8765'));

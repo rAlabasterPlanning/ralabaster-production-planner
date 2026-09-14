@@ -1,6 +1,6 @@
 // One authoritative interaction layer for every current and future planner modal.
 (()=>{
-  const VERSION='20260913-3';
+  const VERSION='20260914-1';
   if(window.__ralabModalLayerV1Installed)return;
   window.__ralabModalLayerV1Installed=true;
 
@@ -48,26 +48,21 @@
     return best;
   }
 
-  // iPad Safari can visually show a native control while hit-testing the scrolling
-  // table above it. Open the picker from the original trusted touch event instead.
+  // Native pickers need the complete tap sequence. Opening showPicker on
+  // pointerdown made Safari treat the following release as a second activation.
+  // Remember control gestures so coordinate-based button fallbacks cannot steal
+  // the release, even if the native picker retargets that event.
+  let controlGesture=false;
   document.addEventListener('pointerdown',e=>{
-    if(e.pointerType&&e.pointerType!=='touch'&&e.pointerType!=='pen')return;
-    if(!Number.isFinite(e.clientX)||!Number.isFinite(e.clientY))return;
-    const el=nativeControlAt(e.clientX,e.clientY);if(!el)return;
-    const picker=el.matches('select,input[type="date"],input[type="time"],input[type="datetime-local"],input[type="month"],input[type="week"]');
-    if(!picker)return;
-    try{
-      el.focus({preventScroll:true});
-      if(typeof el.showPicker==='function'){
-        el.showPicker();
-        e.preventDefault();e.stopImmediatePropagation();
-      }
-    }catch(_){/* Native event continues as fallback on older Safari versions. */}
+    controlGesture=!!e.target?.closest?.('select,input,textarea,[contenteditable="true"]');
+    if(!controlGesture&&Number.isFinite(e.clientX)&&Number.isFinite(e.clientY))controlGesture=!!nativeControlAt(e.clientX,e.clientY);
   },true);
+  document.addEventListener('pointercancel',()=>{controlGesture=false},true);
 
   // Route every modal button through one trusted touch endpoint. This avoids
   // Safari losing the later click when a sticky/scrolled modal footer is used.
   document.addEventListener('pointerup',e=>{
+    if(controlGesture||e.target?.closest?.('select,input,textarea,[contenteditable="true"]')){controlGesture=false;return}
     if(e.pointerType&&e.pointerType!=='touch'&&e.pointerType!=='pen')return;
     if(!Number.isFinite(e.clientX)||!Number.isFinite(e.clientY))return;
     const btn=modalButtonAt(e.clientX,e.clientY);if(!btn)return;

@@ -2,6 +2,28 @@
 
 This is a practical development log, not a full semantic-versioning history. It exists so future work can quickly understand recent changes and avoid reintroducing old problems.
 
+## 2026-09-14
+
+### Manual task editing and Orders input fixes
+
+- Replaced the one-day-only save restriction with a single manual task save route.
+- Each block has editable start/end dates and times; multiple edits save together.
+- Manual times can be confirmed despite overlap, dependencies, deadlines, absence,
+  overtime or weekend work. The chosen times are locked; no other task or customer
+  deadline is changed. Completion retains its existing release/history workflow.
+- Optional total-duration preservation reallocates only this task's remaining
+  minutes to free future slots, merging across breaks. Turning it off derives
+  the new task duration from the entered times. Pause work is an explicit option.
+- Compared actual edited field values, avoiding false changes in legacy segments
+  where elapsed time and productive minutes differ. Fractional legacy durations
+  are displayed safely without changing unedited stored values.
+- Orders search now replaces results only, retaining the search node, keyboard
+  focus and query when typing, sorting or changing filters.
+- Removed forced native picker activation on pointerdown; input gestures are not
+  rerouted into modal buttons. This applies to future modals as well.
+- Added isolated calculation and DOM regression tests with synthetic orders.
+  The test harness has no database connection and is excluded from deployment.
+
 ## 2026-09-12
 
 ### Added persistent project memory

@@ -1,0 +1,10 @@
+<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Veilige planner-regressietest</title><link rel="stylesheet" href="/assets/styles.css"></head><body>
+<h1>Testomgeving — geen echte orders of database</h1>
+<button onclick="openTask('test-task')">Testtaak aanpassen</button>
+<button onclick="localStorage.removeItem('manual-editor-test-state');location.reload()">Testgegevens herstellen</button>
+<div id="unchanged"></div><main><section id="view-orders"></section></main><div id="modalRoot"></div>
+<details><summary>Opgeslagen testgegevens</summary><pre id="saved"></pre></details>
+<script src="/tests/editor-fixture.js"></script><script src="/test-base.js"></script>
+<script src="/assets/erp.js"></script><script src="/assets/planning-manual-start-v1.js"></script>
+<script src="/assets/manual-tasks-end-time-v1.js"></script><script>render()</script>
+</body></html>
