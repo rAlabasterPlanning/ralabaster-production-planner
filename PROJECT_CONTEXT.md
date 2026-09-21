@@ -1,6 +1,6 @@
 # rAlabaster Productieplanner — Project Context
 
-_Last updated: 2026-09-12_
+_Last updated: 2026-09-21_
 
 ## Purpose
 
@@ -20,6 +20,18 @@ The planner must stay fast, simple, and practical for daily production use. The 
   - `planner_tasks_v2`
 - `planner_shared_state` is metadata-only and uses `normalizedVersion = 2`.
 - Performance layer: `assets/performance-v1.js`.
+- Workplace metadata (`workplaces`, `maintenanceRecords`, `toolItems`,
+  `toolCostEntries`) remains in `planner_shared_state`; normalized orders/tasks
+  stay in their existing v2 tables.
+
+## Workplace operations
+
+- `Werkplekken` owns central hourly cost, target rate, capacity, setup time and
+  employee preference order.
+- Machine KPIs combine planned/completed task time with maintenance and allocated
+  tooling costs for the selected week/month/year.
+- `Gereedschap` tracks compact operational stock and allocates invoices across
+  one or more machines. SnelStart remains the accounting system.
 
 ## Non-negotiable performance rules
 

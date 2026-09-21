@@ -34,7 +34,7 @@ function forecastOrder(o,includeSaturday=false){
    const explicitSaturday=!!(t.date&&parseDate(t.date).getDay()===6);
    let last=start,guard=0;
    while(need>0&&guard++<180){
-     const candidates=fixed?[fixed]:EMPLOYEES.slice();
+     const candidates=fixed?[fixed]:(window.RALAB_WORKPLACES?.candidateEmployees?.(t,EMPLOYEES.slice())||EMPLOYEES.slice());
      let best=null,bestFree=0;
      const allowSat=includeSaturday||(explicitSaturday&&start===t.date);
      for(const e of candidates){const f=free(start,e,allowSat);if(f>bestFree){best=e;bestFree=f}}
@@ -57,7 +57,7 @@ function scheduleTaskFromDateTime(t,emp,startAt,includeSaturday=false){
  while(need>0&&guard++<180){for(const[a,b]of freeIntervalsForEmployee(date,emp,includeSaturday,new Set([t.id]))){const st=date===first?Math.max(a,wanted):a;if(st>=b)continue;const take=Math.min(need,b-st);if(take>0){segments.push({date,employee:emp,start:minToTime(st),minutes:take});need-=take;if(!need)break}}if(need){date=addDays(date,1);wanted=0}}
  segments=mergePauseSegments(segments);t.planSegments=segments;t.employee=emp;t.date=segments[0]?.date||null;t.start=segments[0]?.start||'';return taskFinishAt(t)
 }
-function bestEmployeeForTask(t,startAt,includeSaturday=false){if(t.employee)return t.employee;let best=null;for(const e of EMPLOYEES){const c=earliestCandidateForEmployee(e,startAt,includeSaturday,t.id);if(c&&(!best||c.at<best.at))best={emp:e,at:c.at}}return best?.emp||'Ralph'}
+function bestEmployeeForTask(t,startAt,includeSaturday=false){if(t.employee)return t.employee;let best=null;const candidates=window.RALAB_WORKPLACES?.candidateEmployees?.(t,EMPLOYEES.slice())||EMPLOYEES.slice();for(const [rank,e] of candidates.entries()){const c=earliestCandidateForEmployee(e,startAt,includeSaturday,t.id);if(c&&(!best||c.at<best.at||(c.at===best.at&&rank<best.rank)))best={emp:e,at:c.at,rank}}return best?.emp||'Ralph'}
 function planEntireOrderNow(orderId,startDate,includeSaturday=false){
  const o=order(orderId);if(!o)return;const remaining=orderTasks(orderId).filter(x=>!isTaskComplete(x));for(const t of remaining){clearTaskPlanning(t);if(isExternalTask(t)&&t.status!=='external'){t.expectedReturnDate='';t.externalSentDate=''}}let cursor=automaticPlanningStart(startDate||isoDate(new Date()));
  for(const t of remaining){

@@ -75,3 +75,15 @@ test('changing intended hours recalculates end time and removes unnecessary days
  const planned=w.__ralabOrderPlanReview.result.state.tasks.find(x=>x.id==='test-task'),rows=[...d.querySelectorAll('[data-review-task="test-task"][data-review-segment]')];
  assert.equal(planned.estimate,300);assert.equal(planned.planSegments.length,1);assert.equal(rows.length,1);assert.equal(rows[0].querySelector('[data-review-end]').value,'14:50',JSON.stringify(planned.planSegments));assert.match(rows[0].textContent,/Beoogd/);assert.deepEqual(f.errors,[]);
 });
+test('workplaces store preferences, maintenance, editable stock and exact shared machine costs',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;w.RALAB_WORKPLACES.show('workplaces');await f.wait(20);
+ const machine=f.state().workplaces.find(x=>x.name==='Mori ZL15 #1');assert.ok(machine);assert.ok(d.querySelector('[data-new-workplace]'));
+ d.querySelector(`[data-edit-workplace="${machine.id}"]`).click();d.querySelector('#wpHourly').value='77.5';d.querySelector('#wpPref1').value='Peter';d.querySelector(`[data-save-workplace="${machine.id}"]`).click();
+ const savedMachine=f.state().workplaces.find(x=>x.id===machine.id);assert.equal(savedMachine.hourlyCost,77.5);assert.deepEqual(savedMachine.preferredEmployees,['Peter']);assert.equal(w.RALAB_WORKPLACES.candidateEmployees({machine:machine.name},['Ralph'])[0],'Peter');
+ d.querySelector(`[data-add-maintenance="${machine.id}"]`).click();d.querySelector('#mtDescription').value='Preventieve beurt';d.querySelector('#mtHours').value='2.5';d.querySelector('#mtCost').value='180';d.querySelector(`[data-save-maintenance="${machine.id}"]`).click();
+ assert.equal(f.state().maintenanceRecords.length,1);assert.match(d.querySelector('#view-workplaces').textContent,/Preventieve beurt/);
+ w.RALAB_WORKPLACES.show('tooling');d.querySelector('[data-new-tool]').click();d.querySelector('#tlName').value='Wisselplaat';d.querySelector('#tlQuantity').value='4';d.querySelector('#tlMinimum').value='5';d.querySelector('[data-save-tool]').click();
+ const tool=f.state().toolItems[0];assert.equal(tool.quantity,4);assert.match(d.querySelector('#view-tooling').textContent,/Bijbestellen/);d.querySelector(`[data-edit-tool="${tool.id}"]`).click();d.querySelector('#tlQuantity').value='12';d.querySelector(`[data-save-tool="${tool.id}"]`).click();assert.equal(f.state().toolItems.find(x=>x.id===tool.id).quantity,12);
+ d.querySelector('[data-new-tool-cost]').click();d.querySelector('#tcDescription').value='Frezen factuur';d.querySelector('#tcAmount').value='100';const boxes=[...d.querySelectorAll('[data-cost-machine]')].slice(0,3);for(const box of boxes){box.checked=true;box.dispatchEvent(new w.Event('change',{bubbles:true}))}d.querySelector('[data-save-tool-cost]').click();
+ const entry=f.state().toolCostEntries[0];assert.ok(entry,JSON.stringify(f.errors));assert.equal(entry.allocations.length,3);assert.equal(entry.allocations.reduce((n,x)=>n+x.amount,0),100);assert.deepEqual(f.errors,[]);
+});

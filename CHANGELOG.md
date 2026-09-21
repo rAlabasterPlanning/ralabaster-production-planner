@@ -2,6 +2,22 @@
 
 This is a practical development log, not a full semantic-versioning history. It exists so future work can quickly understand recent changes and avoid reintroducing old problems.
 
+## 2026-09-21
+
+### Workplekken, onderhoud en gereedschap
+
+- Nieuwe tab `Werkplekken` met centrale uurtarieven, weekcapaciteit, insteltijd,
+  drie voorkeursmedewerkers, alternatieve werkplekken en machine-KPI's.
+- Voorkeursmedewerkers sturen de automatische planning als zachte voorkeur;
+  bestaande harde beschikbaarheids- en planningsregels blijven gelden.
+- Onderhoud en storingen kunnen per machine worden geboekt met uren, stilstand,
+  kosten, leverancier, factuurnummer en volgende onderhoudsdatum.
+- Nieuwe tab `Gereedschap` voor voorraad/minimumvoorraad en machinegeschiktheid.
+- Gereedschapsfacturen kunnen exact procentueel over meerdere machines worden
+  verdeeld; deze kosten tellen mee in de werkelijke machinekost per uur.
+- Centrale tarieven worden gebruikt als standaard in nieuwe calculaties en
+  productstappen; expliciet opgeslagen tarieven blijven behouden.
+
 ## 2026-09-14
 
 ### Editable intended task duration in planning review

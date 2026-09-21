@@ -55,18 +55,18 @@ function freeWindows(date,emp,key,excludeIds,allowSaturday,allowPeter){
 }
 function allocateInternal(t,earliestAt,opts={}){
  const allowSaturday=!!opts.allowSaturday,allowPeter=!!opts.allowPeter,excludeIds=opts.excludeIds||new Set([t.id]);
- const preferred=t.employee&&!isSetup(t)?t.employee:null;let employees=preferred?[preferred]:['Kaan','Lance','Shaffi','Ralph'];if(allowPeter)employees.push('Peter');
+ const preferred=t.employee&&!isSetup(t)?t.employee:null;let employees=preferred?[preferred]:['Kaan','Lance','Shaffi','Ralph'];if(allowPeter)employees.push('Peter');if(!preferred&&!isSetup(t))employees=window.RALAB_WORKPLACES?.candidateEmployees?.(t,employees)||employees;
  if(isSetup(t))employees=['Ralph'];
  let need=Math.max(0,Number(t.estimate)||0);if(need===0){t.planSegments=[];t.date=dtDate(earliestAt);return earliestAt}
  let d=dtDate(earliestAt),firstDay=true,segs=[],guard=0,selectedMachine=t.assignedMachine||null;
- while(need>0&&guard++<240){let best=null;const machines=selectedMachine?[selectedMachine]:machineOptions(t);for(const machine of machines){const key=cleanMachine(machine).toLowerCase();for(const emp of employees){for(const w of freeWindows(d,emp,key,excludeIds,allowSaturday,allowPeter)){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));const free=z-a;if(free<=0)continue;if(!best||a<best.a||(a===best.a&&free>best.free))best={emp,a,z,free,machine}}}}
+ while(need>0&&guard++<240){let best=null;const machines=selectedMachine?[selectedMachine]:machineOptions(t);for(const machine of machines){const key=cleanMachine(machine).toLowerCase();for(const [rank,emp] of employees.entries()){for(const w of freeWindows(d,emp,key,excludeIds,allowSaturday,allowPeter)){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));const free=z-a;if(free<=0)continue;if(!best||a<best.a||(a===best.a&&(rank<best.rank||(rank===best.rank&&free>best.free))))best={emp,a,z,free,machine,rank}}}}
    if(best){if(!selectedMachine){selectedMachine=best.machine;setAssignedMachine(t,selectedMachine)}const key=cleanMachine(selectedMachine).toLowerCase(),windows=freeWindows(d,best.emp,key,excludeIds,allowSaturday,allowPeter);for(const w of windows){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));if(a>=z)continue;const take=Math.min(need,z-a);if(take>0){segs.push({date:d,employee:best.emp,start:tm(a),minutes:take});need-=take;if(!need)break}}firstDay=false;if(need>0)d=addCal(d,1)}else{d=addCal(d,1);firstDay=false}
  }
  segs=typeof mergePauseSegments==='function'?mergePauseSegments(segs):segs;t.planSegments=segs;t.employee=segs[0]?.employee||preferred||null;t.date=segs[0]?.date||dtDate(earliestAt);t.start=segs[0]?.start||'';return taskFinishAt(t)||earliestAt;
 }
 function pairSetupWithExecution(setup,run,earliestAt,opts={}){
  const sd=Math.max(1,Number(setup.estimate)||30),exclude=new Set([setup.id,run.id]);let d=dtDate(earliestAt),guard=0;
- let employees=run.employee&&run.employee!=='Ralph'?[run.employee]:['Kaan','Lance','Shaffi'];if(opts.allowPeter)employees.push('Peter');
+ let employees=run.employee&&run.employee!=='Ralph'?[run.employee]:['Kaan','Lance','Shaffi'];if(opts.allowPeter)employees.push('Peter');if(!run.employee)employees=window.RALAB_WORKPLACES?.candidateEmployees?.(run,employees)||employees;
  const machines=run.assignedMachine?[run.assignedMachine]:machineOptions(run);
  while(guard++<180){for(const machine of machines){const key=cleanMachine(machine).toLowerCase(),rw=freeWindows(d,'Ralph',key,exclude,!!opts.allowSaturday,!!opts.allowPeter);for(const emp of employees){const ew=freeWindows(d,emp,key,exclude,!!opts.allowSaturday,!!opts.allowPeter);for(const e of ew){let runStart=Math.max(e[0],min(dtTime(earliestAt))*(d===dtDate(earliestAt)?1:0));if(d!==dtDate(earliestAt))runStart=e[0];for(const r of rw){const candidate=Math.max(runStart,r[0]+sd);if(candidate<e[1]&&candidate<=r[1]&&candidate-sd>=r[0]){
            setAssignedMachine(run,machine);setAssignedMachine(setup,machine);setup.planSegments=[{date:d,employee:'Ralph',start:tm(candidate-sd),minutes:sd}];setup.employee='Ralph';setup.date=d;setup.start=tm(candidate-sd);setup.preferredEmployee='Ralph';

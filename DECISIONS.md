@@ -1,5 +1,19 @@
 # rAlabaster Productieplanner — Decisions
 
+## 2026-09-21 — Werkplekstamdata blijft lichtgewicht
+
+Decision: werkplekken, onderhoud, gereedschap en kostenverdelingen worden als
+metadata opgeslagen zonder aparte boekhoudlaag.
+
+Rules:
+- het werkplektarief is de centrale standaard; expliciete product-/ordertarieven
+  zijn bewuste overschrijvingen;
+- medewerker 1/2/3 is een zachte planningsvoorkeur en mag beschikbaarheid niet
+  omzeilen;
+- factuurverdelingen moeten samen 100% zijn en exact optellen tot het bedrag;
+- dit is operationele kostentoewijzing, niet de boekhouding (die blijft in
+  SnelStart).
+
 _Last updated: 2026-09-12_
 
 This file records decisions that should survive individual ChatGPT conversations.

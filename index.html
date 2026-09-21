@@ -25,6 +25,8 @@
 <button class="navbtn" data-view="external">5. Extern / binnenmelden</button>
 <button class="navbtn erp-nav" data-view="completed">6. Afgeronde orders</button>
 <button class="navbtn erp-nav" data-view="products">7. Producten</button>
+<button class="navbtn" data-view="workplaces">Werkplekken</button>
+<button class="navbtn" data-view="tooling">Gereedschap</button>
 <button class="navbtn erp-nav" data-view="customers">Klanten</button>
 <button class="navbtn" data-view="settings">Instellingen</button>
 <button class="navbtn" id="refreshAppBtn" type="button" title="Laad de nieuwste versie van de planner">↻ Ververs app</button>
@@ -40,6 +42,8 @@
 <section id="view-external" class="hidden"></section>
 <section id="view-completed" class="hidden"></section>
 <section id="view-products" class="hidden"></section>
+<section id="view-workplaces" class="hidden"></section>
+<section id="view-tooling" class="hidden"></section>
 <section id="view-customers" class="hidden"></section>
 <section id="view-import" class="hidden"></section>
 <section id="view-history" class="hidden"></section>
@@ -54,7 +58,7 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="assets/config.js?v=20260913-1"></script>
 <script src="assets/admin-auth.js?v=20260910-1"></script>
-<script src="assets/app-loader.js?v=20260914-3"></script>
+<script src="assets/app-loader.js?v=20260921-1"></script>
 <script src="assets/custom.js"></script>
 <script src="assets/calculator.js?v=20260913-1"></script>
 <script src="assets/calculator-ui.js?v=20260913-1"></script>
@@ -65,8 +69,9 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/erp.js?v=20260914-2"></script>
 <script src="assets/quote-meta.js?v=20260910-1"></script>
 <script src="assets/order-actions.js?v=20260910-3"></script>
-<script src="assets/products.js?v=20260913-1"></script>
+<script src="assets/products.js?v=20260921-1"></script>
 <script src="assets/products-sequence-v2.js?v=20260911-1"></script>
+<script src="assets/workplaces-v1.js?v=20260921-1"></script>
 <script src="assets/commercial.js?v=20260914-2"></script>
 <script src="assets/offtake-products.js?v=20260910-1"></script>
 <script src="assets/offtake-order-router.js?v=20260910-1"></script>
@@ -76,7 +81,7 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/document-layout-v4.js?v=20260910-1"></script>
 <script src="assets/quote-overview-v5.js?v=20260910-1"></script>
 <script src="assets/planning-rules-v1.js?v=20260913-1"></script>
-<script src="assets/planning-deadline-v2.js?v=20260914-3"></script>
+<script src="assets/planning-deadline-v2.js?v=20260921-1"></script>
 <script src="assets/planning-deadline-render-fix-v1.js?v=20260911-1"></script>
 <script src="assets/planning-deadline-fixes-v2.js?v=20260911-1"></script>
 <script src="assets/planning-chain-release-v1.js?v=20260912-2"></script>
@@ -90,7 +95,7 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/order-calculation-open-fix-v1.js?v=20260911-1"></script>
 <script src="assets/internal-ready-date-v1.js?v=20260911-1"></script>
 <script src="assets/ipad-numpad-v2.js?v=20260912-3"></script>
-<script src="assets/orders-interaction-v4.js?v=20260921-1"></script>
+<script src="assets/orders-interaction-v4.js?v=20260921-2"></script>
 <script src="assets/order-modal-buttons-v1.js?v=20260914-2"></script>
 <script src="assets/modal-layer-v1.js?v=20260914-2"></script>
 <script src="assets/planning-order-controls-v1.js?v=20260914-4"></script>
