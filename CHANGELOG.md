@@ -236,6 +236,12 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
 - Compacte weekblokken tonen een vast icoon per soort machine/bewerking, de tijd en alleen de taaknaam zonder ordernummer.
 - Bij het openen van een ingeplande taak toont het taakvenster de klantdeadline, de actuele verwachte gereeddatum en alle volgende taken met hun geplande moment.
 - Bij een niet-ingeplande taak blijft deze extra orderplanning verborgen.
+
+### Duidelijke werkpleklogo's in compacte planning
+
+- De tijdelijke tekens zijn vervangen door zelfgetekende SVG-logo's voor draaibank, robot, schuren/polijsten, boren, zagen, lijmen, drogen, assemblage, controle en inpakken.
+- Mori-werkplekken gebruiken hetzelfde draaibanklogo met een nummerbadge; Mori ZL15 #1/#2 en SL25 worden zo als 1/2/3 herkenbaar.
+- Een compact blok toont alleen het logo, de tijd en bijvoorbeeld `52x Shelby`; taaknaam, werkpleknaam en ordernummer staan er niet meer in.
 # 2026-09-14 — betrouwbare schermbediening (20260914-2)
 
 - Zoeken en deadlineprioriteit gebruiken vaste gedelegeerde events; sterren blijven werken na zoeken/pagineren en schrijven naar de actuele order.
