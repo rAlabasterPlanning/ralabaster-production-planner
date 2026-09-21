@@ -10,7 +10,7 @@ async function fixture(t,approve=true){
  w.alert=m=>alerts.push(m);w.confirm=m=>{confirms.push(m);return approve};
  const names=['segmentElapsedMinutes','pauseOnlyGap','mergePauseSegments','planningBreaks','employeeCapacity'];
  const base=read('assets/app.part01.txt').split('\n').filter(l=>names.some(n=>l.startsWith('function '+n+'('))).join('\n')+'\n'+read('assets/app.part06.txt').split('\n').filter(l=>/^function (openTask|saveTask)\(/.test(l)).join('\n');
- vm.runInContext(read('tests/editor-fixture.js')+'\n'+base,context);
+ vm.runInContext(read('tests/editor-fixture.js')+'\nfunction plannedOrderContext(){return ""}\n'+base,context);
  for(const p of ['erp.js','planning-manual-start-v1.js','manual-tasks-end-time-v1.js','modal-layer-v1.js'])vm.runInContext(read('assets/'+p),context);
  w.render();
  const state=()=>JSON.parse(vm.runInContext('JSON.stringify(state)',context));

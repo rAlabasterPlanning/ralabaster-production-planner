@@ -230,6 +230,12 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
 - Bij omlaag scrollen worden steeds vier volgende weken toegevoegd, zodat de planning praktisch oneindig doorloopt.
 - De wekenplanning opent standaard in een beknopte weergave met alleen tijd, taak en machine.
 - Via `Uitgebreid overzicht` / `Beknopt overzicht` kan de gebruiker direct wisselen; Planning vandaag blijft uitgebreid.
+
+### Taakvenster en machine-iconen
+
+- Compacte weekblokken tonen een vast icoon per soort machine/bewerking, de tijd en alleen de taaknaam zonder ordernummer.
+- Bij het openen van een ingeplande taak toont het taakvenster de klantdeadline, de actuele verwachte gereeddatum en alle volgende taken met hun geplande moment.
+- Bij een niet-ingeplande taak blijft deze extra orderplanning verborgen.
 # 2026-09-14 — betrouwbare schermbediening (20260914-2)
 
 - Zoeken en deadlineprioriteit gebruiken vaste gedelegeerde events; sterren blijven werken na zoeken/pagineren en schrijven naar de actuele order.
