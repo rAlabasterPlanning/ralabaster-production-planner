@@ -7,7 +7,15 @@
   function go(view){
     try{
       if(['dashboard','quotes','orders','orderoverview','completed','products','customers'].includes(view)&&window.RALAB_ERP?.show){
-        window.RALAB_ERP.show(view);return true;
+        window.RALAB_ERP.show(view);
+        // ERP owns the generic navigation, but the commercial module owns the
+        // dashboard and customer screens. ERP renders on the next animation
+        // frame, so redraw these screens immediately afterwards.
+        if(view==='customers'||view==='dashboard')requestAnimationFrame(()=>{
+          if(view==='customers')window.RALAB_COMMERCIAL?.renderCustomers?.();
+          if(view==='dashboard')window.RALAB_COMMERCIAL?.renderDashboard?.();
+        });
+        return true;
       }
       if(typeof window.switchView==='function'){window.switchView(view);return true}
       if(window.RALAB_ERP?.show){window.RALAB_ERP.show(view);return true}
@@ -54,7 +62,11 @@
       }
       if(action.type==='review'){window.RALAB_ORDER_CALC_WORKFLOW?.startReview?.();return true}
       if(action.type==='ordersPage'){window.RALAB_ERP?.renderOrders?.(action.page);return true}
-      if(action.type==='customer'){window.RALAB_ERP?.openCustomer?.(action.id);return true}
+      if(action.type==='customer'){
+        if(window.RALAB_COMMERCIAL?.customerForm)window.RALAB_COMMERCIAL.customerForm(action.id);
+        else window.RALAB_ERP?.openCustomer?.(action.id);
+        return true;
+      }
       if(action.type==='calculation'){go('calculation');return true}
     }catch(err){console.error('Orderactie mislukt',err);alert('Deze orderactie kon niet worden geopend.');}
     return false;
@@ -95,7 +107,11 @@
       const action=orderAction(btn);
       if(action){e.preventDefault();e.stopImmediatePropagation();runOrderAction(action);return}
       const row=e.target.closest?.('#view-customers tr[data-customer-id]');
-      if(row){e.preventDefault();e.stopImmediatePropagation();window.RALAB_ERP?.openCustomer?.(row.dataset.customerId)}
+      if(row){
+        e.preventDefault();e.stopImmediatePropagation();
+        if(window.RALAB_COMMERCIAL?.customerForm)window.RALAB_COMMERCIAL.customerForm(row.dataset.customerId);
+        else window.RALAB_ERP?.openCustomer?.(row.dataset.customerId);
+      }
     }
   }
 

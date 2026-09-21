@@ -25,6 +25,16 @@ test('order decorations settle instead of replacing buttons forever',async t=>{
  const f=await fullApp(t);search(f,'tigermoth');await f.wait(900);let mutations=0;
  const ob=new f.w.MutationObserver(xs=>mutations+=xs.length);ob.observe(f.w.document.querySelector('#view-orders'),{subtree:true,childList:true});await f.wait(250);ob.disconnect();assert.equal(mutations,0);
 });
+test('customers navigation keeps commercial fields and customer planning PDF',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;
+ vm.runInContext("state.customers.push({id:'customer-test',name:'Test customer',relationshipType:'customer',baseRevenueYTD:12500,baseMarginYTD:5000,contractType:'annual',contractValue:70000})",f.ctx);
+ w.RALAB_ORDERS_INTERACTION_V4.go('customers');await f.wait(80);
+ assert.ok(d.querySelector('button[onclick="RALAB_COMMERCIAL.customerForm()"]'));
+ assert.ok(d.querySelector('[data-customer-planning-pdf]'));
+ const edit=d.querySelector('button[onclick*="RALAB_COMMERCIAL.customerForm(\'"]');assert.ok(edit);edit.click();await f.wait(20);
+ assert.ok(d.querySelector('#ccBaseRevenue'));assert.ok(d.querySelector('#ccBaseMargin'));assert.ok(d.querySelector('#ccContractType'));
+ assert.deepEqual(f.errors,[]);
+});
 test('one touch opens date/time editor, release does not dismiss it, apply updates existing inputs once',async t=>{
  const f=await fullApp(t),w=f.w,d=w.document;w.openTask('test-task');await f.wait(80);
  for(const [selector,hour,minute] of [['#mStart','18','30'],['[data-task-day-end]','23','45']]){
