@@ -242,6 +242,9 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
 - De tijdelijke tekens zijn vervangen door zelfgetekende SVG-logo's voor draaibank, robot, schuren/polijsten, boren, zagen, lijmen, drogen, assemblage, controle en inpakken.
 - Mori-werkplekken gebruiken hetzelfde draaibanklogo met een nummerbadge; Mori ZL15 #1/#2 en SL25 worden zo als 1/2/3 herkenbaar.
 - Een compact blok toont alleen het logo, de tijd en bijvoorbeeld `52x Shelby`; taaknaam, werkpleknaam en ordernummer staan er niet meer in.
+- De logo's zijn verder verkleind en hebben per werkplektype een eigen silhouet én kleur, zodat bijvoorbeeld draaibank, robot, schuurmachine, zaag, boor en lijmen niet meer op elkaar lijken.
+- De totale ingeplande dagtijd staat voortaan op een eigen regel boven de blokken en kan het eerste werkpleklogo niet meer opzij duwen.
+- Een generieke stap `Mori instellen` neemt waar mogelijk automatisch het nummer over van de aansluitende Mori-bewerking binnen dezelfde order.
 # 2026-09-14 — betrouwbare schermbediening (20260914-2)
 
 - Zoeken en deadlineprioriteit gebruiken vaste gedelegeerde events; sterren blijven werken na zoeken/pagineren en schrijven naar de actuele order.
