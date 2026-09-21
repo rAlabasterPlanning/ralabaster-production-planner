@@ -114,3 +114,13 @@ Decision: the same web application should work on desktop, iPad, and phone. Do n
 Decision: important project context, architecture choices, performance lessons, and change history are stored in repository markdown files (`PROJECT_CONTEXT.md`, `DECISIONS.md`, `CHANGELOG.md`).
 
 Reason: future chats should be able to resume safely without relying on one long conversation or model memory alone.
+
+## 2026-09-21 — conceptplanning vanuit de wekenplanning
+
+Decision: een automatisch planningvoorstel wijzigt de echte planning pas na expliciet `Definitief vastleggen`.
+
+Rules:
+- `Nog in te plannen` blijft links naast de wekenplanning zichtbaar en heeft een eigen scrollgebied;
+- taken zijn daar direct aanpasbaar en verwijderbaar;
+- verplaatsen of aanpassen van een stap herplant de latere afhankelijke stappen naar de eerstvolgende geschikte capaciteit;
+- conceptblokken zijn visueel lichter dan definitief geplande blokken.

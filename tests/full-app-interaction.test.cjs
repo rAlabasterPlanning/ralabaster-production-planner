@@ -100,5 +100,16 @@ test('automatic planning skips a leftover gap shorter than thirty minutes',async
 });
 test('three-week view is vertically continuous and also shows unplanned work',async t=>{
  const f=await fullApp(t),w=f.w,d=w.document;w.switchView('weeks');await f.wait(30);
- assert.equal(d.querySelectorAll('#view-weeks .week-block').length,3);assert.equal(d.querySelectorAll('#view-weeks .week-scroll').length,3);assert.match(d.querySelector('#view-weeks .weeks-backlog').textContent,/Nog in te plannen/);assert.deepEqual(f.errors,[]);
+ assert.equal(d.querySelectorAll('#view-weeks .week-block').length,3);assert.equal(d.querySelectorAll('#view-weeks .week-scroll').length,3);assert.match(d.querySelector('#view-weeks .weeks-backlog').textContent,/Nog in te plannen/);assert.ok(d.querySelector('.weeks-planner-layout>.weeks-sidebar'));assert.ok(d.querySelector('.weeks-planner-layout>.weeks-timeline'));assert.deepEqual(f.errors,[]);
+});
+test('week proposal stays a draft, can move its chain and only persists on final acceptance',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;
+ vm.runInContext("state.orders.push({id:'proposal-order',orderNo:'P-001',product:'Test batch',qty:10,active:true,planningPriority:3,communicatedDeadline:'2026-10-20',deadline:'2026-10-20'});state.tasks.push({id:'proposal-a',orderId:'proposal-order',seq:1,name:'Polijsten',machine:'Polijsten',estimate:120,status:'open',dependsPrev:false,planSegments:[]},{id:'proposal-b',orderId:'proposal-order',seq:2,name:'Inpakken',machine:'Inpakken',estimate:60,status:'open',dependsPrev:true,planSegments:[]})",f.ctx);
+ w.RALAB_PERFORMANCE.invalidate();
+ w.renderWeeks();await f.wait(30);assert.ok(d.querySelector('[data-week-proposal="proposal-order"]'));assert.ok(d.querySelector('[data-backlog-edit="proposal-a"]'));assert.ok(d.querySelector('[data-backlog-delete="proposal-a"]'));
+ const liveBefore=JSON.stringify(f.state().tasks.find(x=>x.id==='proposal-a').planSegments);d.querySelector('[data-week-proposal="proposal-order"]').click();await f.wait(80);
+ assert.ok(w.RALAB_WEEK_PROPOSAL.active());assert.ok(d.querySelector('.proposal-toolbar'));assert.ok(d.querySelector('.proposal-task'));assert.equal(JSON.stringify(f.state().tasks.find(x=>x.id==='proposal-a').planSegments),liveBefore);
+ const draft=w.RALAB_WEEK_PROPOSAL.active().draft,first=draft.tasks.find(x=>x.id==='proposal-a'),second=draft.tasks.find(x=>x.id==='proposal-b'),oldSecond=second.planSegments[0].date;w.RALAB_WEEK_PROPOSAL.moveTask(first.id,w.addDays(first.planSegments[0].date,4),first.employee,first.start);await f.wait(50);
+ assert.ok(w.RALAB_WEEK_PROPOSAL.active().draft.tasks.find(x=>x.id==='proposal-b').planSegments[0].date>=oldSecond);assert.equal(JSON.stringify(f.state().tasks.find(x=>x.id==='proposal-a').planSegments),liveBefore);
+ w.alert=()=>{};w.RALAB_WEEK_PROPOSAL.accept();assert.ok(f.state().tasks.find(x=>x.id==='proposal-a').planSegments.length);assert.equal(w.RALAB_WEEK_PROPOSAL.active(),null);assert.deepEqual(f.errors,[]);
 });

@@ -214,6 +214,16 @@ After a meaningful work session, add a short entry containing:
 - any regression or performance lesson that must not be forgotten.
 
 Do not use this file as a dump of every tiny CSS or text change. Keep it useful for resuming development in a future chat.
+
+## 2026-09-21 — plannen vanuit het doorlopende wekenoverzicht
+
+- `Nog in te plannen` staat als vaste, afzonderlijk scrollbare kolom links van de doorlopende wekenplanning.
+- Openstaande taken kunnen vanuit die kolom direct worden aangepast of verwijderd.
+- Per order kan een licht weergegeven planningvoorstel worden gemaakt. Het voorstel blijft concept totdat `Definitief vastleggen` wordt gekozen.
+- Concepttaken kunnen worden verschoven, in duur/tijd worden aangepast of verwijderd; afhankelijke vervolgtaken schuiven daarna door naar de volgende geschikte plek.
+- De iPad-weergave gebruikt de beschikbare breedte voor maandag t/m donderdag, met vrijdag gedeeltelijk zichtbaar en zaterdag via horizontaal vegen.
+
+Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `assets/styles.css`.
 # 2026-09-14 — betrouwbare schermbediening (20260914-2)
 
 - Zoeken en deadlineprioriteit gebruiken vaste gedelegeerde events; sterren blijven werken na zoeken/pagineren en schrijven naar de actuele order.
