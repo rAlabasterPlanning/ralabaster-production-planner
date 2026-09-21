@@ -254,3 +254,7 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
 - Opstartfout door de niet-bestaande saveQuickComplete-referentie hersteld naar de bestaande confirmQuickComplete-functie.
 - Integratietests laden nu alle lokale scripts uit index.html in beide opstartvolgordes, met synthetische gegevens en zonder netwerk/databaseverbinding.
 - 29 regressietests: zoeken met focusbehoud, sterren opslaan, openblijvende datum-/tijdkeuze, validatie/annuleren, toekomstige pop-ups, onveranderde andere taken.
+# 2026-09-21 — Resterende dagcapaciteit
+
+- In de doorlopende wekenplanning staat nu direct hoeveel tijd een medewerker die dag nog vrij heeft (`Nog 20 min`, `Vol` of `Overpland`).
+- De resterende tijd blijft gebaseerd op alle ingeplande taken, ook wanneer op een werkplek wordt gefilterd.

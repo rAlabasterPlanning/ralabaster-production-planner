@@ -24,3 +24,6 @@ main{padding:18px;max-width:1800px;margin:auto}.toolbar{display:flex;align-items
 
 /* v11: werkvloer/PIN beheer */
 .worker-pin-grid{display:grid;gap:8px;margin-top:12px}.worker-pin-row{display:grid;grid-template-columns:minmax(160px,1fr) 140px auto;gap:10px;align-items:center;padding:10px;border:1px solid #e2e6e9;border-radius:10px;background:#fff}.worker-pin-row .input{width:100%}@media(max-width:720px){.worker-pin-row{grid-template-columns:1fr}.worker-pin-row .btn{width:100%}}
+
+/* Resterende capaciteit in de doorlopende wekenplanning */
+.weekgrid .daycell>.capacity-open{color:#23734d}.weekgrid .daycell>.capacity-full{color:#52606d}.weekgrid .daycell>.capacity-over{color:#b42318}.weekgrid .daycell>.capacity-none{color:#8a929a}
