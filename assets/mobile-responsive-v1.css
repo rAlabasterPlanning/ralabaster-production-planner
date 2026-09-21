@@ -58,8 +58,9 @@ img{max-width:100%}
   .task-complete-btn{min-height:36px;font-size:12px;padding:7px 9px}
 
   /* 3-week planning remains a wide planning grid and is deliberately swipeable. */
-  .weeks{margin-left:-2px;margin-right:-2px;overflow-x:auto;overscroll-behavior-x:contain}
-  .weekgrid{min-width:980px}
+  .weeks{margin-left:-2px;margin-right:-2px;overflow:visible}
+  .week-scroll{overflow-x:auto;overscroll-behavior-x:contain}
+  .weekgrid{min-width:0}
 
   /* Orders as cards are naturally touch friendly. */
   .ordercards{grid-template-columns:1fr;gap:8px}

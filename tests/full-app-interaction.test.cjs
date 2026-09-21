@@ -87,3 +87,18 @@ test('workplaces store preferences, maintenance, editable stock and exact shared
  d.querySelector('[data-new-tool-cost]').click();d.querySelector('#tcDescription').value='Frezen factuur';d.querySelector('#tcAmount').value='100';const boxes=[...d.querySelectorAll('[data-cost-machine]')].slice(0,3);for(const box of boxes){box.checked=true;box.dispatchEvent(new w.Event('change',{bubbles:true}))}d.querySelector('[data-save-tool-cost]').click();
  const entry=f.state().toolCostEntries[0];assert.ok(entry,JSON.stringify(f.errors));assert.equal(entry.allocations.length,3);assert.equal(entry.allocations.reduce((n,x)=>n+x.amount,0),100);assert.deepEqual(f.errors,[]);
 });
+test('Mori and polishing prefer Shaffi then Peter',async t=>{
+ const f=await fullApp(t),workplaces=f.state().workplaces;
+ for(const name of ['Mori ZL15 #1','Mori ZL15 #2','Mori SL25','Polijsten'])assert.deepEqual(workplaces.find(x=>x.name===name).preferredEmployees,['Shaffi','Peter']);
+ assert.deepEqual(f.errors,[]);
+});
+test('automatic planning skips a leftover gap shorter than thirty minutes',async t=>{
+ const f=await fullApp(t),w=f.w;
+ vm.runInContext("state.tasks.push({id:'short-gap',orderId:'o3',seq:1,name:'Polijsten',machine:'Polijsten',employee:'Shaffi',estimate:60,status:'open',planSegments:[]})",f.ctx);
+ const task=vm.runInContext("state.tasks.find(x=>x.id==='short-gap')",f.ctx);w.RALAB_DEADLINE_PLANNER.allocateInternal(task,'2026-09-16T16:10');
+ const saved=f.state().tasks.find(x=>x.id==='short-gap');assert.equal(saved.planSegments[0].date,'2026-09-17');assert.ok(saved.planSegments.every(x=>x.minutes>=30));assert.deepEqual(f.errors,[]);
+});
+test('three-week view is vertically continuous and also shows unplanned work',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;w.switchView('weeks');await f.wait(30);
+ assert.equal(d.querySelectorAll('#view-weeks .week-block').length,3);assert.equal(d.querySelectorAll('#view-weeks .week-scroll').length,3);assert.match(d.querySelector('#view-weeks .weeks-backlog').textContent,/Nog in te plannen/);assert.deepEqual(f.errors,[]);
+});

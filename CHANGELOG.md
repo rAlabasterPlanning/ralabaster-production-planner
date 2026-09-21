@@ -4,6 +4,22 @@ This is a practical development log, not a full semantic-versioning history. It 
 
 ## 2026-09-21
 
+### Slimmere automatische planning en doorlopende iPad-weken
+
+- Automatische deelblokken korter dan 30 minuten worden overgeslagen, behalve
+  wanneer zo'n kort blok precies het laatste restant van een taak afrondt.
+- Deadline en resterende speling wegen zwaarder dan sterren; bij gelijke
+  urgentie wordt ★★★ vóór ★★ en daarna ★ gepland.
+- Instellen en de bijbehorende machinebewerking blijven direct gekoppeld.
+- Gelijke producten worden automatisch als batch gepland. Als batching een
+  andere order verslechtert, toont de planner welke order opschuift en vraagt
+  hij of deadlinevolgorde of samenvoegen moet winnen.
+- Mori-bewerkingen (zonder instellen) en Polijsten krijgen standaard Shaffi als
+  eerste voorkeur en Peter als tweede.
+- De 3-wekenplanning toont ook `Nog in te plannen` en staat als drie verticaal
+  doorlopende weken onder elkaar. Op iPad zijn ma–do zichtbaar, vrijdag
+  gedeeltelijk en verschijnt zaterdag door horizontaal vegen.
+
 ### Workplekken, onderhoud en gereedschap
 
 - Nieuwe tab `Werkplekken` met centrale uurtarieven, weekcapaciteit, insteltijd,

@@ -1,5 +1,16 @@
 # rAlabaster Productieplanner — Decisions
 
+## 2026-09-21 — Deadline, sterren en productbatching
+
+Decision: automatische planning gebruikt deze volgorde: eerst deadline en
+resterende speling, daarna sterren bij gelijke urgentie. Gelijke producten
+blijven als batch bij elkaar tenzij dat een slechter deadline-resultaat geeft;
+dan kiest de gebruiker expliciet tussen deadlinevolgorde en samenvoegen.
+
+Een automatisch deelblok is minimaal 30 minuten, behalve het laatste kortere
+restant waarmee een taak volledig wordt afgerond. Instellen blijft direct aan
+de uitvoerende machinebewerking gekoppeld.
+
 ## 2026-09-21 — Werkplekstamdata blijft lichtgewicht
 
 Decision: werkplekken, onderhoud, gereedschap en kostenverdelingen worden als

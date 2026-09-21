@@ -3,7 +3,7 @@
 (()=>{
 const VERSION='20260913-2';
 const FREEZE_DAYS=1;
-const MIN_USEFUL_BLOCK=60;
+const MIN_USEFUL_BLOCK=30;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
 const S=()=>{try{return state}catch(_){return null}};
@@ -59,8 +59,8 @@ function allocateInternal(t,earliestAt,opts={}){
  if(isSetup(t))employees=['Ralph'];
  let need=Math.max(0,Number(t.estimate)||0);if(need===0){t.planSegments=[];t.date=dtDate(earliestAt);return earliestAt}
  let d=dtDate(earliestAt),firstDay=true,segs=[],guard=0,selectedMachine=t.assignedMachine||null;
- while(need>0&&guard++<240){let best=null;const machines=selectedMachine?[selectedMachine]:machineOptions(t);for(const machine of machines){const key=cleanMachine(machine).toLowerCase();for(const [rank,emp] of employees.entries()){for(const w of freeWindows(d,emp,key,excludeIds,allowSaturday,allowPeter)){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));const free=z-a;if(free<=0)continue;if(!best||a<best.a||(a===best.a&&(rank<best.rank||(rank===best.rank&&free>best.free))))best={emp,a,z,free,machine,rank}}}}
-   if(best){if(!selectedMachine){selectedMachine=best.machine;setAssignedMachine(t,selectedMachine)}const key=cleanMachine(selectedMachine).toLowerCase(),windows=freeWindows(d,best.emp,key,excludeIds,allowSaturday,allowPeter);for(const w of windows){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));if(a>=z)continue;const take=Math.min(need,z-a);if(take>0){segs.push({date:d,employee:best.emp,start:tm(a),minutes:take});need-=take;if(!need)break}}firstDay=false;if(need>0)d=addCal(d,1)}else{d=addCal(d,1);firstDay=false}
+ while(need>0&&guard++<240){let best=null;const machines=selectedMachine?[selectedMachine]:machineOptions(t);for(const machine of machines){const key=cleanMachine(machine).toLowerCase();for(const [rank,emp] of employees.entries()){for(const w of freeWindows(d,emp,key,excludeIds,allowSaturday,allowPeter)){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));const free=z-a;if(free<=0||(free<MIN_USEFUL_BLOCK&&need>free))continue;if(!best||a<best.a||(a===best.a&&(rank<best.rank||(rank===best.rank&&free>best.free))))best={emp,a,z,free,machine,rank}}}}
+   if(best){if(!selectedMachine){selectedMachine=best.machine;setAssignedMachine(t,selectedMachine)}const key=cleanMachine(selectedMachine).toLowerCase(),windows=freeWindows(d,best.emp,key,excludeIds,allowSaturday,allowPeter);for(const w of windows){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));if(a>=z||((z-a)<MIN_USEFUL_BLOCK&&need>(z-a)))continue;const take=Math.min(need,z-a);if(take>0){segs.push({date:d,employee:best.emp,start:tm(a),minutes:take});need-=take;if(!need)break}}firstDay=false;if(need>0)d=addCal(d,1)}else{d=addCal(d,1);firstDay=false}
  }
  segs=typeof mergePauseSegments==='function'?mergePauseSegments(segs):segs;t.planSegments=segs;t.employee=segs[0]?.employee||preferred||null;t.date=segs[0]?.date||dtDate(earliestAt);t.start=segs[0]?.start||'';return taskFinishAt(t)||earliestAt;
 }
@@ -68,7 +68,7 @@ function pairSetupWithExecution(setup,run,earliestAt,opts={}){
  const sd=Math.max(1,Number(setup.estimate)||30),exclude=new Set([setup.id,run.id]);let d=dtDate(earliestAt),guard=0;
  let employees=run.employee&&run.employee!=='Ralph'?[run.employee]:['Kaan','Lance','Shaffi'];if(opts.allowPeter)employees.push('Peter');if(!run.employee)employees=window.RALAB_WORKPLACES?.candidateEmployees?.(run,employees)||employees;
  const machines=run.assignedMachine?[run.assignedMachine]:machineOptions(run);
- while(guard++<180){for(const machine of machines){const key=cleanMachine(machine).toLowerCase(),rw=freeWindows(d,'Ralph',key,exclude,!!opts.allowSaturday,!!opts.allowPeter);for(const emp of employees){const ew=freeWindows(d,emp,key,exclude,!!opts.allowSaturday,!!opts.allowPeter);for(const e of ew){let runStart=Math.max(e[0],min(dtTime(earliestAt))*(d===dtDate(earliestAt)?1:0));if(d!==dtDate(earliestAt))runStart=e[0];for(const r of rw){const candidate=Math.max(runStart,r[0]+sd);if(candidate<e[1]&&candidate<=r[1]&&candidate-sd>=r[0]){
+ while(guard++<180){for(const machine of machines){const key=cleanMachine(machine).toLowerCase(),rw=freeWindows(d,'Ralph',key,exclude,!!opts.allowSaturday,!!opts.allowPeter);for(const emp of employees){const ew=freeWindows(d,emp,key,exclude,!!opts.allowSaturday,!!opts.allowPeter);for(const e of ew){let runStart=Math.max(e[0],min(dtTime(earliestAt))*(d===dtDate(earliestAt)?1:0));if(d!==dtDate(earliestAt))runStart=e[0];for(const r of rw){const candidate=Math.max(runStart,r[0]+sd),runRoom=e[1]-candidate;if(runRoom>=Math.min(Math.max(1,Number(run.estimate)||0),MIN_USEFUL_BLOCK)&&candidate<e[1]&&candidate<=r[1]&&candidate-sd>=r[0]){
            setAssignedMachine(run,machine);setAssignedMachine(setup,machine);setup.planSegments=[{date:d,employee:'Ralph',start:tm(candidate-sd),minutes:sd}];setup.employee='Ralph';setup.date=d;setup.start=tm(candidate-sd);setup.preferredEmployee='Ralph';
            run.employee=emp;run.preferredEmployee=emp;const finish=allocateInternal(run,dtString(d,tm(candidate)),{...opts,excludeIds:exclude});return finish;
          }}}}
@@ -108,7 +108,7 @@ function planOrderStrict(o,opts={}){
  return cursor;
 }
 function roughLeadMinutes(o){let internal=0,calendar=0,bottleneck=0;for(const t of orderTasks(o.id)){if(taskDone(t))continue;if(isExternalTask(t))calendar+=(Number(t.externalLeadDays)||14)*1440;else if(isDryTask(t))calendar+=Number(t.estimate)||540;else{internal+=Number(t.estimate)||0;if(/reichenbacher|kuka|mori|teach-in|gildemeister/i.test(machineKey(t)))bottleneck+=Number(t.estimate)||0}}return {internal,calendar,bottleneck}}
-function priority(o){setDerivedDates(o);const h=hardDate(o)||'9999-12-31',t=targetDate(o)||h,r=roughLeadMinutes(o);const latestApprox=h==='9999-12-31'?'9999-12-31':addCal(h,-Math.ceil((r.internal+r.bottleneck*0.35)/495)-Math.ceil(r.calendar/1440));return [latestApprox,t,h,-r.bottleneck,String(o.orderNo||'')]} 
+function priority(o){setDerivedDates(o);const h=hardDate(o)||'9999-12-31',t=targetDate(o)||h,r=roughLeadMinutes(o),stars=Math.max(1,Math.min(3,Number(o?.planningPriority)||3));const latestApprox=h==='9999-12-31'?'9999-12-31':addCal(h,-Math.ceil((r.internal+r.bottleneck*0.35)/495)-Math.ceil(r.calendar/1440));return [latestApprox,t,h,-stars,-r.bottleneck,String(o.orderNo||'')]}
 function cmpOrder(a,b){const A=priority(a),B=priority(b);for(let i=0;i<A.length;i++){if(A[i]<B[i])return-1;if(A[i]>B[i])return 1}return 0}
 function optimizeAll(opts={}){normalizeSequences();const os=(S()?.orders||[]).filter(o=>o.active&&!o.isGeneralWork&&hardDate(o)).slice().sort(cmpOrder);clearMovablePlanning();for(const o of os)planOrderStrict(o,opts);return os}
 function finishDate(o){const ts=orderTasks(o.id).filter(t=>!isGeneral(t));let f='';for(const t of ts){const x=taskFinishDate(t);if(x>f)f=x}return f||today()}

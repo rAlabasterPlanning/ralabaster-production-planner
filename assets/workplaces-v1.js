@@ -28,6 +28,7 @@ function ensure(){
  s.toolCostEntries=Array.isArray(s.toolCostEntries)?s.toolCostEntries:[];
  let changed=false;
  for(const [name,type,hourlyCost] of DEFAULTS){if(s.workplaces.some(w=>w.name===name))continue;s.workplaces.push({id:uid('wp'),name,type,hourlyCost,targetRate:0,setupMinutes:/instellen/i.test(name)?30:0,weeklyCapacity:type==='machine'?40:0,preferredEmployees:/instellen/i.test(name)?['Ralph']:[],alternativeIds:[],active:type!=='external'&&type!=='wait',notes:'',created:new Date().toISOString()});changed=true}
+ if(Number(s.workplacePreferenceDefaultsVersion||0)<2){for(const w of s.workplaces){if((/^Mori\b/i.test(w.name)&&!/instellen/i.test(w.name))||/^Polijsten$/i.test(w.name))w.preferredEmployees=['Shaffi','Peter']}s.workplacePreferenceDefaultsVersion=2;changed=true}
  if(changed)persist();return true;
 }
 function all(){return ensure()?S().workplaces:[]}
