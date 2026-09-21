@@ -13,6 +13,7 @@ state.tasks.forEach(t=>{if(!Array.isArray(t.planSegments))t.planSegments=[];if(i
 let currentView='today';
 let selectedDate=isoDate(new Date());
 let weekAnchor=isoDate(mondayOf(new Date()));
+let visibleWeekCount=4,weekLoadingMore=false,weekScrollObserver=null,weekCompactView=true;
 
 function defaultState(){
  const orderId='o_demo';
@@ -98,6 +99,7 @@ function hasPlanning(t){if(isDryTask(t))return !!t.waitStartAt;if(isExternalTask
 function firstSegment(t){return taskSegments(t).slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.start||'').localeCompare(b.start||''))[0]||null}
 function taskCard(t,compact=false,seg=null){
  const o=order(t.orderId);const s=displayStatus(t),u=orderUrgency(o);const x=seg||firstSegment(t);const mins=x?Number(x.minutes)||0:Number(t.estimate)||0;const elapsed=x?segmentElapsedMinutes(x):mins,total=Number(t.estimate)||0;
+ if(compact){const from=x?.start||'',to=from&&mins?endTime(from,elapsed):'';return `<div class="task week-task-compact urg-${u.level}" draggable="true" data-task="${t.id}" data-status="${s}" onclick="openTask('${t.id}')" ondragstart="dragStart(event,'${t.id}')"><div class="week-task-time">${esc(from||'Tijd onbekend')}${to?'–'+esc(to):''}</div><div class="op">${esc(t.name||'Taak')}</div><div class="machine">${esc(t.machine||'-')}</div></div>`}
  let special='';
  if(isDryTask(t)&&t.waitStartAt)special=`<div class="deadline">Droogtijd 24/7 · ${fmtShort(dtDate(t.waitStartAt))} ${dtTime(t.waitStartAt)} → ${fmtShort(dtDate(t.waitEndAt))} ${dtTime(t.waitEndAt)}</div>`;
  else if(isExternalTask(t))special=`<div class="deadline">Extern · ${expectedExternalReturn(t)?'verwacht retour '+fmtShort(expectedExternalReturn(t)):'standaard '+(CFG.rules?.externalLeadDays||14)+' dagen'}</div>`;

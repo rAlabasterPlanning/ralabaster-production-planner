@@ -224,6 +224,12 @@ Do not use this file as a dump of every tiny CSS or text change. Keep it useful 
 - De iPad-weergave gebruikt de beschikbare breedte voor maandag t/m donderdag, met vrijdag gedeeltelijk zichtbaar en zaterdag via horizontaal vegen.
 
 Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `assets/styles.css`.
+
+### Aanvulling: doorlopend laden en compacte blokken
+
+- Bij omlaag scrollen worden steeds vier volgende weken toegevoegd, zodat de planning praktisch oneindig doorloopt.
+- De wekenplanning opent standaard in een beknopte weergave met alleen tijd, taak en machine.
+- Via `Uitgebreid overzicht` / `Beknopt overzicht` kan de gebruiker direct wisselen; Planning vandaag blijft uitgebreid.
 # 2026-09-14 — betrouwbare schermbediening (20260914-2)
 
 - Zoeken en deadlineprioriteit gebruiken vaste gedelegeerde events; sterren blijven werken na zoeken/pagineren en schrijven naar de actuele order.
