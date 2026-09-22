@@ -177,7 +177,31 @@ async function executeTaskChanges(token,actions,{confirmationText='',allowProtec
   return result;
 }
 
+function previewOrderStatusChange(snapshot,orderId,status){
+  const order=(snapshot.gegevens.orders||[]).find(o=>o.id===orderId);
+  if(!order)throw new Error(`Order ${orderId||'(leeg)'} bestaat niet meer.`);
+  const target=String(status||'').trim();
+  if(!target)throw new Error('Orderstatus ontbreekt.');
+  const completed=['completed','done','afgerond','complete'].includes(target.toLowerCase());
+  return {
+    order:{id:order.id,orderNo:order.orderNo||'',product:order.product||'',klant:order.customerName||order.customer||''},
+    huidige_status:order.status||'',
+    nieuwe_status:target,
+    wordt_afgerond:completed,
+    nieuwe_active_status:!completed,
+  };
+}
+
+async function executeOrderStatusChange(token,orderId,status,confirmationText=''){
+  const result=await rest(token,'rpc/apply_ai_order_status_change','0-0',{
+    method:'POST',headers:{Prefer:'return=representation'},
+    body:{p_workspace_id:WORKSPACE_ID,p_order_id:orderId,p_status:status,p_confirmation_text:String(confirmationText||'Expliciet bevestigd in ChatGPT')},
+  });
+  const verify=await allRows(token,'planner_orders_v2',`select=order_id,order_no,status,active,completed_at,data,updated_at&workspace_id=eq.${WORKSPACE_ID}&order_id=eq.${encodeURIComponent(orderId)}&deleted=eq.false&limit=1`);
+  return {resultaat:result,verificatie:verify[0]||null};
+}
+
 export {
   SUPABASE_KEY,SUPABASE_URL,WORKSPACE_ID,accessCatalog,allRows,authenticatedUser,authoritativeSnapshot,
-  executeTaskChanges,fitContext,orderRoute,previewTaskChanges,readScope,resolveOrder,rest,scrub,tokenFrom,
+  executeTaskChanges,executeOrderStatusChange,fitContext,orderRoute,previewOrderStatusChange,previewTaskChanges,readScope,resolveOrder,rest,scrub,tokenFrom,
 };

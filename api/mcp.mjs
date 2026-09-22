@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import * as z from 'zod/v4';
 import {
-  authenticatedUser,authoritativeSnapshot,executeTaskChanges,orderRoute,previewTaskChanges,readScope,tokenFrom,
+  authenticatedUser,authoritativeSnapshot,executeOrderStatusChange,executeTaskChanges,orderRoute,previewOrderStatusChange,previewTaskChanges,readScope,tokenFrom,
 } from './_planner-core.mjs';
 import { executeScheduleChanges,previewScheduleChanges } from './_planner-schedule.mjs';
 
@@ -69,6 +69,37 @@ function createServer(token){
   },async({order})=>{
     try{return jsonResult(orderRoute(await authoritativeSnapshot(token),order))}
     catch(error){return jsonResult({fout:String(error?.message||error)},true)}
+  });
+
+
+  server.registerTool('preview_order_status_change',{
+    title:'Orderstatus controleren',
+    description:'Maak een read-only voorstel om de status van een bestaande order te wijzigen. Gebruik dit eerst en toon de huidige en nieuwe status aan Ralph.',
+    inputSchema:{orderId:z.string().min(1),status:z.string().min(1).max(80)},
+    annotations:{readOnlyHint:true,openWorldHint:false},
+  },async({orderId,status})=>{
+    try{return jsonResult({...previewOrderStatusChange(await authoritativeSnapshot(token),orderId,status),status_resultaat:'concept_niet_uitgevoerd'})}
+    catch(error){return jsonResult({fout:String(error?.message||error),status_resultaat:'niet_uitgevoerd'},true)}
+  });
+
+  server.registerTool('execute_confirmed_order_status_change',{
+    title:'Bevestigde orderstatus uitvoeren',
+    description:'Wijzig de orderstatus daadwerkelijk in de live Supabase planner. Alleen gebruiken nadat Ralph het getoonde voorstel expliciet heeft bevestigd. Leest de order na de write opnieuw uit en geeft de opgeslagen status terug.',
+    inputSchema:{
+      orderId:z.string().min(1),
+      status:z.string().min(1).max(80),
+      userConfirmed:z.literal(true),
+      confirmationText:z.string().min(2).max(500),
+    },
+    annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:false,openWorldHint:false},
+  },async({orderId,status,confirmationText})=>{
+    try{
+      const preview=previewOrderStatusChange(await authoritativeSnapshot(token),orderId,status);
+      const applied=await executeOrderStatusChange(token,orderId,status,confirmationText);
+      const saved=applied.verificatie;
+      if(!saved||String(saved.status)!==String(status))return jsonResult({fout:'De databasecontrole bevestigde de nieuwe orderstatus niet.',preview,resultaat:applied,status_resultaat:'niet_bevestigd'},true);
+      return jsonResult({status_resultaat:'uitgevoerd_en_geverifieerd',preview,resultaat:applied});
+    }catch(error){return jsonResult({fout:String(error?.message||error),status_resultaat:'niet_uitgevoerd'},true)}
   });
 
   server.registerTool('preview_task_changes',{
