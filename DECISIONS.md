@@ -1,5 +1,20 @@
 # rAlabaster Productieplanner — Decisions
 
+## 2026-09-22 — AI heeft volledige operationele leesrechten
+
+Decision: de AI-productieleider leest bij iedere vraag opnieuw de actuele
+Supabase-metadata en alle genormaliseerde order- en taakrecords onder de sessie
+van de ingelogde gebruiker.
+
+Rules:
+- volledige inzage betekent alle gegevens die in de productieplanner staan;
+- wachtwoorden, tokens, sleutels en grote afbeeldingsdata worden nooit aan het
+  model doorgegeven;
+- RLS blijft leidend en er wordt geen service-role sleutel gebruikt;
+- volledige leesrechten veranderen niets aan de schrijfrechten: iedere
+  planningswijziging blijft een concept totdat Ralph die expliciet bevestigt;
+- rechtstreekse machinebesturing blijft uitgesloten.
+
 ## 2026-09-22 — AI-productieleider start in meekijkmodus
 
 Decision: de AI-productieleider wordt als gecontroleerde laag boven de bestaande
