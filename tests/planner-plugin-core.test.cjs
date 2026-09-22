@@ -35,3 +35,24 @@ test('scoped reads filter planner data without exposing unrelated sections',asyn
  const {readScope}=await import('../api/_planner-core.mjs'),result=readScope(fixture(),'customers','klant',10);
  assert.equal(result.customers.length,1);assert.equal(result.orders,undefined);
 });
+
+test('general planner preview supports metadata updates without writing',async()=>{
+ const {previewRecordChanges}=await import('../api/_planner-core.mjs');
+ const result=previewRecordChanges(fixture(),[{entity:'customer',operation:'update',id:'c1',fields:{email:'nieuw@example.nl'}}]);
+ assert.equal(result.preview[0].bewerking,'wijzigen');assert.equal(result.preview[0].huidige_waarden.email,undefined);
+ assert.equal(result.preview[0].nieuwe_waarden.email,'nieuw@example.nl');assert.equal(result.vereist_extra_bevestiging,false);
+});
+
+test('general planner preview requires extra confirmation for deletes and protected tasks',async()=>{
+ const {previewRecordChanges}=await import('../api/_planner-core.mjs');
+ const deletion=previewRecordChanges(fixture(),[{entity:'customer',operation:'delete',id:'c1'}]);
+ assert.equal(deletion.vereist_extra_bevestiging,true);
+ const protectedTask=previewRecordChanges(fixture(),[{entity:'task',operation:'update',id:'t1',fields:{name:'Nieuw'}}]);
+ assert.equal(protectedTask.beschermde_records[0].id,'t1');
+});
+
+test('general planner preview blocks secrets and stale IDs',async()=>{
+ const {previewRecordChanges}=await import('../api/_planner-core.mjs');
+ assert.throws(()=>previewRecordChanges(fixture(),[{entity:'customer',operation:'update',id:'missing',fields:{name:'X'}}]),/bestaat niet/);
+ assert.throws(()=>previewRecordChanges(fixture(),[{entity:'customer',operation:'update',id:'c1',fields:{apiKey:'x'}}]),/mag niet/);
+});
