@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import * as z from 'zod/v4';
 import {
-  authenticatedUser,authoritativeSnapshot,executeOrderStatusChange,executeTaskChanges,orderRoute,previewOrderStatusChange,previewTaskChanges,readScope,tokenFrom,
+  authenticatedUser,authoritativeSnapshot,executeOrderStatusChange,executeTaskChanges,executeRecordChanges,orderRoute,previewOrderStatusChange,previewTaskChanges,previewRecordChanges,readScope,tokenFrom,
 } from './_planner-core.mjs';
 import { executeScheduleChanges,previewScheduleChanges } from './_planner-schedule.mjs';
 
@@ -39,6 +39,12 @@ const scheduleTask=z.object({
 });
 const unscheduleTask=z.object({type:z.literal('unschedule_task'),orderId:z.string(),taskId:z.string()});
 const scheduleAction=z.discriminatedUnion('type',[scheduleTask,unscheduleTask]);
+const recordAction=z.object({
+  entity:z.enum(['order','task','customer','quote','calculation','product','workplace','maintenance','tool','cost','staff_absence','planner_rule','order_confirmation']),
+  operation:z.enum(['create','update','delete']),
+  id:z.string().optional().default(''),
+  fields:z.record(z.string(),z.unknown()).optional().default({}),
+});
 
 function jsonResult(value,isError=false){
   return {isError,content:[{type:'text',text:JSON.stringify(value,null,2)}]};
@@ -69,6 +75,33 @@ function createServer(token){
   },async({order})=>{
     try{return jsonResult(orderRoute(await authoritativeSnapshot(token),order))}
     catch(error){return jsonResult({fout:String(error?.message||error)},true)}
+  });
+
+  server.registerTool('preview_planner_changes',{
+    title:'Plannerwijzigingen controleren',
+    description:'Maak een read-only preview voor toevoegen, wijzigen of verwijderen van orders, taken, klanten, offertes, calculaties, producten, werkplekken, onderhoud, gereedschap, kosten, personeelsafwezigheid, plannerregels en orderbevestigingen. Gebruik dit altijd vóór de uitvoertool en toon Ralph exact de oude en nieuwe waarden.',
+    inputSchema:{actions:z.array(recordAction).min(1).max(30)},
+    annotations:{readOnlyHint:true,openWorldHint:false},
+  },async({actions})=>{
+    try{return jsonResult({...previewRecordChanges(await authoritativeSnapshot(token),actions),status:'concept_niet_uitgevoerd'})}
+    catch(error){return jsonResult({fout:String(error?.message||error),status:'niet_uitgevoerd'},true)}
+  });
+
+  server.registerTool('execute_confirmed_planner_changes',{
+    title:'Bevestigde plannerwijzigingen uitvoeren',
+    description:'Voer exact de eerder getoonde algemene plannerwijzigingen uit en schrijf ze live naar Supabase. Alleen gebruiken na Ralphs expliciete akkoord in het huidige gesprek. Verwijderen en gestart, gereed of vastgezet werk vereisen een aparte extra bevestiging voordat allowDestructive true mag zijn. De database geeft de opgeslagen records ter controle terug.',
+    inputSchema:{
+      actions:z.array(recordAction).min(1).max(30),userConfirmed:z.literal(true),
+      confirmationText:z.string().min(2).max(500),allowDestructive:z.boolean().optional().default(false),
+    },
+    annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:false,openWorldHint:false},
+  },async({actions,confirmationText,allowDestructive})=>{
+    try{
+      const preview=previewRecordChanges(await authoritativeSnapshot(token),actions);
+      if(preview.vereist_extra_bevestiging&&!allowDestructive)return jsonResult({fout:'Deze wijziging verwijdert gegevens of raakt beschermd werk. Vraag Ralph om een aparte extra bevestiging.',...preview,status:'niet_uitgevoerd'},true);
+      const applied=await executeRecordChanges(token,actions,{confirmationText,allowDestructive});
+      return jsonResult({status:'uitgevoerd_en_geverifieerd',preview,resultaat:applied});
+    }catch(error){return jsonResult({fout:String(error?.message||error),status:'niet_uitgevoerd'},true)}
   });
 
 
