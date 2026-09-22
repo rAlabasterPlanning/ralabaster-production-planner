@@ -4,6 +4,20 @@ This is a practical development log, not a full semantic-versioning history. It 
 
 ## 2026-09-22
 
+### Volledige ChatGPT-schrijftoegang met verplichte goedkeuring
+
+- De MCP-koppeling kan nu wijzigingen voorbereiden voor orders, taken, klanten,
+  offertes, calculaties, producten, werkplekken, onderhoud, gereedschap, kosten,
+  personeelsafwezigheid, plannerregels en orderbevestigingen.
+- Toevoegen, wijzigen en verwijderen verlopen altijd via preview, expliciete
+  bevestiging en databasecontrole.
+- Verwijderen en beschermd productiewerk vragen een aparte extra bevestiging.
+- Supabase RLS blijft actief; beveiligde velden worden geblokkeerd en iedere
+  uitgevoerde wijziging komt in het beslislog.
+
+Relevant: `api/mcp.mjs`, `api/_planner-core.mjs`,
+`supabase/migrations/20260922180000_chatgpt_full_planner_write.sql`.
+
 ### AI-planner als gesprek en spraakbediening
 
 - Het lege AI-tabblad opent nu rechtstreeks met een foutbestendige chatweergave.
