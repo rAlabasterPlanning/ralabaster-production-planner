@@ -106,6 +106,13 @@ test('week cells show remaining capacity instead of planned versus available',as
  const f=await fullApp(t),w=f.w,d=w.document;w.switchView('weeks');await f.wait(30);
  const labels=[...d.querySelectorAll('.weekgrid .daycell>.hours')];assert.ok(labels.length);for(const label of labels){assert.match(label.textContent,/^(Nog |Vol$|Overpland |Geen capaciteit$)/);assert.doesNotMatch(label.textContent,/\//)}assert.deepEqual(f.errors,[]);
 });
+test('AI planner advises without changing planning and remembers manual choices',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document,before=JSON.stringify(f.state().tasks);w.switchView('ai');w.RALAB_AI_PLANNER.render();await f.wait(30);
+ assert.match(d.querySelector('#view-ai').textContent,/AI-productieleider/);assert.match(d.querySelector('#view-ai').textContent,/past nooit zelf de planning aan/);assert.ok(d.querySelector('[data-ai-proposal]'));assert.ok(d.querySelector('[data-ai-form]'));
+ await w.RALAB_AI_PLANNER.ask('Wat moet als eerste en waarom?');await f.wait(30);assert.ok(d.querySelector('.ai-message.assistant'));assert.match(d.querySelector('.ai-message.assistant').textContent,/Voorstel|aandacht/i);assert.equal(JSON.stringify(f.state().tasks),before);
+ vm.runInContext("const aiTask=state.tasks.find(x=>x.id==='test-task');aiTask.planningOrigin='manual';aiTask.lockedPlanning=true;aiTask.planSegments=[{date:'2026-09-18',employee:'Ralph',start:'08:15',minutes:60}];save()",f.ctx);assert.ok(f.state().aiDecisionLog.some(x=>x.type==='observed_manual_change'));
+ d.querySelector('[data-ai-rule-input]').value='Polijsten liefst bij Shaffi';d.querySelector('[data-ai-add-rule]').click();assert.ok(f.state().aiPlannerRules.some(x=>x.text==='Polijsten liefst bij Shaffi'));assert.deepEqual(f.errors,[]);
+});
 test('week proposal stays a draft, can move its chain and only persists on final acceptance',async t=>{
  const f=await fullApp(t),w=f.w,d=w.document;
  vm.runInContext("state.orders.push({id:'proposal-order',orderNo:'P-001',product:'Test batch',qty:10,active:true,planningPriority:3,communicatedDeadline:'2026-10-20',deadline:'2026-10-20'});state.tasks.push({id:'proposal-a',orderId:'proposal-order',seq:1,name:'Polijsten',machine:'Polijsten',estimate:120,status:'open',dependsPrev:false,planSegments:[]},{id:'proposal-b',orderId:'proposal-order',seq:2,name:'Inpakken',machine:'Inpakken',estimate:60,status:'open',dependsPrev:true,planSegments:[]})",f.ctx);

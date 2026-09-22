@@ -1,5 +1,22 @@
 # rAlabaster Productieplanner — Decisions
 
+## 2026-09-22 — AI-productieleider start in meekijkmodus
+
+Decision: de AI-productieleider wordt als gecontroleerde laag boven de bestaande
+deterministische planningsmotor gebouwd. De huidige motor blijft eigenaar van
+harde regels en uitvoerbaarheid; de AI leest, legt uit en doet voorstellen.
+
+Rules:
+- fase 1 mag niets zelfstandig in de planning wijzigen;
+- ieder planningvoorstel wordt pas echt na expliciete goedkeuring door Ralph;
+- handmatige wijzigingen, feedback en redenen worden als beslislog vastgelegd;
+- terugkerende keuzes blijven zachte voorkeuren totdat Ralph ze expliciet als
+  vaste voorkeur bevestigt;
+- prioriteitsvolgorde is leverbetrouwbaarheid, rust/minder ad-hoc werk en daarna
+  efficiëntie;
+- de AI geeft altijd minstens één uitvoerbare vervolgstap en toont gevolgen;
+- de AI bestuurt nooit rechtstreeks een machine of veiligheidsfunctie.
+
 ## 2026-09-21 — Deadline, sterren en productbatching
 
 Decision: automatische planning gebruikt deze volgorde: eerst deadline en

@@ -1,0 +1,7 @@
+{
+  "name": "ralabaster-production-planner",
+  "private": true,
+  "dependencies": {
+    "ai": "7.0.109"
+  }
+}

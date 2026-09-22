@@ -1,6 +1,6 @@
 # rAlabaster Productieplanner — Project Context
 
-_Last updated: 2026-09-21_
+_Last updated: 2026-09-22_
 
 ## Purpose
 
@@ -186,6 +186,20 @@ The planner is used in production, not as a demo. Prefer:
 - visible order context
 - no hidden destructive behavior
 - performance over decorative complexity
+
+## AI production leader
+
+- `assets/ai-planner-v1.js` provides the first observer/advisor phase.
+- It reads a compact planning snapshot, shows risks/capacity/batch opportunities,
+  offers a planning conversation, and stores feedback and manual planning changes
+  as metadata (`aiDecisionLog`, `aiPlannerRules`, `aiPlannerMessages`).
+- The deterministic planner remains authoritative for hard constraints and all
+  actual planning changes.
+- The AI endpoint is `api/ai-planner.mjs`, requires a valid Supabase session, and
+  uses Vercel AI Gateway. Never expose AI credentials in the browser.
+- Passive navigation must not run full planning scenarios. The AI view uses
+  lightweight current-state analysis and only opens the existing concept planner
+  after an explicit user action.
 
 ## Development workflow for ChatGPT / future sessions
 

@@ -258,3 +258,11 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
 
 - In de doorlopende wekenplanning staat nu direct hoeveel tijd een medewerker die dag nog vrij heeft (`Nog 20 min`, `Vol` of `Overpland`).
 - De resterende tijd blijft gebaseerd op alle ingeplande taken, ook wanneer op een werkplek wordt gefilterd.
+# 2026-09-22 — AI-productieleider fase 1
+
+- Nieuw tabblad `AI planner` met chat, actuele aandachtspunten, vrije capaciteit en batchkansen.
+- De AI werkt uitsluitend in meekijk-/adviesmodus en kan de planning niet rechtstreeks wijzigen.
+- `Veilig planningvoorstel` opent de bestaande conceptplanner; definitief opslaan blijft een aparte goedkeuring.
+- Handmatige planningswijzigingen, feedback en redenen worden opgeslagen als beslislogboek.
+- Expliciete voorkeuren kunnen aan de planner worden geleerd; terugkerende patronen worden alleen ter bevestiging voorgesteld.
+- Online AI loopt via een beveiligde Vercel-functie en vereist een geldige Supabase-sessie; bij uitval blijft een lokale planneranalyse beschikbaar.
