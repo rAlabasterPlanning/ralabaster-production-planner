@@ -56,3 +56,11 @@ test('general planner preview blocks secrets and stale IDs',async()=>{
  assert.throws(()=>previewRecordChanges(fixture(),[{entity:'customer',operation:'update',id:'missing',fields:{name:'X'}}]),/bestaat niet/);
  assert.throws(()=>previewRecordChanges(fixture(),[{entity:'customer',operation:'update',id:'c1',fields:{apiKey:'x'}}]),/mag niet/);
 });
+
+test('schedule preview preserves fractional minutes',async()=>{
+ const {previewScheduleChanges}=await import('../api/_planner-schedule.mjs');
+ const result=previewScheduleChanges(fixture(),[{type:'schedule_task',orderId:'o1',taskId:'t2',machine:'Mori',segments:[{date:'2026-09-23',start:'08:15',minutes:72.5,elapsedMinutes:72.5,employee:'Kaan'}]}]);
+ assert.equal(result.preview[0].segmenten[0].minutes,72.5);
+ assert.equal(result.preview[0].segmenten[0].elapsedMinutes,72.5);
+ assert.equal(result.kan_uitvoeren,true);
+});
