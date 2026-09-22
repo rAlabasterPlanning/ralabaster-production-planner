@@ -1,5 +1,18 @@
 # rAlabaster Productieplanner — Decisions
 
+## 2026-09-22 — Gesproken AI-opdrachten blijven gecontroleerde voorstellen
+
+Decision: Ralph kan in gewone Nederlandse spreektaal over orderstappen praten.
+De AI mag voorstellen maken voor toevoegen, verwijderen, aanpassen en koppelen,
+maar de frontend voert die alleen uit na een aparte expliciete bevestiging.
+
+Rules:
+- het antwoord en de machineleesbare taakacties worden gescheiden verwerkt;
+- onduidelijke order- of taakverwijzingen leiden tot een verduidelijkingsvraag;
+- gestart, gereed of vastgezet werk vereist een extra waarschuwing;
+- elke uitgevoerde of afgewezen AI-wijziging komt in het beslislog;
+- spraak is alleen een invoermethode en krijgt geen extra schrijfrechten.
+
 ## 2026-09-22 — AI heeft volledige operationele leesrechten
 
 Decision: de AI-productieleider leest bij iedere vraag opnieuw de actuele

@@ -25,3 +25,20 @@ test('AI planner reads normalized records and all metadata with the signed-in us
   assert.match(snapshot.rechten.schrijven,/akkoord van Ralph/);
  }finally{global.fetch=originalFetch}
 });
+
+test('AI planner extracts a safe task proposal without exposing the control block',async()=>{
+ const {extractProposal}=await import('../api/ai-planner.mjs');
+ const result=extractProposal('Ik stel voor polijsten toe te voegen.\n<planner_actions>{"summary":"Polijsten toevoegen","actions":[{"type":"add_task","orderId":"o1","afterTaskId":"t1","name":"Polijsten","machine":"Polijsten","estimate":90,"taskType":"internal"}]}</planner_actions>');
+ assert.equal(result.answer,'Ik stel voor polijsten toe te voegen.');
+ assert.equal(result.proposal.status,'pending');
+ assert.equal(result.proposal.actions[0].type,'add_task');
+ assert.equal(result.proposal.actions[0].estimate,90);
+ assert.doesNotMatch(result.answer,/planner_actions/);
+});
+
+test('AI planner ignores malformed and unsupported action blocks',async()=>{
+ const {extractProposal}=await import('../api/ai-planner.mjs');
+ assert.equal(extractProposal('Antwoord zonder wijziging').proposal,null);
+ assert.equal(extractProposal('Voorstel<planner_actions>{geen json}</planner_actions>').proposal,null);
+ assert.equal(extractProposal('Voorstel<planner_actions>{"actions":[{"type":"delete_everything"}]}</planner_actions>').proposal,null);
+});
