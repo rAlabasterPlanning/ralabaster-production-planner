@@ -1,5 +1,19 @@
 # rAlabaster Productieplanner — Decisions
 
+## 2026-09-22 — Volledige plannerbediening blijft approval-gated
+
+Decision: de ChatGPT-koppeling mag alle operationele recordsoorten in de
+planner lezen en mag toevoegingen, wijzigingen en verwijderingen voorbereiden.
+Een write wordt uitsluitend uitgevoerd na een zichtbare preview en Ralphs
+expliciete akkoord in hetzelfde gesprek.
+
+Rules:
+- iedere write gebruikt actuele ID's en wordt na opslag door de database teruggegeven;
+- verwijderen en gestart, gereed of vastgezet werk vereisen extra bevestiging;
+- RLS en de sessie van de ingelogde gebruiker blijven de autorisatiegrens;
+- tokens, wachtwoorden, sleutels en andere beveiligde velden zijn nooit wijzigbaar;
+- iedere uitvoering wordt in het AI-beslislog vastgelegd.
+
 ## 2026-09-22 — Gesproken AI-opdrachten blijven gecontroleerde voorstellen
 
 Decision: Ralph kan in gewone Nederlandse spreektaal over orderstappen praten.
