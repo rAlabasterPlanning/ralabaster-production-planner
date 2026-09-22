@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ChatGPT koppelen · rAlabaster</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0d1917;--card:#162724;--line:#31534d;--text:#f3f7f6;--muted:#a7bbb7;--accent:#d5a95f;--danger:#ef8e8e}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at top,#1b3430 0,#0d1917 55%);font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text);padding:24px}.card{width:min(580px,100%);background:rgba(22,39,36,.96);border:1px solid var(--line);border-radius:20px;padding:28px;box-shadow:0 24px 70px #0008}.brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}.mark{display:grid;place-items:center;width:44px;height:44px;border-radius:13px;background:var(--accent);color:#17221f;font-weight:900}.brand b{font-size:20px}.brand span,p,.muted{color:var(--muted)}h1{font-size:28px;line-height:1.15;margin:8px 0}ul{padding-left:22px}li{margin:8px 0}.client{margin:20px 0;padding:14px;border:1px solid var(--line);border-radius:12px;background:#10201d}.client b,.client span{display:block}.client span{color:var(--muted);font-size:13px;overflow-wrap:anywhere}.buttons{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}button,input{font:inherit;border-radius:10px}button{border:1px solid var(--line);padding:11px 16px;background:#203631;color:var(--text);cursor:pointer}button.primary{background:var(--accent);border-color:var(--accent);color:#15201e;font-weight:750}button:disabled{opacity:.55;cursor:wait}label{display:block;margin:12px 0 5px;color:var(--muted);font-size:13px}input{width:100%;padding:11px 12px;background:#0e1c1a;color:var(--text);border:1px solid var(--line)}.error{color:var(--danger);min-height:24px;margin-top:10px}.hidden{display:none}.fine{font-size:12px;margin-top:20px}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand"><div class="mark">rA</div><div><b>rAlabaster</b><br><span>Productieplanner</span></div></div>
+    <section id="loading"><h1>Veilige koppeling laden…</h1><p>De aanvraag van ChatGPT wordt gecontroleerd.</p></section>
+    <section id="login" class="hidden">
+      <h1>Log in bij de planner</h1>
+      <p>Gebruik hetzelfde rAlabaster-account als in de productieplanner.</p>
+      <form id="loginForm">
+        <label for="email">E-mailadres</label><input id="email" name="email" type="email" autocomplete="username" required>
+        <label for="password">Wachtwoord</label><input id="password" name="password" type="password" autocomplete="current-password" required>
+        <div class="buttons"><button class="primary" type="submit">Inloggen en doorgaan</button></div>
+      </form>
+    </section>
+    <section id="consent" class="hidden">
+      <h1>ChatGPT met de planner verbinden?</h1>
+      <p>Hiermee kun je in de normale ChatGPT-app typen én spreken over de actuele productie.</p>
+      <div class="client"><b id="clientName">ChatGPT</b><span id="redirectUri"></span></div>
+      <ul>
+        <li>Orders, taken, planning, klanten, calculaties, kosten en historie lezen.</li>
+        <li>Taakwijzigingen eerst als volledig concept tonen.</li>
+        <li>Pas uitvoeren na jouw expliciete bevestiging; beschermd werk vraagt extra akkoord.</li>
+        <li>Geen directe machinebesturing en geen toegang tot wachtwoorden of geheime sleutels.</li>
+      </ul>
+      <div class="buttons"><button class="primary" id="approve" type="button">Veilig verbinden</button><button id="deny" type="button">Weigeren</button></div>
+    </section>
+    <div id="error" class="error" role="alert"></div>
+    <p class="fine">Je kunt deze toegang later intrekken via de geautoriseerde apps van je rAlabaster-account.</p>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/assets/oauth-consent-v1.js?v=20260922-1"></script>
+</body>
+</html>

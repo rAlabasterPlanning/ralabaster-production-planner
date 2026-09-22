@@ -2,6 +2,8 @@
   "name": "ralabaster-production-planner",
   "private": true,
   "dependencies": {
-    "ai": "7.0.109"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "ai": "7.0.109",
+    "zod": "^4.6.5"
   }
 }
