@@ -28,9 +28,9 @@ const taskAction=z.discriminatedUnion('type',[addTask,removeTask,updateTask,link
 const planSegment=z.object({
   date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   start:z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-  minutes:z.number().int().positive(),
+  minutes:z.number().positive(),
   employee:z.string().min(1).optional(),
-  elapsedMinutes:z.number().int().positive().optional(),
+  elapsedMinutes:z.number().positive().optional(),
 });
 const scheduleTask=z.object({
   type:z.literal('schedule_task'),orderId:z.string(),taskId:z.string(),
