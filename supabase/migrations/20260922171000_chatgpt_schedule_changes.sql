@@ -79,7 +79,7 @@ begin
       v_employee:=coalesce(nullif(v_seg->>'employee',''),nullif(v_action->>'employee',''),nullif(v_task.data->>'employee',''),v_task.employee);
       if v_employee is null or trim(v_employee)='' then raise exception 'Plansegment heeft een medewerker nodig.' using errcode='22023'; end if;
       v_start:=(v_seg->>'date')::date + (v_seg->>'start')::time;
-      v_end:=v_start + make_interval(mins=>greatest(1,coalesce(nullif(v_seg->>'elapsedMinutes','')::integer,(v_seg->>'minutes')::integer)));
+      v_end:=v_start + make_interval(secs=>greatest(60.0,coalesce(nullif(v_seg->>'elapsedMinutes','')::numeric,(v_seg->>'minutes')::numeric)*60)::double precision);
 
       for v_other in select * from public.planner_tasks_v2
         where workspace_id=p_workspace_id and deleted=false and task_id<>v_task_id and coalesce(status,'') not in ('done','completed')
@@ -88,7 +88,7 @@ begin
         loop
           if coalesce(v_other_seg->>'date','') !~ '^\d{4}-\d{2}-\d{2}$' or coalesce(v_other_seg->>'start','') !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' then continue; end if;
           v_other_start:=(v_other_seg->>'date')::date + (v_other_seg->>'start')::time;
-          v_other_end:=v_other_start + make_interval(mins=>greatest(1,coalesce(nullif(v_other_seg->>'elapsedMinutes','')::integer,nullif(v_other_seg->>'minutes','')::integer,1)));
+          v_other_end:=v_other_start + make_interval(secs=>greatest(60.0,coalesce(nullif(v_other_seg->>'elapsedMinutes','')::numeric,nullif(v_other_seg->>'minutes','')::numeric,1)*60)::double precision);
           if v_start < v_other_end and v_other_start < v_end then
             v_same_employee:=coalesce(nullif(v_other_seg->>'employee',''),nullif(v_other.data->>'employee',''),v_other.employee,'')=v_employee;
             v_same_machine:=v_machine<>'' and coalesce(nullif(v_other.data->>'assignedMachine',''),nullif(v_other.data->>'machine',''),v_other.machine,'')=v_machine;
