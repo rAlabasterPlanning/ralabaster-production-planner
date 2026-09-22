@@ -107,11 +107,24 @@ test('week cells show remaining capacity instead of planned versus available',as
  const labels=[...d.querySelectorAll('.weekgrid .daycell>.hours')];assert.ok(labels.length);for(const label of labels){assert.match(label.textContent,/^(Nog |Vol$|Overpland |Geen capaciteit$)/);assert.doesNotMatch(label.textContent,/\//)}assert.deepEqual(f.errors,[]);
 });
 test('AI planner advises without changing planning and remembers manual choices',async t=>{
- const f=await fullApp(t),w=f.w,d=w.document,before=JSON.stringify(f.state().tasks);w.switchView('ai');w.RALAB_AI_PLANNER.render();await f.wait(30);
- assert.match(d.querySelector('#view-ai').textContent,/AI-productieleider/);assert.match(d.querySelector('#view-ai').textContent,/past nooit zelf de planning aan/);assert.ok(d.querySelector('[data-ai-proposal]'));assert.ok(d.querySelector('[data-ai-form]'));
+ const f=await fullApp(t),w=f.w,d=w.document,before=JSON.stringify(f.state().tasks);d.querySelector('.navbtn[data-view="ai"]').click();await f.wait(80);
+ assert.match(d.querySelector('#view-ai').textContent,/AI-productieleider/);assert.equal(d.querySelector('#view-ai').classList.contains('hidden'),false);assert.equal(d.querySelector('#view-today').classList.contains('hidden'),true);assert.match(d.querySelector('#view-ai').textContent,/past nooit zelf de planning aan/);assert.ok(d.querySelector('[data-ai-proposal]'));assert.ok(d.querySelector('[data-ai-form]'));
+ assert.ok(d.querySelector('[data-ai-voice]'));assert.match(d.querySelector('[data-ai-input]').placeholder,/Typ of spreek/);
  await w.RALAB_AI_PLANNER.ask('Wat moet als eerste en waarom?');await f.wait(30);assert.ok(d.querySelector('.ai-message.assistant'));assert.match(d.querySelector('.ai-message.assistant').textContent,/Voorstel|aandacht/i);assert.equal(JSON.stringify(f.state().tasks),before);
  vm.runInContext("const aiTask=state.tasks.find(x=>x.id==='test-task');aiTask.planningOrigin='manual';aiTask.lockedPlanning=true;aiTask.planSegments=[{date:'2026-09-18',employee:'Ralph',start:'08:15',minutes:60}];save()",f.ctx);assert.ok(f.state().aiDecisionLog.some(x=>x.type==='observed_manual_change'));
  d.querySelector('[data-ai-rule-input]').value='Polijsten liefst bij Shaffi';d.querySelector('[data-ai-add-rule]').click();assert.ok(f.state().aiPlannerRules.some(x=>x.text==='Polijsten liefst bij Shaffi'));assert.deepEqual(f.errors,[]);
+});
+test('AI task changes stay pending until Ralph applies them explicitly',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;w.alert=()=>{};w.confirm=()=>true;d.querySelector('.navbtn[data-view="ai"]').click();await f.wait(40);
+ vm.runInContext("state.orders.push({id:'ai-order',orderNo:'AI-1',product:'AI test',active:true});state.tasks.push({id:'ai-a',orderId:'ai-order',seq:1,name:'Draaien',machine:'Mori ZL15 #1',estimate:60,status:'open',planSegments:[]},{id:'ai-b',orderId:'ai-order',seq:2,name:'Inpakken',machine:'Inpakken',estimate:30,status:'open',planSegments:[]});state.aiPlannerMessages.push({id:'ai-proposal-message',role:'assistant',mode:'ai',text:'Voorstel klaar.',proposal:{summary:'Polijsten toevoegen en koppelen',status:'pending',actions:[{type:'add_task',orderId:'ai-order',afterTaskId:'ai-a',name:'Polijsten',machine:'Polijsten',estimate:90,taskType:'internal'}]}})",f.ctx);
+ w.RALAB_AI_PLANNER.render();assert.equal(f.state().tasks.filter(x=>x.orderId==='ai-order').length,2);assert.ok(d.querySelector('[data-ai-apply-proposal="ai-proposal-message"]'));
+ d.querySelector('[data-ai-apply-proposal="ai-proposal-message"]').click();await f.wait(20);const own=f.state().tasks.filter(x=>x.orderId==='ai-order').sort((a,b)=>a.seq-b.seq);assert.deepEqual(own.map(x=>x.name),['Draaien','Polijsten','Inpakken']);assert.equal(f.state().aiPlannerMessages.find(x=>x.id==='ai-proposal-message').proposal.status,'applied');assert.ok(f.state().aiDecisionLog.some(x=>x.type==='ai_task_change'&&x.status==='applied'));assert.deepEqual(f.errors,[]);
+});
+test('microphone sends Dutch speech to the AI planner',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;let instance;
+ w.webkitSpeechRecognition=class{constructor(){instance=this}start(){this.onstart()}stop(){this.onend()}};
+ d.querySelector('.navbtn[data-view="ai"]').click();await f.wait(30);d.querySelector('[data-ai-voice]').click();assert.ok(instance);instance.onresult({resultIndex:0,results:Object.assign([[{transcript:'Welke stappen heeft order één?'}]],{0:Object.assign([{transcript:'Welke stappen heeft order één?'}],{isFinal:true})})});instance.onend();await f.wait(50);
+ assert.ok(f.state().aiPlannerMessages.some(x=>x.role==='user'&&/Welke stappen/.test(x.text)));assert.deepEqual(f.errors,[]);
 });
 test('week proposal stays a draft, can move its chain and only persists on final acceptance',async t=>{
  const f=await fullApp(t),w=f.w,d=w.document;

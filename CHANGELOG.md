@@ -2,6 +2,19 @@
 
 This is a practical development log, not a full semantic-versioning history. It exists so future work can quickly understand recent changes and avoid reintroducing old problems.
 
+## 2026-09-22
+
+### AI-planner als gesprek en spraakbediening
+
+- Het lege AI-tabblad opent nu rechtstreeks met een foutbestendige chatweergave.
+- Vragen kunnen worden getypt of in het Nederlands worden ingesproken via de
+  microfoonknop (Chrome en Edge).
+- De AI kan orderstappen uitleggen en voorstellen om taken toe te voegen,
+  verwijderen, bij te werken of direct aan elkaar te koppelen.
+- Een taakwijziging blijft zichtbaar als voorstel en wordt pas opgeslagen na
+  een afzonderlijke klik op `Voorstel uitvoeren`.
+- Gestarte, afgeronde of vastgezette taken krijgen een extra waarschuwing.
+
 ## 2026-09-21
 
 ### Slimmere automatische planning en doorlopende iPad-weken

@@ -23,6 +23,10 @@ The planner must stay fast, simple, and practical for daily production use. The 
 - Workplace metadata (`workplaces`, `maintenanceRecords`, `toolItems`,
   `toolCostEntries`) remains in `planner_shared_state`; normalized orders/tasks
   stay in their existing v2 tables.
+- `assets/ai-planner-v1.js` owns the conversational AI tab, Dutch browser speech
+  input and explicit approval flow for proposed task changes.
+- `api/ai-planner.mjs` reads the authorized Supabase snapshot and may return a
+  bounded `proposal`; it never writes to Supabase directly.
 
 ## Workplace operations
 
