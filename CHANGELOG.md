@@ -4,6 +4,16 @@ This is a practical development log, not a full semantic-versioning history. It 
 
 ## 2026-09-22
 
+### AI-planning beschermen tegen verouderde planner-sessies
+
+- Iedere geaccepteerde wijziging van planningvelden krijgt in Supabase een
+  nieuwe `planningWriteId`.
+- Een oudere open browser-sessie zonder die actuele versie mag nog wel andere
+  taakvelden opslaan, maar kan de nieuwere `planSegments`, datum, medewerker of
+  machine niet meer leegmaken of terugzetten.
+- Hierdoor blijft een via ChatGPT bevestigde planning ook na latere cloud-sync
+  persistent zichtbaar in zowel de planner als `read_planner_data`.
+
 ### Planning-write na opslag verifiëren
 
 - `execute_confirmed_schedule_changes` leest iedere gewijzigde taak direct na
