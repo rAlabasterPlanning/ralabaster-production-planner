@@ -266,3 +266,14 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
 - Handmatige planningswijzigingen, feedback en redenen worden opgeslagen als beslislogboek.
 - Expliciete voorkeuren kunnen aan de planner worden geleerd; terugkerende patronen worden alleen ter bevestiging voorgesteld.
 - Online AI loopt via een beveiligde Vercel-functie en vereist een geldige Supabase-sessie; bij uitval blijft een lokale planneranalyse beschikbaar.
+# 2026-09-22 — AI-productieleider volledige inzage
+
+- De AI haalt bij iedere vraag zelf de actuele plannerdata uit Supabase op.
+- Hij kan actieve en afgeronde orders, taken, planning, klanten, offertes,
+  calculaties, producten, werkplekken, onderhoud, gereedschap, machinekosten,
+  afwezigheid, historie en eerdere beslissingen in samenhang beoordelen.
+- De AI-pagina toont zichtbaar tot welke gegevensbronnen hij toegang heeft.
+- Toegang gebruikt de sessie en RLS van de ingelogde gebruiker; beveiligde
+  sleutels en wachtwoorden worden niet gedeeld.
+- Schrijven blijft gecontroleerd: voorstellen worden pas na Ralphs akkoord
+  definitief en de AI bestuurt geen machines.

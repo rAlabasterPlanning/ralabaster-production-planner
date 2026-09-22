@@ -190,8 +190,16 @@ The planner is used in production, not as a demo. Prefer:
 ## AI production leader
 
 - `assets/ai-planner-v1.js` provides the first observer/advisor phase.
-- It reads a compact planning snapshot, shows risks/capacity/batch opportunities,
-  offers a planning conversation, and stores feedback and manual planning changes
+- The server endpoint now reloads the authoritative Supabase metadata plus all
+  normalized order/task records for every AI question. The browser does not
+  decide which records the AI may see.
+- Full read scope covers active and archived orders, tasks and planning,
+  customers, quotations, calculations, products, workplaces, maintenance,
+  tooling, operational machine costs, staff absence, history and AI decisions.
+- Supabase RLS and the signed-in user's JWT remain the authorization boundary;
+  no service-role key is exposed or used.
+- The client keeps a compact fallback snapshot, shows risks/capacity/batch
+  opportunities, offers a planning conversation, and stores feedback and manual planning changes
   as metadata (`aiDecisionLog`, `aiPlannerRules`, `aiPlannerMessages`).
 - The deterministic planner remains authoritative for hard constraints and all
   actual planning changes.
