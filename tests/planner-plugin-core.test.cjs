@@ -64,3 +64,19 @@ test('schedule preview preserves fractional minutes',async()=>{
  assert.equal(result.preview[0].segmenten[0].elapsedMinutes,72.5);
  assert.equal(result.kan_uitvoeren,true);
 });
+
+test('schedule persistence verification requires exact reread planSegments',async()=>{
+ const {comparePersistedScheduleChanges}=await import('../api/_planner-schedule.mjs');
+ const actions=[{type:'schedule_task',orderId:'o1',taskId:'t2',machine:'Mori',segments:[{date:'2026-09-23',start:'08:15',minutes:72.5,elapsedMinutes:72.5,employee:'Kaan'}]}];
+ const exact=comparePersistedScheduleChanges(actions,[{task_id:'t2',order_id:'o1',updated_at:'2026-09-22T19:00:00Z',data:{id:'t2',orderId:'o1',planSegments:[{date:'2026-09-23',start:'08:15',minutes:72.5,elapsedMinutes:72.5,employee:'Kaan'}]}}]);
+ assert.equal(exact.geverifieerd,true);
+ const missing=comparePersistedScheduleChanges(actions,[{task_id:'t2',order_id:'o1',data:{id:'t2',orderId:'o1',planSegments:[]}}]);
+ assert.equal(missing.geverifieerd,false);
+});
+
+test('unschedule persistence verification requires an empty reread planSegments array',async()=>{
+ const {comparePersistedScheduleChanges}=await import('../api/_planner-schedule.mjs');
+ const actions=[{type:'unschedule_task',orderId:'o1',taskId:'t2'}];
+ assert.equal(comparePersistedScheduleChanges(actions,[{task_id:'t2',order_id:'o1',data:{id:'t2',orderId:'o1',planSegments:[]}}]).geverifieerd,true);
+ assert.equal(comparePersistedScheduleChanges(actions,[{task_id:'t2',order_id:'o1',data:{id:'t2',orderId:'o1',planSegments:[{date:'2026-09-23',start:'08:15',minutes:30,employee:'Kaan'}]}}]).geverifieerd,false);
+});

@@ -4,6 +4,15 @@ This is a practical development log, not a full semantic-versioning history. It 
 
 ## 2026-09-22
 
+### Planning-write na opslag verifiëren
+
+- `execute_confirmed_schedule_changes` leest iedere gewijzigde taak direct na
+  de Supabase-RPC opnieuw uit.
+- De tool meldt alleen `uitgevoerd_en_geverifieerd` wanneer de opgeslagen
+  `planSegments` exact overeenkomen met het bevestigde voorstel.
+- Bij een afwijking of mislukte herlezing wordt een aparte onzekere status
+  teruggegeven, zodat een niet-persistente planning nooit als geslaagd geldt.
+
 ### Fractionele planningstijden opslaan
 
 - De ChatGPT-planning accepteert nu ook halve en andere fractionele minuten,
