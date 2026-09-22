@@ -69,7 +69,7 @@ function accessCatalog(data){
     ['werkplekken',count('workplaces')],['onderhoud',count('maintenanceRecords')],['gereedschap',count('toolItems')],
     ['machinekosten',count('toolCostEntries')],['afwezigheid',count('staffAbsences')],['historie',count('history')],
     ['AI-beslissingen',count('aiDecisionLog')],['AI-voorkeuren',count('aiPlannerRules')]
-  ].map(([bron,aantal])=>({bron,aantal,toegang:'lezen'}));
+  ].map(([bron,aantal])=>({bron,aantal,toegang:'lezen; wijzigen alleen na zichtbare preview en expliciet akkoord'}));
 }
 
 async function authoritativeSnapshot(token,fallback={}){
@@ -131,6 +131,60 @@ const SCOPE_KEYS={
   products:['productTemplates'],workplaces:['workplaces'],maintenance:['maintenanceRecords'],tooling:['toolItems'],
   costs:['toolCostEntries'],staff:['staffAbsences'],history:['history'],decisions:['aiDecisionLog','aiPlannerRules']
 };
+
+const MANAGED_COLLECTIONS={
+  customer:'customers',quote:'quotes',calculation:'calculations',product:'productTemplates',
+  workplace:'workplaces',maintenance:'maintenanceRecords',tool:'toolItems',cost:'toolCostEntries',
+  staff_absence:'staffAbsences',planner_rule:'aiPlannerRules',order_confirmation:'orderConfirmations',
+};
+const NORMALIZED_ENTITIES=new Set(['order','task']);
+const BLOCKED_FIELDS=new Set(['password','secret','accessToken','refreshToken','apiKey','serviceRoleKey']);
+
+function entityCollection(entity){return MANAGED_COLLECTIONS[entity]||''}
+function recordId(record){return String(record?.id||record?.orderId||record?.taskId||'')}
+function cleanPatch(fields){
+  if(!fields||typeof fields!=='object'||Array.isArray(fields))throw new Error('Wijzigingsvelden moeten een object zijn.');
+  const entries=Object.entries(fields);
+  if(!entries.length)throw new Error('Geef minimaal één wijzigingsveld op.');
+  for(const [key] of entries)if(BLOCKED_FIELDS.has(key)||/(?:password|secret|token|api.?key)/i.test(key))throw new Error(`Veld ${key} mag niet via ChatGPT worden gewijzigd.`);
+  return Object.fromEntries(entries);
+}
+
+function previewRecordChanges(snapshot,actions){
+  if(!Array.isArray(actions)||!actions.length||actions.length>30)throw new Error('Geef 1 tot en met 30 gegevenswijzigingen op.');
+  const data=snapshot.gegevens||{},preview=[],protectedRecords=[];
+  for(const action of actions){
+    const entity=String(action.entity||''),operation=String(action.operation||'');
+    const collection=entityCollection(entity);
+    if(!collection&&!NORMALIZED_ENTITIES.has(entity))throw new Error(`Gegevenstype ${entity||'(leeg)'} is niet toegestaan.`);
+    if(!['create','update','delete'].includes(operation))throw new Error(`Bewerking ${operation||'(leeg)'} is niet toegestaan.`);
+    const fields=operation==='delete'?{}:cleanPatch(action.fields);
+    const records=entity==='order'?(data.orders||[]):entity==='task'?(data.tasks||[]):(data[collection]||[]);
+    const id=String(action.id||fields.id||'');
+    if(operation==='create'){
+      if(id&&records.some(x=>recordId(x)===id))throw new Error(`${entity} ${id} bestaat al.`);
+      if(entity==='task'&&!String(fields.orderId||'').trim())throw new Error('Een nieuwe taak heeft een orderId nodig.');
+      if(entity==='task'&&!(data.orders||[]).some(o=>o.id===fields.orderId))throw new Error(`Order ${fields.orderId} bestaat niet.`);
+      preview.push({gegevenstype:entity,bewerking:'toevoegen',id:id||'(wordt aangemaakt)',nieuwe_waarden:fields});
+      continue;
+    }
+    if(!id)throw new Error(`Een ID is verplicht om een ${entity} te ${operation==='delete'?'verwijderen':'wijzigen'}.`);
+    const existing=records.find(x=>recordId(x)===id);
+    if(!existing)throw new Error(`${entity} ${id} bestaat niet meer.`);
+    const protectedRecord=entity==='task'&&isProtected(existing);
+    if(protectedRecord)protectedRecords.push({entity,id,naam:existing.name||id,status:existing.status||'open'});
+    preview.push({gegevenstype:entity,bewerking:operation==='delete'?'verwijderen':'wijzigen',id,huidige_waarden:operation==='delete'?existing:Object.fromEntries(Object.keys(fields).map(k=>[k,existing[k]])),nieuwe_waarden:operation==='delete'?undefined:fields});
+  }
+  const hasDeletes=actions.some(a=>a.operation==='delete');
+  return {preview,bevat_verwijderingen:hasDeletes,beschermde_records:protectedRecords,vereist_extra_bevestiging:hasDeletes||protectedRecords.length>0};
+}
+
+async function executeRecordChanges(token,actions,{confirmationText='',allowDestructive=false}={}){
+  return rest(token,'rpc/apply_ai_record_changes','0-0',{
+    method:'POST',headers:{Prefer:'return=representation'},
+    body:{p_workspace_id:WORKSPACE_ID,p_actions:actions,p_confirmation_text:String(confirmationText||''),p_allow_destructive:!!allowDestructive},
+  });
+}
 
 function readScope(snapshot,scope='overview',query='',limit=100){
   const data=snapshot.gegevens||{},max=Math.min(500,Math.max(1,Number(limit)||100)),needle=normalize(query);
@@ -203,5 +257,5 @@ async function executeOrderStatusChange(token,orderId,status,confirmationText=''
 
 export {
   SUPABASE_KEY,SUPABASE_URL,WORKSPACE_ID,accessCatalog,allRows,authenticatedUser,authoritativeSnapshot,
-  executeTaskChanges,executeOrderStatusChange,fitContext,orderRoute,previewOrderStatusChange,previewTaskChanges,readScope,resolveOrder,rest,scrub,tokenFrom,
+  executeTaskChanges,executeOrderStatusChange,executeRecordChanges,fitContext,orderRoute,previewOrderStatusChange,previewTaskChanges,previewRecordChanges,readScope,resolveOrder,rest,scrub,tokenFrom,
 };
