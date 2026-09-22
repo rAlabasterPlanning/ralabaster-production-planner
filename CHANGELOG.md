@@ -4,6 +4,15 @@ This is a practical development log, not a full semantic-versioning history. It 
 
 ## 2026-09-22
 
+### Fractionele planningstijden opslaan
+
+- De ChatGPT-planning accepteert nu ook halve en andere fractionele minuten,
+  zoals `72.5`, voor zowel productieve als verstreken tijd.
+- De Supabase-conflictcontrole rekent intern in seconden en cast bestaande
+  fractionele plansegmenten niet langer naar een integer.
+
+Relevant: `api/mcp.mjs`, `supabase/migrations/20260922182226_allow_fractional_schedule_minutes.sql`.
+
 ### Volledige ChatGPT-schrijftoegang met verplichte goedkeuring
 
 - De MCP-koppeling kan nu wijzigingen voorbereiden voor orders, taken, klanten,
