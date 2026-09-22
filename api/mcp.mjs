@@ -4,6 +4,7 @@ import * as z from 'zod/v4';
 import {
   authenticatedUser,authoritativeSnapshot,executeTaskChanges,orderRoute,previewTaskChanges,readScope,tokenFrom,
 } from './_planner-core.mjs';
+import { executeScheduleChanges,previewScheduleChanges } from './_planner-schedule.mjs';
 
 const RESOURCE_METADATA='https://ralabasterplanner.vercel.app/.well-known/oauth-protected-resource';
 const MAX_BODY=2000000;
@@ -23,6 +24,21 @@ const updateTask=z.object({
 });
 const linkTasks=z.object({type:z.literal('link_tasks'),orderId:z.string(),firstTaskId:z.string(),nextTaskId:z.string()});
 const taskAction=z.discriminatedUnion('type',[addTask,removeTask,updateTask,linkTasks]);
+
+const planSegment=z.object({
+  date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  start:z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  minutes:z.number().int().positive(),
+  employee:z.string().min(1).optional(),
+  elapsedMinutes:z.number().int().positive().optional(),
+});
+const scheduleTask=z.object({
+  type:z.literal('schedule_task'),orderId:z.string(),taskId:z.string(),
+  employee:z.string().min(1).optional(),machine:z.string().optional(),
+  segments:z.array(planSegment).min(1).max(20),
+});
+const unscheduleTask=z.object({type:z.literal('unschedule_task'),orderId:z.string(),taskId:z.string()});
+const scheduleAction=z.discriminatedUnion('type',[scheduleTask,unscheduleTask]);
 
 function jsonResult(value,isError=false){
   return {isError,content:[{type:'text',text:JSON.stringify(value,null,2)}]};
@@ -80,6 +96,37 @@ function createServer(token){
       const preview=previewTaskChanges(await authoritativeSnapshot(token),actions);
       if(preview.vereist_extra_bevestiging&&!allowProtectedTasks)return jsonResult({fout:'Deze wijziging raakt gestart, gereed of vastgezet werk. Benoem de taken en vraag Ralph om een aparte extra bevestiging.',...preview,status:'niet_uitgevoerd'},true);
       const applied=await executeTaskChanges(token,actions,{confirmationText,allowProtected:allowProtectedTasks});
+      return jsonResult({status:'uitgevoerd',resultaat:applied,controle:preview});
+    }catch(error){return jsonResult({fout:String(error?.message||error),status:'niet_uitgevoerd'},true)}
+  });
+
+
+  server.registerTool('preview_schedule_changes',{
+    title:'Planning controleren',
+    description:'Maak een read-only concept om bestaande taken in te plannen, te verplaatsen of te ontplannen. Controleert actuele taak-ID’s en blokkeert overlappingen op dezelfde medewerker of machine. Toon de preview en eventuele conflicten aan Ralph voordat je iets uitvoert.',
+    inputSchema:{actions:z.array(scheduleAction).min(1).max(30)},
+    annotations:{readOnlyHint:true,openWorldHint:false},
+  },async({actions})=>{
+    try{return jsonResult({...previewScheduleChanges(await authoritativeSnapshot(token),actions),status:'concept_niet_uitgevoerd'})}
+    catch(error){return jsonResult({fout:String(error?.message||error),status:'niet_uitgevoerd'},true)}
+  });
+
+  server.registerTool('execute_confirmed_schedule_changes',{
+    title:'Bevestigde planning uitvoeren',
+    description:'Schrijf exact de eerder getoonde planning naar de live planner. Alleen gebruiken nadat Ralph het volledige planningsconcept in het huidige gesprek expliciet heeft bevestigd. De server controleert opnieuw op medewerker- en machineconflicten. Voor gestart of gereed werk is een aparte extra bevestiging nodig.',
+    inputSchema:{
+      actions:z.array(scheduleAction).min(1).max(30),
+      userConfirmed:z.literal(true),
+      confirmationText:z.string().min(2).max(500),
+      allowProtectedTasks:z.boolean().optional().default(false),
+    },
+    annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:false,openWorldHint:false},
+  },async({actions,confirmationText,allowProtectedTasks})=>{
+    try{
+      const preview=previewScheduleChanges(await authoritativeSnapshot(token),actions);
+      if(preview.conflicten.length)return jsonResult({fout:'Planning bevat medewerker- of machineconflicten. Los deze eerst op.',...preview,status:'niet_uitgevoerd'},true);
+      if(preview.vereist_extra_bevestiging&&!allowProtectedTasks)return jsonResult({fout:'Deze planning raakt gestart of gereed werk. Benoem de taken en vraag Ralph om een aparte extra bevestiging.',...preview,status:'niet_uitgevoerd'},true);
+      const applied=await executeScheduleChanges(token,actions,{confirmationText,allowProtected:allowProtectedTasks});
       return jsonResult({status:'uitgevoerd',resultaat:applied,controle:preview});
     }catch(error){return jsonResult({fout:String(error?.message||error),status:'niet_uitgevoerd'},true)}
   });
