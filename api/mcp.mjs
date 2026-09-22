@@ -191,8 +191,15 @@ function createServer(token){
       if(preview.conflicten.length)return jsonResult({fout:'Planning bevat medewerker- of machineconflicten. Los deze eerst op.',...preview,status:'niet_uitgevoerd'},true);
       if(preview.vereist_extra_bevestiging&&!allowProtectedTasks)return jsonResult({fout:'Deze planning raakt gestart of gereed werk. Benoem de taken en vraag Ralph om een aparte extra bevestiging.',...preview,status:'niet_uitgevoerd'},true);
       const applied=await executeScheduleChanges(token,actions,{confirmationText,allowProtected:allowProtectedTasks});
-      return jsonResult({status:'uitgevoerd',resultaat:applied,controle:preview});
-    }catch(error){return jsonResult({fout:String(error?.message||error),status:'niet_uitgevoerd'},true)}
+      return jsonResult({status:'uitgevoerd_en_geverifieerd',resultaat:applied.resultaat,verificatie:applied.verificatie,controle:preview});
+    }catch(error){
+      const uncertain=String(error?.code||'').startsWith('SCHEDULE_PERSISTENCE_');
+      return jsonResult({
+        fout:String(error?.message||error),
+        status:uncertain?'uitvoering_onzeker_niet_geverifieerd':'niet_uitgevoerd',
+        resultaat:error?.result,verificatie:error?.verification,
+      },true)
+    }
   });
 
   return server;
