@@ -12,7 +12,9 @@ function renderQuotes(){
 function install(){
  const erp=window.RALAB_ERP;if(!erp||erp.__quoteMeta)return false;
  const oldQuoteOrder=erp.quoteOrder;
- erp.renderQuotes=renderQuotes;
+ // The canonical quotation inbox owns the Offertes tab. Keep this legacy
+ // renderer only as a fallback for builds where that module is unavailable.
+ if(!window.RALAB_QUOTE_INBOX)erp.renderQuotes=renderQuotes;
  erp.quoteOrder=function(id){
    const s=S(),q=(s?.quotes||[]).find(x=>x.id===id),before=new Set((s?.orders||[]).map(x=>x.id));
    const r=oldQuoteOrder.apply(this,arguments);
