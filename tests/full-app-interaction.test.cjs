@@ -5,6 +5,17 @@ const tap=(w,el)=>{for(const type of ['pointerdown','pointerup']){const e=new w.
 test('complete shipped app boots without errors with both loader timings',async t=>{
  for(const loadBaseLast of [false,true]){const f=await fullApp(t,{loadBaseLast});assert.deepEqual(f.errors,[]);assert.equal(typeof f.w.confirmQuickComplete,'function');assert.ok(f.w.RALAB_DATE_TIME_FIELDS);await f.close()}
 });
+test('selected calculation operations can be reordered and persist in that order',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;w.alert=()=>{};d.querySelector('.navbtn[data-view="calculation"]').click();await f.wait(180);
+ const byName=name=>[...d.querySelectorAll('#view-calculation tbody tr')].find(row=>row.querySelector('td:nth-child(2) b')?.textContent.trim()===name);
+ for(const name of ['Ruw materiaal boren','Doppen lijmen','Polijsten']){const box=byName(name).querySelector('[data-opcheck]');box.checked=true;box.dispatchEvent(new w.Event('change',{bubbles:true}))}
+ d.querySelector('#cName').value='Volgordetest';d.querySelector('#cName').dispatchEvent(new w.Event('change',{bubbles:true}));
+ d.querySelector('#cuiLoadSteps').click();await f.wait(60);
+ const polish=byName('Polijsten');polish.querySelector('[data-cui-op-move="up"]').click();polish.querySelector('[data-cui-op-move="up"]').click();
+ assert.deepEqual(Array.from(w.RALAB_CALC_UI.products[0].ops,x=>x.name),['Polijsten','Ruw materiaal boren','Doppen lijmen']);
+ w.RALAB_CALC.saveDraft();await f.wait(40);
+ const saved=f.state().calculations.at(-1),savedOps=saved.ops||saved.products?.[0]?.ops;assert.deepEqual(savedOps.map(x=>x.name),['Polijsten','Ruw materiaal boren','Doppen lijmen']);assert.deepEqual(f.errors,[]);
+});
 test('orders search retains focus and filters while all decorators are running',async t=>{
  const f=await fullApp(t),d=f.w.document;let input=d.querySelector('[data-order-search]');
  for(const ch of 'tigermoth'){search(f,input.value+ch);await f.wait(25);assert.equal(d.activeElement,input);assert.equal(d.querySelector('[data-order-search]'),input)}

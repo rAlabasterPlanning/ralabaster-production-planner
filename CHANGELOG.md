@@ -2,6 +2,16 @@
 
 This is a practical development log, not a full semantic-versioning history. It exists so future work can quickly understand recent changes and avoid reintroducing old problems.
 
+## 2026-09-23
+
+### Volgorde van calculatiebewerkingen aanpassen
+
+- Na het laden van de geselecteerde processtappen staan per bewerking knoppen
+  om de stap omhoog of omlaag te verplaatsen.
+- De aangepaste volgorde wordt gebruikt voor de berekening, de doorlooptijd,
+  opgeslagen calculaties, offertes, producttemplates en nieuwe orders.
+- Bij het opnieuw openen van een product blijft de gekozen volgorde behouden.
+
 ## 2026-09-22
 
 ### AI-planning beschermen tegen verouderde planner-sessies
