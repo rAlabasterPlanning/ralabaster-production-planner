@@ -31,6 +31,14 @@ test('an existing quotation reopens in calculation and updates without creating 
  d.querySelector('#cMaterial').value='25';d.querySelector('#cMaterial').dispatchEvent(new w.Event('input',{bubbles:true}));d.querySelector('[data-update-quote-calculation]').click();await f.wait(140);
  const saved=f.state().quotes.filter(q=>(q.quoteNo||q.orderNo)==='20260923-77');assert.equal(saved.length,1);assert.equal(saved[0].materialCost,25);assert.equal(saved[0].costUnit,28);assert.equal(saved[0].saleUnit,60);assert.ok(d.querySelector('[data-quote-to-calculation="20260923-77"]'));assert.deepEqual(f.errors,[]);
 });
+test('quotation quantity prices stay editable and customer PDF hides internal pricing',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document,documents=[];w.alert=()=>{};
+ vm.runInContext("state.customers.push({id:'tier-customer',name:'Staffelklant',country:'Germany'});state.quotes.push({id:'tier-quote-1',quoteNo:'20260923-88',orderNo:'20260923-88',lineNo:1,customerId:'tier-customer',name:'Staffelproduct',qty:10,materialCost:20,materialMode:'unit',marginMode:'factor',marginValue:2,ops:[{id:'op20',name:'Schuren',rate:30,mode:'batch',minutes:60}],costUnit:23,saleUnit:60,total:600,status:'concept',includeTierPricing:true,priceTiers:[{qty:10,saleUnit:55},{qty:25,saleUnit:49.95}]})",f.ctx);
+ w.RALAB_DOCS.openQuote('20260923-88');await f.wait(50);const tier=d.querySelector('[data-q-tier-line="tier-quote-1"][data-q-tier-qty="25"]');assert.ok(tier);assert.equal(tier.value,'49.95');tier.value='47.50';tier.dispatchEvent(new w.Event('input',{bubbles:true}));d.querySelector('[data-save-quote="20260923-88"]').click();await f.wait(40);
+ assert.equal(f.state().quotes.find(q=>q.id==='tier-quote-1').priceTiers.find(x=>x.qty===25).saleUnit,47.5);
+ w.RALAB_DOCS.openQuote('20260923-88');await f.wait(30);d.querySelector('[data-quote-to-calculation="20260923-88"]').click();await f.wait(220);assert.equal(w.RALAB_CALC_PRICE.includeTiersByIndex[0],true);assert.equal(w.RALAB_CALC_PRICE.tiersByIndex[0].find(x=>x.qty===25).saleUnit,47.5);if(!d.querySelector('[data-tier-sale="25"]'))d.querySelector('#cToggleTiers').click();assert.ok(d.querySelector('[data-tier-sale="25"]'));
+ w.open=()=>{const item={html:''};documents.push(item);return{document:{write(x){item.html+=x},close(){}},print(){}}};await w.RALAB_DOCUMENTS_V4.printQuotation('20260923-88');assert.match(documents[0].html,/Quantity pricing/);assert.match(documents[0].html,/47,50/);assert.doesNotMatch(documents[0].html,/Kostprijs|Richtprijs|Marge/);assert.deepEqual(f.errors,[]);
+});
 test('orders search retains focus and filters while all decorators are running',async t=>{
  const f=await fullApp(t),d=f.w.document;let input=d.querySelector('[data-order-search]');
  for(const ch of 'tigermoth'){search(f,input.value+ch);await f.wait(25);assert.equal(d.activeElement,input);assert.equal(d.querySelector('[data-order-search]'),input)}
