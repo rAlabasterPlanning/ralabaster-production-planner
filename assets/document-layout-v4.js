@@ -4,7 +4,7 @@ const COMPANY={name:'rAlabaster / Linck BV',address:'Kasteeldreef 18',postal:'51
 const PAYMENT_OPTIONS=[['50_50','50% advance payment upon order confirmation, 50% prior to shipment'],['100_advance','100% advance payment upon order confirmation'],['14_days','Payment within 14 days from invoice date'],['30_days','Payment within 30 days from invoice date'],['annual','This order is covered by the existing annual supply agreement'],['offtake','The value of this order will be deducted from the agreed offtake contract value'],['custom','Custom payment terms']];
 const num=v=>{const n=Number(String(v??'').replace(',','.'));return Number.isFinite(n)?n:0};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const money=n=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(num(n));
+const money=n=>new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(num(n));
 const fmtDate=s=>{if(!s)return'—';const d=new Date(s+'T12:00:00');return d.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'})};
 function S(){try{return state}catch(_){return null}}
 function persist(){try{save()}catch(e){console.error(e)}}
