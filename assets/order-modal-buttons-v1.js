@@ -1,6 +1,6 @@
 // Order modal actions are scoped to the actual footer button clicked.
 (()=>{
-  const VERSION='20260914-2';
+  const VERSION='20260923-3';
   if(window.__ralabOrderModalButtonsV1Installed)return;
   window.__ralabOrderModalButtonsV1Installed=true;
 
@@ -12,6 +12,8 @@
     if(btn.matches('[data-delete-cancel]'))return {type:'deleteCancel'};
     if(btn.matches('[data-customer-print]'))return {type:'customerPrint',id:btn.dataset.customerPrint};
     if(btn.matches('[data-completed-overview]'))return {type:'completedOverview'};
+    if(btn.matches('[data-complete-task]'))return {type:'completeTask',id:btn.dataset.completeTask};
+    if(btn.matches('[data-complete-entire-order]'))return {type:'completeEntireOrder',id:btn.dataset.completeEntireOrder};
     const raw=btn.getAttribute('onclick')||'';
     if(/closeModal\s*\(/.test(raw))return {type:'close'};
     let m=raw.match(/RALAB_ERP\.orderConfirmation\(['"]([^'"]+)['"]\)/);
@@ -45,6 +47,14 @@
       if(action.type==='completedOverview'){
         if(typeof window.closeModal==='function')window.closeModal();
         window.RALAB_ERP?.show?.('completed');return true;
+      }
+      if(action.type==='completeTask'){
+        if(typeof window.confirmQuickComplete!=='function')throw new Error('confirmQuickComplete unavailable');
+        window.confirmQuickComplete(action.id);return true;
+      }
+      if(action.type==='completeEntireOrder'){
+        if(typeof window.completeEntireOrderFromTask!=='function')throw new Error('completeEntireOrderFromTask unavailable');
+        window.completeEntireOrderFromTask(action.id);return true;
       }
     }catch(err){
       console.error('Order modal actie mislukt',err);
