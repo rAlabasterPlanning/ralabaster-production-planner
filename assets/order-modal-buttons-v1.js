@@ -11,6 +11,7 @@
     if(btn.matches('[data-confirm-delete-order]'))return {type:'deleteConfirm',id:btn.dataset.confirmDeleteOrder};
     if(btn.matches('[data-delete-cancel]'))return {type:'deleteCancel'};
     if(btn.matches('[data-customer-print]'))return {type:'customerPrint',id:btn.dataset.customerPrint};
+    if(btn.matches('[data-completed-overview]'))return {type:'completedOverview'};
     const raw=btn.getAttribute('onclick')||'';
     if(/closeModal\s*\(/.test(raw))return {type:'close'};
     let m=raw.match(/RALAB_ERP\.orderConfirmation\(['"]([^'"]+)['"]\)/);
@@ -41,6 +42,10 @@
       if(action.type==='deleteConfirm'){window.RALAB_ERP?.confirmDeleteOrder?.(action.id);return true}
       if(action.type==='deleteCancel'){const r=document.getElementById('modalRoot');if(r)r.innerHTML='';return true}
       if(action.type==='customerPrint'){window.RALAB_ERP?.printCustomerOrders?.(action.id);return true}
+      if(action.type==='completedOverview'){
+        if(typeof window.closeModal==='function')window.closeModal();
+        window.RALAB_ERP?.show?.('completed');return true;
+      }
     }catch(err){
       console.error('Order modal actie mislukt',err);
       alert('Deze actie kon niet worden geopend. Ververs de app en probeer opnieuw.');
