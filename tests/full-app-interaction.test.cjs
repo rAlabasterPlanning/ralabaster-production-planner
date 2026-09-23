@@ -22,6 +22,15 @@ test('existing order calculation shows and live-updates cost, sales and margin',
  const summary=d.querySelector('#ocMarginSummary');assert.ok(summary);assert.match(summary.textContent,/Inkoop \/ materiaal totaal/);assert.match(summary.textContent,/Kostprijs \/ product/);assert.match(summary.textContent,/23,00/);assert.match(summary.textContent,/770,00/);assert.match(summary.textContent,/77,0%/);
  const sale=d.querySelector('#ocSale');sale.value='120';sale.dispatchEvent(new w.Event('input',{bubbles:true}));assert.match(summary.textContent,/970,00/);assert.match(summary.textContent,/80,8%/);assert.deepEqual(f.errors,[]);
 });
+test('an existing quotation reopens in calculation and updates without creating a duplicate',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;w.alert=()=>{};
+ vm.runInContext("state.customers.push({id:'quote-customer',name:'Offerteklant'});state.quotes.push({id:'quote-edit-1',quoteNo:'20260923-77',orderNo:'20260923-77',quoteGroupId:'quote-edit-group',lineNo:1,customerId:'quote-customer',project:'Edit project',customerReference:'REF-77',name:'Edit product',qty:10,materialCost:20,materialMode:'unit',marginMode:'factor',marginValue:2,ops:[{id:'op20',name:'Schuren',rate:30,mode:'batch',minutes:60,externalBatch:0,externalUnit:0}],costUnit:23,saleUnit:60,total:600,status:'concept',estimatedReadyDate:'2026-10-20'})",f.ctx);
+ w.RALAB_QUOTE_INBOX.render();await f.wait(30);d.querySelector('[data-open-quote-row="20260923-77"]').click();await f.wait(60);
+ const back=d.querySelector('[data-quote-to-calculation="20260923-77"]');assert.ok(back);back.click();await f.wait(220);
+ assert.equal(d.querySelector('#view-calculation').classList.contains('hidden'),false);assert.equal(d.querySelector('#cName').value,'Edit product');assert.equal(d.querySelector('#cMaterial').value,'20');assert.equal(d.querySelector('#cQty').value,'10');assert.equal(d.querySelector('[data-update-quote-calculation]').textContent,'Offerte bijwerken');
+ d.querySelector('#cMaterial').value='25';d.querySelector('#cMaterial').dispatchEvent(new w.Event('input',{bubbles:true}));d.querySelector('[data-update-quote-calculation]').click();await f.wait(140);
+ const saved=f.state().quotes.filter(q=>(q.quoteNo||q.orderNo)==='20260923-77');assert.equal(saved.length,1);assert.equal(saved[0].materialCost,25);assert.equal(saved[0].costUnit,28);assert.equal(saved[0].saleUnit,60);assert.ok(d.querySelector('[data-quote-to-calculation="20260923-77"]'));assert.deepEqual(f.errors,[]);
+});
 test('orders search retains focus and filters while all decorators are running',async t=>{
  const f=await fullApp(t),d=f.w.document;let input=d.querySelector('[data-order-search]');
  for(const ch of 'tigermoth'){search(f,input.value+ch);await f.wait(25);assert.equal(d.activeElement,input);assert.equal(d.querySelector('[data-order-search]'),input)}
