@@ -40,6 +40,9 @@
         const refresh=()=>{const begin=num(o.startWeightKg||orderTasks(o.id).find(isPrepTask)?.startWeightKg),unit=num(document.getElementById('qcEndUnitWeight')?.value),q=num(document.getElementById('qcQty')?.value),total=unit*q,y=begin>0?total/begin*100:NaN;note.innerHTML=`Begin: <b>${begin?kg(begin):'-'}</b> · Eind: <b>${unit&&q?kg(total):'-'}</b> · Rendement: <b>${Number.isFinite(y)?pct(y):'-'}</b>`};
         document.getElementById('qcEndUnitWeight')?.addEventListener('input',refresh);document.getElementById('qcQty')?.addEventListener('input',refresh);refresh();
       }
+      const foot=document.querySelector('#modalRoot .modalfoot'),taskButton=foot?.querySelector('button[onclick*="confirmQuickComplete"]');
+      if(taskButton){taskButton.type='button';taskButton.dataset.completeTask=id;taskButton.textContent='Taak afronden & planning bijwerken'}
+      if(foot&&taskButton&&!foot.querySelector('[data-complete-entire-order]')){const button=document.createElement('button');button.className='btn danger';button.type='button';button.dataset.completeEntireOrder=id;button.textContent='Complete order afronden';foot.insertBefore(button,taskButton)}
     },0);
   };
 
@@ -59,6 +62,17 @@
       else save();
     },0);
     return r;
+  };
+
+  completeEntireOrderFromTask=function(id){
+    const current=state.tasks.find(x=>x.id===id),o=current&&order(current.orderId);if(!current||!o)return false;
+    const unfinished=orderTasks(o.id).filter(t=>!isTaskComplete(t));
+    if(!confirm(`Complete order ${o.orderNo} afronden?\n\nAlle ${unfinished.length} nog openstaande taken worden als gereed gemarkeerd en uit de planning gehaald.`))return false;
+    const at=document.getElementById('qcAt')?.value||nowLocalDT(),actual=num(document.getElementById('qcActual')?.value),qty=num(document.getElementById('qcQty')?.value)||num(o.qty),note=document.getElementById('qcNote')?.value||'',consumption=document.getElementById('qcConsumption')?.value?.trim()||'',startWeight=num(document.getElementById('qcStartWeight')?.value),endUnitWeight=num(document.getElementById('qcEndUnitWeight')?.value);
+    if(actual)current.actual=(Number(current.actual)||0)+actual;if(note)current.note=note;if(consumption)current.consumption=consumption;
+    if(startWeight){current.startWeightKg=startWeight;o.startWeightKg=startWeight}if(endUnitWeight){current.endUnitWeightKg=endUnitWeight;o.endUnitWeightKg=endUnitWeight}
+    for(const t of unfinished){t.status='done';t.doneQty=num(o.qty);t.completedAt=dtDate(at);t.completedAtDT=at;clearTaskPlanning(t);addHistoryEvent('done',t,{actualMinutes:Number(t.actual)||0,doneQty:t.doneQty,completeOrder:true})}
+    o.completedQty=Math.min(num(o.qty),qty)||num(o.qty);finalizeOrder(o);return true;
   };
 
   function finalizeOrder(o){
