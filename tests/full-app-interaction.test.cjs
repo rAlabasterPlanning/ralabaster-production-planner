@@ -70,6 +70,22 @@ test('an input tap never triggers a coordinate-matching button underneath it',as
  const f=await fullApp(t),w=f.w,d=w.document;const searchInput=d.querySelector('[data-order-search]'),btn=d.querySelector('[data-unplan-all]');
  d.elementsFromPoint=()=>[searchInput,btn];btn.getBoundingClientRect=()=>({left:0,top:0,right:300,bottom:200,width:300,height:200});tap(w,searchInput);assert.equal(d.querySelector('#modalRoot').children.length,0);assert.deepEqual(f.errors,[]);
 });
+test('completed orders reopen all packing slip, email and post-calculation actions',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document,documents=[];w.alert=()=>{};
+ vm.runInContext("state.customers.push({id:'done-customer',name:'Klant gereed',email:'inkoop@example.test'});state.orders.push({id:'done-order',orderNo:'DONE-001',customerId:'done-customer',customerName:'Klant gereed',product:'Alabaster schaal',qty:12,completedQty:12,active:false,closed:true,status:'completed',completedAt:'2026-09-23T15:20',yieldPct:91.5});state.tasks.push({id:'done-a',orderId:'done-order',seq:1,name:'Draaien',machine:'Mori',employee:'Kaan',estimate:90,actual:105,status:'done',consumption:'12 kg',note:'gereed'})",f.ctx);w.RALAB_PERFORMANCE.invalidate();
+ w.open=()=>{const item={html:''};documents.push(item);return{document:{open(){},write(x){item.html=x},close(){},set title(x){item.title=x}},close(){item.closed=true}}};let mail='';w.HTMLAnchorElement.prototype.click=function(){mail=this.href};
+ w.RALAB_ERP.show('completed');await f.wait(120);const reopen=d.querySelector('[data-completed-actions="done-order"]');assert.ok(reopen);tap(w,reopen);await f.wait(40);
+ assert.ok(d.querySelector('[data-completed-document="report"]'));assert.ok(d.querySelector('[data-completed-document="packing"]'));assert.ok(d.querySelector('[data-completed-email="done-order"]'));
+ tap(w,d.querySelector('[data-completed-document="report"]'));await f.wait(20);tap(w,d.querySelector('[data-completed-document="packing"]'));await f.wait(20);tap(w,d.querySelector('[data-completed-email="done-order"]'));await f.wait(20);
+ assert.match(documents[0].html,/Productierapport \/ nacalculatie/);assert.match(documents[0].html,/1u 45m/);assert.match(documents[1].html,/Pakbon/);assert.match(documents[1].html,/Alabaster schaal/);assert.match(mail,/^mailto:inkoop%40example\.test/);
+ tap(w,d.querySelector('[data-completed-overview]'));await f.wait(50);assert.equal(d.querySelector('#view-completed').classList.contains('hidden'),false);assert.ok(d.querySelector('[data-completed-actions="done-order"]'));assert.deepEqual(f.errors,[]);
+});
+test('planning backlog keeps the selected order first and open while planning it step by step',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;
+ vm.runInContext("state.orders.push({id:'other-order',orderNo:'A-OTHER',product:'Andere order',qty:1,active:true,deadline:'2026-10-20'},{id:'sticky-order',orderNo:'B-STICKY',product:'Stap voor stap',qty:1,active:true,deadline:'2026-10-20'});state.tasks.push({id:'other-a',orderId:'other-order',seq:1,name:'Andere taak',machine:'Polijsten',estimate:30,status:'open',planSegments:[]},{id:'sticky-a',orderId:'sticky-order',seq:1,name:'Stap een',machine:'Polijsten',estimate:30,status:'open',planSegments:[]},{id:'sticky-b',orderId:'sticky-order',seq:2,name:'Stap twee',machine:'Inpakken',estimate:30,status:'open',planSegments:[]})",f.ctx);w.RALAB_PERFORMANCE.invalidate();w.renderWeeks();await f.wait(30);
+ assert.equal(d.querySelector('[data-backlog-order]')?.dataset.backlogOrder,'other-order');w.openTask('sticky-a');await f.wait(20);w.closeModal();vm.runInContext("const x=state.tasks.find(t=>t.id==='sticky-a');x.employee='Kaan';x.date='2026-10-01';x.start='08:15';x.planSegments=[{date:'2026-10-01',employee:'Kaan',start:'08:15',minutes:30}]",f.ctx);w.RALAB_PERFORMANCE.invalidate();w.renderWeeks();await f.wait(30);
+ const first=d.querySelector('[data-backlog-order]');assert.equal(first?.dataset.backlogOrder,'sticky-order');assert.equal(first.open,true);assert.match(first.textContent,/Stap twee/);assert.deepEqual(f.errors,[]);
+});
 test('planning review shows every task day and overtime consumes later remainder',async t=>{
  const f=await fullApp(t),w=f.w,d=w.document,result={state:f.state(),health:{status:'ok',finish:'2026-09-17'}};const task=result.state.tasks.find(x=>x.id==='test-task');
  task.estimate=600;task.planSegments[0].minutes=400;task.planSegments[1].minutes=200;task.planSegments[1].elapsedMinutes=245;
