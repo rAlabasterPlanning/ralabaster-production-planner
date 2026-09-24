@@ -21,19 +21,21 @@ function normalizedOrders(){
   });
 }
 function normalize(saveNow=false){
-  const list=normalizedOrders();
-  list.forEach((o,i)=>o.productionSequence=i+1);
+  const ranked=activeOrders().filter(o=>seqOf(o)>0).sort((a,b)=>seqOf(a)-seqOf(b)||(a.orderNo||'').localeCompare(b.orderNo||''));
+  ranked.forEach((o,i)=>o.productionSequence=i+1);
   if(saveNow&&typeof save==='function')save();
-  return list;
+  return normalizedOrders();
 }
 function move(orderId,target){
-  const list=normalize(false);
-  const from=list.findIndex(o=>o.id===orderId);
-  if(from<0)return;
-  let to=Math.max(0,Math.min(list.length-1,(Number(target)||1)-1));
-  const [item]=list.splice(from,1);
-  list.splice(to,0,item);
-  list.forEach((o,i)=>o.productionSequence=i+1);
+  const all=activeOrders(),item=all.find(o=>o.id===orderId);if(!item)return;
+  const ranked=all.filter(o=>o.id!==orderId&&seqOf(o)>0).sort((a,b)=>seqOf(a)-seqOf(b));
+  if(String(target??'').trim()===''||Number(target)<=0){
+    delete item.productionSequence;
+  }else{
+    const to=Math.max(0,Math.min(ranked.length,(Number(target)||1)-1));
+    ranked.splice(to,0,item);
+    ranked.forEach((o,i)=>o.productionSequence=i+1);
+  }
   if(typeof save==='function')save();
   if(typeof renderWeeks==='function')renderWeeks();
 }
@@ -50,7 +52,7 @@ function row(o){
   return `<div class="prod-seq-row" data-prod-seq-row="${esc(o.id)}">
     <div class="prod-seq-number">
       <label>Volgorde</label>
-      <input class="input prod-seq-input" type="number" min="1" step="1" value="${esc(seq)}" data-prod-seq-input="${esc(o.id)}" inputmode="numeric">
+      <input class="input prod-seq-input" type="number" min="1" step="1" placeholder="auto" value="${esc(seq)}" data-prod-seq-input="${esc(o.id)}" inputmode="numeric">
     </div>
     <div class="prod-seq-main">
       <b>${esc(o.orderNo||'Order')} · ${esc(o.product||'')}</b>
@@ -95,8 +97,8 @@ function install(){
   window.renderWeeks=function(){const r=old.apply(this,arguments);setTimeout(decorate,0);return r};
   document.addEventListener('change',e=>{
     const input=e.target.closest?.('[data-prod-seq-input]');if(!input)return;
-    const max=Math.max(1,activeOrders().length),value=Math.max(1,Math.min(max,Number(input.value)||1));
-    move(input.dataset.prodSeqInput,value);
+    const raw=String(input.value||'').trim();
+    move(input.dataset.prodSeqInput,raw===''?'':Math.max(1,Math.min(activeOrders().length,Number(raw)||1)));
   },true);
   document.addEventListener('click',e=>{
     if(e.target.closest?.('[data-prod-seq-clear]')){e.preventDefault();clearSequence();}
