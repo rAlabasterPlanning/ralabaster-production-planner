@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260924-9';
+const VERSION='20260924-10';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=30;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -143,8 +143,7 @@ function primaryPhaseFinish(o,employee){
  const ts=orderTasks(o.id).filter(t=>!taskDone(t)&&!isGeneral(t)).sort((a,b)=>a.seq-b.seq);
  let started=false,last='';
  for(const t of ts){
-   if(isDryTask(t)||isExternalTask(t)){if(started)break;continue}
-   if(ralphOnlyTask(t))continue;
+   if(isDryTask(t)||isExternalTask(t)||ralphOnlyTask(t)){if(started)break;continue}
    const segs=(taskSegments(t)||[]).filter(g=>(g.employee||t.employee)===employee);
    if(!segs.length)continue;
    started=true;
