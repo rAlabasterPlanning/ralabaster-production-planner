@@ -1,13 +1,13 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260914-4';
+const VERSION='20260924-5';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const planner=()=>window.RALAB_DEADLINE_PLANNER;
 const findOrder=id=>(S()?.orders||[]).find(o=>o.id===id&&!o.deleted);
 const tasksFor=id=>(S()?.tasks||[]).filter(t=>t.orderId===id&&!t.deleted);
-const deadlineOf=o=>o?.communicatedDeadline||o?.maximumReadyDate||o?.deadline||'';
+const deadlineOf=o=>o?.communicatedDeadline||o?.maximumReadyDate||o?.deadline||o?.planningFallbackDeadline||'';
 const priorityOf=o=>{const n=Number(o?.planningPriority);return n>=1&&n<=3?n:3};
 const productionSequenceOf=o=>{const n=Number(o?.productionSequence);return Number.isFinite(n)&&n>0?n:0};
 const byManualSequence=(a,b)=>{const sa=productionSequenceOf(a),sb=productionSequenceOf(b);if(sa&&sb&&sa!==sb)return sa-sb;if(sa&&!sb)return -1;if(!sa&&sb)return 1;return 0};
@@ -41,6 +41,42 @@ function unplanOrderInternal(id){
 function activeOrders(){return(S()?.orders||[]).filter(o=>!o.deleted&&o.active!==false&&o.status!=='completed'&&!o.isGeneralWork)}
 function hasPlanning(t){if(t.type==='wait'||/droog|wacht/i.test((t.name||'')+' '+(t.machine||'')))return!!(t.waitStartAt&&t.waitEndAt);if(t.type==='external'||/extern/i.test((t.name||'')+' '+(t.machine||'')))return!!(t.date&&t.expectedReturnDate);return!!(segments(t).length||t.date)}
 function remainingOrders(){return activeOrders().filter(o=>!o.waitingMaterial&&o.materialStatus!=='waiting').filter(o=>tasksFor(o.id).some(t=>movable(t)&&!hasPlanning(t))).sort((a,b)=>byManualSequence(a,b)||(deadlineOf(a)||'9999-12-31').localeCompare(deadlineOf(b)||'9999-12-31')||priorityOf(b)-priorityOf(a)||(a.orderNo||'').localeCompare(b.orderNo||''))}
+function minimumLeadDays(o){
+ let work=0,calendar=0;
+ for(const t of tasksFor(o.id)){
+  if(!movable(t)||hasPlanning(t))continue;
+  if(typeof isExternalTask==='function'&&isExternalTask(t))calendar+=Math.max(1,Number(t.externalLeadDays)||14);
+  else if(typeof isDryTask==='function'&&isDryTask(t))calendar+=Math.max(1,Math.ceil((Number(t.estimate)||540)/1440));
+  else work+=Math.max(0,Number(t.estimate)||0);
+ }
+ return Math.max(1,Math.ceil(work/450)+calendar);
+}
+function automaticPlanningDeadline(o){
+ const lead=minimumLeadDays(o),base=typeof isoDate==='function'?isoDate(new Date()):new Date().toISOString().slice(0,10);
+ return {date:shiftDate(base,lead+28),leadDays:lead};
+}
+function planningIssues(o){
+ const own=tasksFor(o.id).filter(t=>!general(t)&&!done(t)),issues=[];
+ if(!own.length)issues.push('geen processtappen');
+ for(const t of own){
+  const external=typeof isExternalTask==='function'&&isExternalTask(t),dry=typeof isDryTask==='function'&&isDryTask(t);
+  if(!external&&!dry&&movable(t)&&!hasPlanning(t)&&!(Number(t.estimate)>0))issues.push(`taak “${t.name||t.id}” heeft geen duur`);
+ }
+ return issues;
+}
+function preparePlanningOrders(){
+ const all=remainingOrders(),autoDeadlines=[],invalid=[];
+ for(const o of all){
+  const issues=planningIssues(o);
+  if(issues.length){invalid.push({id:o.id,orderNo:o.orderNo||o.id,product:o.product||'',issues});continue}
+  if(!deadlineOf(o)){
+   const fallback=automaticPlanningDeadline(o);
+   o.planningFallbackDeadline=fallback.date;o.planningFallbackLeadDays=fallback.leadDays;o.planningDeadlineSource='automatic_minimum_plus_4_weeks';
+   autoDeadlines.push({id:o.id,orderNo:o.orderNo||o.id,product:o.product||'',date:fallback.date,leadDays:fallback.leadDays});
+  }
+ }
+ return {orders:all.filter(o=>!invalid.some(x=>x.id===o.id)),autoDeadlines,invalid};
+}
 function isolateTargets(next,baseline,targetIds){const ids=new Set(targetIds),orders=new Map((baseline.orders||[]).map(o=>[o.id,o])),tasks=new Map((baseline.tasks||[]).map(t=>[t.id,t]));next.orders=(next.orders||[]).map(o=>ids.has(o.id)?o:clone(orders.get(o.id)||o));next.tasks=(next.tasks||[]).map(t=>ids.has(t.orderId)?t:clone(tasks.get(t.id)||t));return next}
 function persistAndRender(){invalidate();try{save()}catch(e){console.error(e)}try{closeModal()}catch(_){ }setTimeout(()=>window.RALAB_ERP?.renderOrders?.(0),0)}
 function showConfirm(title,body,confirmText,action,value=''){
@@ -67,11 +103,13 @@ function simulate(id,opts){
  setState(backup);return result;
 }
 function simulateRemaining(){
- const backup=clone(S()),all=remainingOrders(),orders=all.filter(o=>deadlineOf(o)),missingDeadline=all.filter(o=>!deadlineOf(o));if(!orders.length)return{state:backup,orders:[],missingDeadline,late:[]};
- setState(backup);const p=planner();if(!p?.planOrderStrict){setState(backup);return null}
+ const backup=clone(S());setState(backup);
+ const prepared=preparePlanningOrders(),orders=prepared.orders,autoDeadlines=prepared.autoDeadlines,invalid=prepared.invalid;
+ if(!orders.length){const out={state:clone(S()),orders:[],missingDeadline:[],autoDeadlines,invalid,late:[]};setState(backup);return out}
+ const p=planner();if(!p?.planOrderStrict){setState(backup);return null}
  try{
   for(const t of S().tasks||[]){if(movable(t)&&hasPlanning(t)){t.lockedPlanning=true;t.planningOrigin=t.planningOrigin||'manual-existing'}}const protectedBase=clone(S());
-  const effortDays=o=>{let work=0,calendar=0;for(const t of tasksFor(o.id)){if(!movable(t)||hasPlanning(t))continue;if(isExternalTask(t))calendar+=Number(t.externalLeadDays)||14;else if(isDryTask(t))calendar+=Math.ceil((Number(t.estimate)||540)/1440);else work+=Number(t.estimate)||0}return Math.max(1,Math.ceil(work/450)+calendar)};
+  const effortDays=o=>minimumLeadDays(o);
   const latestStart=o=>shiftDate(deadlineOf(o),-effortDays(o));
 	  const byDeadline=orders.slice().sort((a,b)=>byManualSequence(a,b)||deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a)||(a.orderNo||'').localeCompare(b.orderNo||''));
 	  const byUrgency=orders.slice().sort((a,b)=>byManualSequence(a,b)||latestStart(a).localeCompare(latestStart(b))||deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a));
@@ -79,13 +117,13 @@ function simulateRemaining(){
 	  const grouped=(()=>{const groups=new Map();for(const o of byUrgency){const k=productKey(o);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(o)}const used=new Set(),out=[];for(const o of byUrgency){const k=productKey(o);if(used.has(k))continue;used.add(k);out.push(...groups.get(k).sort((a,b)=>deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a)))}return out})();
 	  const candidates=[{name:'speling',orders:byUrgency},{name:'deadline',orders:byDeadline},{name:'productbatch',orders:grouped},{name:'prioriteit',orders:byPriority}],seen=new Set(),results=[];
 	  for(const candidate of candidates){const signature=candidate.orders.map(o=>o.id).join('|');if(seen.has(signature))continue;seen.add(signature);setState(protectedBase);const rows=[];for(const original of candidate.orders){const o=findOrder(original.id);if(!o)continue;p.planOrderStrict(o,{allowPeter:false,allowSaturday:false});for(const t of tasksFor(o.id)){if(movable(t)&&hasPlanning(t)&&!t.planningOrigin){t.planningOrigin='automatic';t.lockedPlanning=true}}let h=p.health?.(o)||{};if(h.finish){o.internalExpectedDate=h.finish;h=p.health?.(o)||h}rows.push({id:o.id,orderNo:o.orderNo||'',product:o.product||'',deadline:deadlineOf(o),priority:priorityOf(o),health:h})}const allLate=rows.filter(x=>x.health?.status==='bad'),score=[allLate.length,allLate.reduce((n,x)=>n+Math.max(1,daysLate(x.deadline,x.health?.finish)),0)];for(const priority of [3,2,1]){const late=allLate.filter(x=>x.priority===priority);score.push(late.length,late.reduce((n,x)=>n+Math.max(1,daysLate(x.deadline,x.health?.finish)),0))}results.push({name:candidate.name,state:clone(S()),orders:rows,score})}
-		  results.sort((a,b)=>{for(let i=0;i<a.score.length;i++){if(a.score[i]!==b.score[i])return a.score[i]-b.score[i]}return candidates.findIndex(x=>x.name===a.name)-candidates.findIndex(x=>x.name===b.name)});let best=results[0],batch=results.find(x=>x.name==='productbatch'),batchAlternative=null;if(batch){const deadlineWorse=batch.score[0]>best.score[0]||(batch.score[0]===best.score[0]&&batch.score[1]>best.score[1]);if(!deadlineWorse)best=batch;else{const baseFinish=new Map(best.orders.map(x=>[x.id,x.health?.finish||''])),delays=batch.orders.filter(x=>x.health?.finish&&baseFinish.get(x.id)&&x.health.finish>baseFinish.get(x.id)).map(x=>({...x,from:baseFinish.get(x.id),days:dateDistance(baseFinish.get(x.id),x.health.finish)}));const groups=[...new Map(orders.map(o=>[productKey(o),orders.filter(x=>productKey(x)===productKey(o))])).values()].filter(g=>g.length>1).map(g=>({product:g[0].product||'',orders:g.map(x=>x.orderNo||x.id)}));batchAlternative={state:batch.state,orders:batch.orders,late:batch.orders.filter(x=>x.health?.status==='bad'),strategy:batch.name,delays,groups}}setState(backup);return{state:best.state,orders:best.orders,missingDeadline,late:best.orders.filter(x=>x.health?.status==='bad'),strategy:best.name,alternatives:results.length,batchAlternative}}
+		  results.sort((a,b)=>{for(let i=0;i<a.score.length;i++){if(a.score[i]!==b.score[i])return a.score[i]-b.score[i]}return candidates.findIndex(x=>x.name===a.name)-candidates.findIndex(x=>x.name===b.name)});let best=results[0],batch=results.find(x=>x.name==='productbatch'),batchAlternative=null;if(batch){const deadlineWorse=batch.score[0]>best.score[0]||(batch.score[0]===best.score[0]&&batch.score[1]>best.score[1]);if(!deadlineWorse)best=batch;else{const baseFinish=new Map(best.orders.map(x=>[x.id,x.health?.finish||''])),delays=batch.orders.filter(x=>x.health?.finish&&baseFinish.get(x.id)&&x.health.finish>baseFinish.get(x.id)).map(x=>({...x,from:baseFinish.get(x.id),days:dateDistance(baseFinish.get(x.id),x.health.finish)}));const groups=[...new Map(orders.map(o=>[productKey(o),orders.filter(x=>productKey(x)===productKey(o))])).values()].filter(g=>g.length>1).map(g=>({product:g[0].product||'',orders:g.map(x=>x.orderNo||x.id)}));batchAlternative={state:batch.state,orders:batch.orders,late:batch.orders.filter(x=>x.health?.status==='bad'),strategy:batch.name,delays,groups}}setState(backup);return{state:best.state,orders:best.orders,missingDeadline:[],autoDeadlines,invalid,late:best.orders.filter(x=>x.health?.status==='bad'),strategy:best.name,alternatives:results.length,batchAlternative}}
  }catch(e){console.error(e);setState(backup);return null}
 }
 function confirmPlanRemaining(){
- const preview=simulateRemaining();if(!preview)return alert('De planningsmodule is nog niet gereed. Ververs de app en probeer opnieuw.');if(!preview.orders.length)return alert(preview.missingDeadline.length?'De resterende orders hebben nog geen klantdeadline. Vul die eerst in.':'Er zijn geen ongeplande taken meer.');
+ const preview=simulateRemaining();if(!preview)return alert('De planningsmodule kon geen voorstel berekenen.');if(!preview.orders.length){if(preview.invalid?.length)return alert('Deze orders zijn nog niet compleet:\n\n'+preview.invalid.map(x=>x.orderNo+' · '+(x.product||'')+'\n- '+x.issues.join('\n- ')).join('\n\n'));return alert('Er zijn geen ongeplande taken meer.');}
  window.__ralabPendingRemainingPlan=preview;planRemainingArmed=true;const first=preview.orders.slice(0,6).map(x=>`<li><b>${'★'.repeat(x.priority||3)} ${esc(x.orderNo)}</b> · deadline ${esc(fmtDate(x.deadline))} · verwacht gereed ${esc(fmtDate(x.health?.finish))}${x.health?.status==='bad'?' <b style="color:#b42318">(te laat)</b>':''}</li>`).join('');
-	 const strategyLabel={deadline:'eerste deadline',speling:'minste resterende speling',productbatch:'productbatching',prioriteit:'sterren bij gelijke urgentie'}[preview.strategy]||'deadline en prioriteit',conflict=preview.batchAlternative,groupText=conflict?.groups?.map(g=>`<li><b>${esc(g.product||'Gelijk product')}</b>: orders ${g.orders.map(esc).join(', ')}</li>`).join('')||'',delayText=conflict?.delays?.slice(0,6).map(x=>`<li>${esc(x.orderNo)} schuift van ${esc(fmtDate(x.from))} naar <b>${esc(fmtDate(x.health?.finish))}</b>${x.days?` (${x.days} dag(en))`:''}</li>`).join('')||'';const root=document.getElementById('modalRoot');if(!root)return;root.innerHTML=`<div class="modalback"><div class="modal" style="width:min(680px,94vw)"><div class="modalhead"><h3>Resterende taken plannen</h3></div><div class="modalbody"><p>De centrale planner vult alleen <b>nog ongeplande taken</b> in. Handmatig geplande taken en alle andere bestaande blokken blijven exact staan.</p><p>Beste uitkomst: <b>${esc(strategyLabel)}</b>. Deadline en resterende speling wegen het zwaarst. Bij gelijke urgentie gaat ★★★ vóór ★★ vóór ★.</p>${conflict?`<div class="notice"><b>Gelijke producten gevonden.</b><ul>${groupText}</ul><p>Om deze altijd samen te produceren schuift het volgende op:</p><ul>${delayText||'<li>De totale deadline-uitkomst wordt minder gunstig.</li>'}</ul><b>Wil je ze toch samenvoegen?</b></div>`:'<div class="notice"><b>Gelijke producten zijn automatisch bij elkaar gezet.</b></div>'}<ol>${first}</ol>${preview.orders.length>6?`<p class="muted">En nog ${preview.orders.length-6} order(s).</p>`:''}${preview.late.length?`<div class="notice"><b>${preview.late.length} order(s) blijven met normale capaciteit te laat.</b> Ze worden wel realistisch ingepland; de klantdeadline blijft ongewijzigd.</div>`:''}${preview.missingDeadline.length?`<p class="muted">${preview.missingDeadline.length} order(s) zonder klantdeadline worden overgeslagen.</p>`:''}</div><div class="modalfoot"><button class="btn" type="button" data-plan-control-cancel>Annuleren</button><div class="spacer"></div>${conflict?'<button class="btn" type="button" data-confirm-plan-remaining="deadline">Deadline volgen</button><button class="btn primary" type="button" data-confirm-plan-remaining="batch">Toch samenvoegen</button>':'<button class="btn primary" type="button" data-confirm-plan-remaining>Planning accepteren</button>'}</div></div></div>`
+	 const strategyLabel={deadline:'eerste deadline',speling:'minste resterende speling',productbatch:'productbatching',prioriteit:'sterren bij gelijke urgentie'}[preview.strategy]||'deadline en prioriteit',conflict=preview.batchAlternative,groupText=conflict?.groups?.map(g=>`<li><b>${esc(g.product||'Gelijk product')}</b>: orders ${g.orders.map(esc).join(', ')}</li>`).join('')||'',delayText=conflict?.delays?.slice(0,6).map(x=>`<li>${esc(x.orderNo)} schuift van ${esc(fmtDate(x.from))} naar <b>${esc(fmtDate(x.health?.finish))}</b>${x.days?` (${x.days} dag(en))`:''}</li>`).join('')||'';const root=document.getElementById('modalRoot');if(!root)return;root.innerHTML=`<div class="modalback"><div class="modal" style="width:min(680px,94vw)"><div class="modalhead"><h3>Resterende taken plannen</h3></div><div class="modalbody"><p>De centrale planner vult alleen <b>nog ongeplande taken</b> in. Handmatig geplande taken en alle andere bestaande blokken blijven exact staan.</p><p>Beste uitkomst: <b>${esc(strategyLabel)}</b>. Deadline en resterende speling wegen het zwaarst. Bij gelijke urgentie gaat ★★★ vóór ★★ vóór ★.</p>${conflict?`<div class="notice"><b>Gelijke producten gevonden.</b><ul>${groupText}</ul><p>Om deze altijd samen te produceren schuift het volgende op:</p><ul>${delayText||'<li>De totale deadline-uitkomst wordt minder gunstig.</li>'}</ul><b>Wil je ze toch samenvoegen?</b></div>`:'<div class="notice"><b>Gelijke producten zijn automatisch bij elkaar gezet.</b></div>'}<ol>${first}</ol>${preview.orders.length>6?`<p class="muted">En nog ${preview.orders.length-6} order(s).</p>`:''}${preview.late.length?`<div class="notice"><b>${preview.late.length} order(s) blijven met normale capaciteit te laat.</b> Ze worden wel realistisch ingepland; de klantdeadline blijft ongewijzigd.</div>`:''}${preview.autoDeadlines?.length?`<div class="notice"><b>Automatische planningsdeadlines</b><br>${preview.autoDeadlines.map(x=>`${esc(x.orderNo)}: ${esc(fmtDate(x.date))} (minimale doorlooptijd ${x.leadDays} dag(en) + 4 weken)`).join('<br>')}</div>`:''}${preview.invalid?.length?`<div class="notice"><b>Niet planbaar:</b><br>${preview.invalid.map(x=>`${esc(x.orderNo)} · ${esc(x.issues.join(', '))}`).join('<br>')}</div>`:''}</div><div class="modalfoot"><button class="btn" type="button" data-plan-control-cancel>Annuleren</button><div class="spacer"></div>${conflict?'<button class="btn" type="button" data-confirm-plan-remaining="deadline">Deadline volgen</button><button class="btn primary" type="button" data-confirm-plan-remaining="batch">Toch samenvoegen</button>':'<button class="btn primary" type="button" data-confirm-plan-remaining>Planning accepteren</button>'}</div></div></div>`
 }
 function executePlanRemaining(choice=''){let preview=window.__ralabPendingRemainingPlan;if(!planRemainingArmed||!preview)return confirmPlanRemaining();if(choice==='batch'&&preview.batchAlternative)preview={...preview,...preview.batchAlternative,batchAlternative:null};planRemainingArmed=false;window.__ralabPendingRemainingPlan=null;setState(preview.state);const now=new Date().toISOString();for(const x of preview.orders){const o=findOrder(x.id);if(o){o.planningCheckedAt=now;o.planningDecision='planned_remaining_smart';o.planningDecisionAt=now;o.planningStrategy=preview.strategy||'deadline'}}persistAndRender();alert(`${preview.orders.length} order(s) met resterende taken zijn slim ingepland.${preview.strategy==='productbatch'?' Gelijke producten zijn samengevoegd.':''} Alle bestaande planning is blijven staan.${preview.late.length?` ${preview.late.length} order(s) vragen nog aandacht.`:''}`)}
 function daysLate(deadline,finish){if(!deadline||!finish)return 0;const a=new Date(deadline+'T12:00:00'),b=new Date(finish+'T12:00:00');return Math.max(0,Math.ceil((b-a)/86400000))}
@@ -143,7 +181,10 @@ function shiftDate(date,days){return typeof addDays==='function'?addDays(date,da
 function dateDistance(a,b){const x=new Date(a+'T12:00:00'),y=new Date(b+'T12:00:00');return Math.round((y-x)/86400000)}
 function manualPlanReview(){if(!recalculateReview(false))return;const review=window.__ralabOrderPlanReview;if(!review)return;const live=clone(S());setState(review.result.state);const o=findOrder(review.id),assessment=reviewAssessment(S(),review.id),warnings=[...assessment.blocking,...assessment.notices];if(warnings.length&&!confirm(`Deze handmatige planning overschrijft de normale regels.\n\n${warnings.slice(0,8).join('\n')}\n\nToch exact zo inplannen en vastzetten?`)){setState(live);return}for(const t of tasksFor(review.id)){if(!done(t)&&hasPlanning(t)){t.lockedPlanning=true;t.planningOrigin='manual'}}const next={...review.result,state:clone(S()),health:planner()?.health?.(o)||review.result.health,parallelNotices:assessment.notices,manualOverride:true};setState(live);window.__ralabOrderPlanReview=null;applyPlannedState(next,review.id,'manual_override')}
 function planAndCheck(id){
- const o=findOrder(id);if(!o)return;const deadline=deadlineOf(o);if(!deadline){alert('Vul eerst een klantdeadline in. Zonder deadline kan de planner de haalbaarheid niet controleren.');return}
+ const o=findOrder(id);if(!o)return;
+ const issues=planningIssues(o);if(issues.length){alert('Deze order is nog niet compleet:\n\n'+(o.orderNo||o.id)+' · '+(o.product||'')+'\n- '+issues.join('\n- '));return}
+ if(!deadlineOf(o)){const fallback=automaticPlanningDeadline(o);o.planningFallbackDeadline=fallback.date;o.planningFallbackLeadDays=fallback.leadDays;o.planningDeadlineSource='automatic_minimum_plus_4_weeks';}
+ const deadline=deadlineOf(o);
  try{closeModal()}catch(_){ }
  const normal=simulate(id,{allowPeter:false,allowSaturday:false});if(!normal){alert('De planningsmodule is nog niet gereed. Ververs de app en probeer opnieuw.');return}
  if(normal.health?.status!=='bad'){openPlanReview(normal,id,'planned_deadline_order');return}
