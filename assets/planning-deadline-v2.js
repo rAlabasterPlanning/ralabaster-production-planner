@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260924-8';
+const VERSION='20260924-9';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=30;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -92,7 +92,7 @@ function pairSetupWithExecution(setup,run,earliestAt,opts={}){
     const setupEmp=setupRalphOnly?'Ralph':emp,sw=freeWindows(d,setupEmp,key,exclude,!!opts.allowSaturday,!!opts.allowPeter),ew=freeWindows(d,emp,key,exclude,!!opts.allowSaturday,!!opts.allowPeter);
     for(const e of ew){let runStart=Math.max(e[0],min(dtTime(earliestAt))*(d===dtDate(earliestAt)?1:0));if(d!==dtDate(earliestAt))runStart=e[0];
      for(const s of sw){const candidate=Math.max(runStart,s[0]+sd),runRoom=e[1]-candidate;if(runRoom>=Math.min(Math.max(1,Number(run.estimate)||0),MIN_USEFUL_BLOCK)&&candidate<e[1]&&candidate<=s[1]&&candidate-sd>=s[0]){
-       setAssignedMachine(run,machine);setAssignedMachine(setup,machine);
+       setAssignedMachine(run,machine);setAssignedMachine(setup,machine);setup.setupForTaskId=run.id;run.setupTaskId=setup.id;setup.machineLockedForRun=true;run.machineLockedBySetup=true;
        setup.planSegments=[{date:d,employee:setupEmp,start:tm(candidate-sd),minutes:sd}];setup.employee=setupEmp;setup.date=d;setup.start=tm(candidate-sd);setup.preferredEmployee=setupEmp;
        run.employee=emp;run.preferredEmployee=emp;return allocateInternal(run,dtString(d,tm(candidate)),{...opts,excludeIds:exclude,preferredEmployee:emp,lockEmployee:true});
      }}
@@ -102,6 +102,7 @@ function pairSetupWithExecution(setup,run,earliestAt,opts={}){
   d=addCal(d,1);
  }
  const setupEmp=setupRalphOnly?'Ralph':(preferredRun||employees[0]||'Kaan');
+ const fallbackMachine=machineOptions(run)[0];if(fallbackMachine){setAssignedMachine(run,fallbackMachine);setAssignedMachine(setup,fallbackMachine);setup.setupForTaskId=run.id;run.setupTaskId=setup.id;setup.machineLockedForRun=true;run.machineLockedBySetup=true}
  let finish=allocateInternal(setup,earliestAt,{...opts,preferredEmployee:setupEmp,lockEmployee:true});
  return allocateInternal(run,finish,{...opts,preferredEmployee:preferredRun||employees[0]||'Kaan',lockEmployee:true});
 }
@@ -117,6 +118,8 @@ function scheduleWaitStrict(t,startAt){
  return finish;
 }
 function chooseFlowEmployee(o,ts,opts={}){
+ const manual=o?.productionEmployeeOverride;
+ if(manual&&manual!=='Ralph')return manual;
  if(opts.preferredEmployee&&opts.preferredEmployee!=='Ralph')return opts.preferredEmployee;
  const existing=o?.productionEmployee;
  if(existing&&existing!=='Ralph')return existing;
