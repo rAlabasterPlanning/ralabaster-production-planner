@@ -25,7 +25,7 @@ function showCalc(no){
  try{window.RALAB_CALC?.render?.()}catch(e){console.error(e)}
  const hydrate=()=>{
   const q=lines[0],p=products[0];ui.products=structuredClone(products);ui.active=0;ui.selectionMode=!(p.ops||[]).length;setVal('cCustomer',q.customerId||'');setVal('cProject',q.project||'');setVal('cOrder',q.quoteNo||q.orderNo||no);setVal('cDeadline',q.estimatedReadyDate||q.deadline||'');setVal('cCustomerReference',q.customerReference||'');applyProduct(p);
-  const action=[...document.querySelectorAll('#calcFollowupActions button')].find(b=>(b.textContent||'').includes('Naar offertes'));
+  const action=[...document.querySelectorAll('#calcFollowupActions button')].find(b=>(b.textContent||'').includes('Offerte opslaan'));
   if(action){action.textContent='Offerte bijwerken';action.dataset.updateQuoteCalculation=String(no)}
   window.RALAB_CALC_PRICE?.render?.();document.getElementById('calcGeneralBlock')?.scrollIntoView?.({block:'start'});
  };
