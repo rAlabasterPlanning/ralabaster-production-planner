@@ -1,6 +1,6 @@
 // Hybrid planner: exact next 5 workdays, weekly capacity reservations after that.
 (()=>{
-const VERSION='20260924-8';
+const VERSION='20260924-9';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -47,7 +47,7 @@ function buildHybrid(preview){
     }
     if(later.length){
       t.planSegments=keep;
-      if(keep.length){t.date=keep[0].date;t.start=keep[0].start||'';t.employee=keep[0].employee||t.employee}
+      if(keep.length){t.date=keep[0].date;t.start=keep[0].start||'';t.employee=keep[0].employee||t.employee;t.planningOrigin='hybrid-week'}
       else{t.planSegments=[];t.date=null;t.start='';t.employee=null;delete t.assignedMachine;t.lockedPlanning=false}
     }
     const specialDate=t.expectedReturnDate||String(t.waitEndAt||'').slice(0,10)||t.date||'';
@@ -131,11 +131,21 @@ function saveMissingData(){
  setTimeout(()=>plan(),50);
  return true;
 }
+function resetGeneratedPlanning(){
+ const s=S();if(!s)return;
+ for(const t of s.tasks||[]){
+  if(t.deleted||['done','completed','in_progress','started','partial','partly','external'].includes(String(t.status||'').toLowerCase())||Number(t.actual)>0||Number(t.doneQty)>0)continue;
+  if(!['automatic','hybrid-week','week-auto'].includes(String(t.planningOrigin||'')))continue;
+  t.planSegments=[];t.date=null;t.start='';t.employee=null;t.waitStartAt='';t.waitEndAt='';t.externalSentDate='';t.expectedReturnDate='';t.lockedPlanning=false;delete t.assignedMachine;delete t.planningOrigin;
+ }
+ for(const o of s.orders||[]){if(o?.planningDecision==='hybrid_week_capacity'){delete o.weekCapacityReservations;delete o.expectedReadyWeek;delete o.expectedReadyDate}}
+}
 async function plan(){
   const btn=document.querySelector('[data-hybrid-plan]');
   if(!ready()){if(btn){btn.disabled=true;btn.textContent='Planner starten…'};await ensureReady();if(btn){btn.disabled=false;btn.textContent='Plan komende week'}}
   const controls=window.RALAB_ORDER_CONTROLS;
   if(!ready())return alert('De planningsengine kon niet starten. Gebruik Ververs app; als dit terugkomt is er een laadfout die we moeten oplossen.');
+  resetGeneratedPlanning();
   const preview=controls.simulateRemaining();
   if(!preview){
     return openMissingData({invalid:[{id:'__planner__',orderNo:'Planner',product:'',issues:['De berekening gaf geen resultaat terug.'],details:[{type:'planning_error',label:'De berekening gaf geen resultaat terug.'}]}],autoDeadlines:[]});
