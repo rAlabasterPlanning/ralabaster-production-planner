@@ -1,6 +1,6 @@
 // Hybrid planner: exact next 5 workdays, weekly capacity reservations after that.
 (()=>{
-const VERSION='20260924-7';
+const VERSION='20260924-8';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -79,31 +79,48 @@ async function ensureReady(){
 }
 function openMissingData(preview){
  const root=document.getElementById('modalRoot');if(!root)return false;
- const invalid=preview.invalid||[],auto=preview.autoDeadlines||[];
- const invalidHtml=invalid.map(x=>{
-   const fields=(x.details||[]).map(d=>{
-     if(d.type==='no_duration')return `<label style="display:grid;grid-template-columns:minmax(180px,1fr) 130px;gap:10px;align-items:center;margin:8px 0"><span>${esc(d.taskName||'Taak')} · duur</span><span style="display:flex;align-items:center;gap:6px"><input class="input" type="number" min="0.01" step="0.05" inputmode="decimal" data-missing-duration="${esc(d.taskId)}" placeholder="uren"> uur</span></label>`;
-     if(d.type==='no_process')return `<div class="notice" style="margin:8px 0">Deze order heeft nog geen processtappen. <button class="btn small" type="button" data-open-missing-order="${esc(x.id)}">Order openen</button></div>`;
-     if(d.type==='planning_error')return `<div class="notice" style="margin:8px 0"><b>${esc(d.label||'Planningsfout')}</b>${x.id!=='__planner__'?` <button class="btn small" type="button" data-open-missing-order="${esc(x.id)}">Order openen</button>`:''}</div>`;
-     return `<div>${esc(d.label||'Ontbrekende gegevens')}</div>`;
+ let invalid=(preview.invalid||[]).filter(x=>x.id!=='__planner__'),auto=preview.autoDeadlines||[];
+ if(!invalid.length&&preview.invalid?.some(x=>x.id==='__planner__')){
+   try{invalid=window.RALAB_ORDER_CONTROLS?.diagnosePlanningOrders?.()||[]}catch(_){}
+ }
+ const s=S();
+ const cardFor=x=>{
+   const o=(s?.orders||[]).find(y=>y.id===x.id),tasks=(s?.tasks||[]).filter(t=>t.orderId===x.id&&!t.deleted&&!['done','completed'].includes(String(t.status||'').toLowerCase())).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));
+   const fallback=window.RALAB_ORDER_CONTROLS?.automaticPlanningDeadline?.(o);
+   const deadline=o?.communicatedDeadline||o?.deadline||o?.planningFallbackDeadline||fallback?.date||'';
+   const deadlineLabel=(o?.communicatedDeadline||o?.deadline)?'Klantdeadline':'Interne planningsdeadline';
+   const taskRows=tasks.map(t=>{
+     const hours=(Number(t.estimate)||0)/60;
+     return `<div style="display:grid;grid-template-columns:minmax(200px,1fr) 120px;gap:10px;align-items:center;padding:7px 0;border-top:1px solid rgba(0,0,0,.08)"><div><b>${esc(t.name||'Taak')}</b><div class="muted">${esc(t.machine||'')}</div></div><div style="display:flex;align-items:center;gap:5px"><input class="input" type="number" min="0.01" step="0.05" data-inline-task-duration="${esc(t.id)}" value="${hours>0?String(Math.round(hours*100)/100):''}" placeholder="uren"> uur</div></div>`;
    }).join('');
-   return `<div class="panel" style="padding:12px;margin:10px 0"><b>${esc(x.orderNo)} · ${esc(x.product||'')}</b>${fields}</div>`;
- }).join('');
- const autoHtml=auto.length?`<h3 style="margin-top:18px">Automatische planningsdeadlines</h3><p class="muted">Geen klantdeadline ingevuld. Dit is alleen een interne planningsdatum en mag je hier aanpassen.</p>${auto.map(x=>`<label style="display:grid;grid-template-columns:minmax(180px,1fr) 170px;gap:10px;align-items:center;margin:8px 0"><span><b>${esc(x.orderNo)}</b> · min. doorlooptijd ${x.leadDays} dag(en) + 4 weken</span><input class="input" type="date" data-fallback-deadline="${esc(x.id)}" value="${esc(x.date)}"></label>`).join('')}`:'';
- root.innerHTML=`<div class="modalback"><div class="modal" style="width:min(760px,94vw)"><div class="modalhead"><h3>Ordergegevens aanvullen</h3></div><div class="modalbody"><p>Vul de ontbrekende gegevens in. Daarna rekent de planner direct opnieuw en gaat verder.</p>${invalidHtml||'<div class="muted">Geen ontbrekende taakgegevens.</div>'}${autoHtml}<div id="missingPlanningError" style="color:#b42318;margin-top:10px"></div></div><div class="modalfoot"><button class="btn" type="button" data-missing-cancel>Annuleren</button><div class="spacer"></div><button class="btn primary" type="button" data-missing-save>Opslaan en doorgaan</button></div></div></div>`;
+   const notices=(x.details||[]).map(d=>d.type==='planning_error'?'<div class="notice" style="margin-top:8px"><b>'+esc(d.label||'Planningsfout')+'</b></div>':d.type==='no_process'?'<div class="notice" style="margin-top:8px">Deze order heeft nog geen processtappen en kan daarom niet automatisch worden gepland.</div>':'').join('');
+   return `<div class="panel" style="padding:14px;margin:12px 0" data-inline-order="${esc(x.id)}"><div style="display:flex;gap:12px;align-items:flex-start"><div style="flex:1"><b style="font-size:16px">${esc(o?.orderNo||x.orderNo||x.id)} · ${esc(o?.product||x.product||'')}</b><div class="muted">${esc(o?.customerName||'')}</div></div><label style="min-width:180px"><span class="muted">${deadlineLabel}</span><input class="input" type="date" data-inline-order-deadline="${esc(x.id)}" value="${esc(deadline)}"></label></div>${notices}<div style="margin-top:10px"><b>Open processtappen</b>${taskRows||'<div class="muted" style="margin-top:6px">Geen open processtappen.</div>'}</div></div>`;
+ };
+ const cards=invalid.map(cardFor).join('');
+ const autoOnly=auto.filter(x=>!invalid.some(y=>y.id===x.id));
+ const autoHtml=autoOnly.length?`<h3 style="margin-top:18px">Automatische planningsdeadlines</h3>${autoOnly.map(x=>`<label style="display:grid;grid-template-columns:minmax(220px,1fr) 170px;gap:10px;align-items:center;margin:8px 0"><span><b>${esc(x.orderNo)}</b> · min. doorlooptijd ${x.leadDays} dag(en) + 4 weken</span><input class="input" type="date" data-fallback-deadline="${esc(x.id)}" value="${esc(x.date)}"></label>`).join('')}`:'';
+ root.innerHTML=`<div class="modalback"><div class="modal" style="width:min(860px,96vw)"><div class="modalhead"><h3>Ordergegevens aanvullen</h3></div><div class="modalbody"><p>Pas hier direct de probleemorders aan. Daarna rekent de planner opnieuw en gaat verder.</p>${cards||'<div class="notice">Ik kon nog geen specifieke probleemorder aanwijzen. Controleer hieronder de automatische planningsdeadlines.</div>'}${autoHtml}<div id="missingPlanningError" style="color:#b42318;margin-top:10px"></div></div><div class="modalfoot"><button class="btn" type="button" data-missing-cancel>Annuleren</button><div class="spacer"></div><button class="btn primary" type="button" data-missing-save>Opslaan en doorgaan</button></div></div></div>`;
  return true;
 }
 function saveMissingData(){
  const error=document.getElementById('missingPlanningError');if(error)error.textContent='';
  const s=S();if(!s)return false;
  let bad='';
- for(const input of document.querySelectorAll('[data-missing-duration]')){
+ for(const input of document.querySelectorAll('[data-inline-task-duration]')){
    const hours=Number(String(input.value||'').replace(',','.'));
    if(!(hours>0)){bad='Vul bij alle ontbrekende taken een duur groter dan 0 uur in.';break}
-   const t=(s.tasks||[]).find(x=>x.id===input.dataset.missingDuration);
+   const t=(s.tasks||[]).find(x=>x.id===input.dataset.inlineTaskDuration);
    if(t)t.estimate=Math.max(1,Math.round(hours*60));
  }
  if(bad){if(error)error.textContent=bad;return false}
+ for(const input of document.querySelectorAll('[data-inline-order-deadline]')){
+   if(!input.value)continue;
+   const o=(s.orders||[]).find(x=>x.id===input.dataset.inlineOrderDeadline);
+   if(o){
+     if(o.communicatedDeadline||o.deadline){o.communicatedDeadline=input.value;o.deadline=input.value}
+     else{o.planningFallbackDeadline=input.value;o.planningDeadlineSource='manual_planning_fallback'}
+   }
+ }
  for(const input of document.querySelectorAll('[data-fallback-deadline]')){
    if(!input.value)continue;
    const o=(s.orders||[]).find(x=>x.id===input.dataset.fallbackDeadline);
@@ -121,7 +138,7 @@ async function plan(){
   if(!ready())return alert('De planningsengine kon niet starten. Gebruik Ververs app; als dit terugkomt is er een laadfout die we moeten oplossen.');
   const preview=controls.simulateRemaining();
   if(!preview){
-    return openMissingData({invalid:[{id:'__planner__',orderNo:'Planner',product:'',issues:['De berekening gaf geen resultaat terug.'],details:[{type:'planning_error',label:'De berekening gaf geen resultaat terug. Open een order vanuit dit scherm als er een specifieke order wordt genoemd.'}]}],autoDeadlines:[]});
+    return openMissingData({invalid:[{id:'__planner__',orderNo:'Planner',product:'',issues:['De berekening gaf geen resultaat terug.'],details:[{type:'planning_error',label:'De berekening gaf geen resultaat terug.'}]}],autoDeadlines:[]});
   }
   if(preview.invalid?.length)return openMissingData(preview);if(!preview.orders?.length)return alert('Er is geen ongepland werk meer.');
   const hybrid=buildHybrid(preview),count=hybrid.weekly.length;hybrid.autoDeadlines=preview.autoDeadlines||[];hybrid.invalid=preview.invalid||[];
@@ -149,7 +166,6 @@ async function install(){
   document.addEventListener('click',e=>{
     const saveBtn=e.target.closest?.('[data-missing-save]');if(saveBtn){e.preventDefault();return saveMissingData()}
     const cancel=e.target.closest?.('[data-missing-cancel]');if(cancel){e.preventDefault();document.getElementById('modalRoot').innerHTML='';return}
-    const open=e.target.closest?.('[data-open-missing-order]');if(open){e.preventDefault();document.getElementById('modalRoot').innerHTML='';window.RALAB_ERP?.openOrder?.(open.dataset.openMissingOrder);return}
     const b=e.target.closest?.('[data-hybrid-plan]');if(!b)return;e.preventDefault();plan()
   },true);
   window.RALAB_HYBRID_PLANNER={version:VERSION,plan,buildHybrid,openMissingData};
