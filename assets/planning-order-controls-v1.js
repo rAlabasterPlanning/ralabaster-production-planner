@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260924-15';
+const VERSION='20260924-16';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -122,13 +122,15 @@ function simulate(id,opts){
  const result={state:isolateTargets(clone(S()),backup,[id]),health:h,peterMinutes:countMinutes(id,g=>g.employee==='Peter'),saturdayMinutes:countMinutes(id,g=>g.date&&typeof parseDate==='function'&&parseDate(g.date).getDay()===6)};
  setState(backup);return result;
 }
-function balancedEmployee(o,employeeCursor,baseStart=''){
+function balancedEmployee(o,employeeCursor,assignmentCount,baseStart=''){
  const manual=String(o?.productionEmployeeOverride||'').trim();
  if(manual)return manual;
  const people=['Kaan','Lance','Shaffi'];
  return people.slice().sort((a,b)=>{
    const ca=employeeCursor[a]||baseStart||'',cb=employeeCursor[b]||baseStart||'';
    if(ca!==cb)return ca.localeCompare(cb);
+   const aa=Number(assignmentCount[a]||0),ab=Number(assignmentCount[b]||0);
+   if(aa!==ab)return aa-ab;
    return people.indexOf(a)-people.indexOf(b);
  })[0];
 }
@@ -144,14 +146,14 @@ function simulateSequentialRemaining(opts={}){
    if(['automatic','hybrid-week','week-auto'].includes(String(t.planningOrigin||''))){clearOneTask(t);continue}
    t.lockedPlanning=true;t.planningOrigin=t.planningOrigin||'manual-existing';
   }
-  const rows=[],employeeCursor={};
+  const rows=[],employeeCursor={},assignmentCount={};
   const ordered=orders.slice().sort((a,b)=>byManualSequence(a,b)||(deadlineOf(a)||'9999-12-31').localeCompare(deadlineOf(b)||'9999-12-31')||priorityOf(b)-priorityOf(a)||(a.orderNo||'').localeCompare(b.orderNo||''));
   for(const original of ordered){
    const o=findOrder(original.id);if(!o)continue;
    try{
-    const baseStart=opts.planningStart||'',emp=balancedEmployee(o,employeeCursor,baseStart),lockedStart=emp&&employeeCursor[emp]&&employeeCursor[emp]>baseStart?employeeCursor[emp]:baseStart;
+    const baseStart=opts.planningStart||'',emp=balancedEmployee(o,employeeCursor,assignmentCount,baseStart),lockedStart=emp&&employeeCursor[emp]&&employeeCursor[emp]>baseStart?employeeCursor[emp]:baseStart;
     p.planOrderStrict(o,{allowPeter:emp==='Peter',allowSaturday:false,planningStart:lockedStart,preferredEmployee:emp||undefined});
-    const phaseEnd=emp?p.primaryPhaseFinish?.(o,emp):'';if(emp&&phaseEnd&&phaseEnd>(employeeCursor[emp]||''))employeeCursor[emp]=phaseEnd;
+    const phaseEnd=emp?p.primaryPhaseFinish?.(o,emp):'';if(emp){assignmentCount[emp]=(assignmentCount[emp]||0)+1;if(phaseEnd&&phaseEnd>(employeeCursor[emp]||''))employeeCursor[emp]=phaseEnd;else if(!employeeCursor[emp])employeeCursor[emp]=lockedStart||baseStart||'';}
     for(const t of tasksFor(o.id)){if(movable(t)&&hasPlanning(t)&&!t.planningOrigin){t.planningOrigin='automatic';t.lockedPlanning=true}}
     let h=p.health?.(o)||{};if(h.finish){o.internalExpectedDate=h.finish;h=p.health?.(o)||h}
     rows.push({id:o.id,orderNo:o.orderNo||'',product:o.product||'',deadline:deadlineOf(o),priority:priorityOf(o),health:h});
@@ -185,11 +187,11 @@ function simulateRemaining(opts={}){
 	  const byPriority=orders.slice().sort((a,b)=>byManualSequence(a,b)||priorityOf(b)-priorityOf(a)||deadlineOf(a).localeCompare(deadlineOf(b))||(a.orderNo||'').localeCompare(b.orderNo||''));
 	  const grouped=(()=>{const groups=new Map();for(const o of byUrgency){const k=productKey(o);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(o)}const used=new Set(),out=[];for(const o of byUrgency){const k=productKey(o);if(used.has(k))continue;used.add(k);out.push(...groups.get(k).sort((a,b)=>deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a)))}return out})();
 	  const candidates=[{name:'speling',orders:byUrgency},{name:'deadline',orders:byDeadline},{name:'productbatch',orders:grouped},{name:'prioriteit',orders:byPriority}],seen=new Set(),results=[];
-	  for(const candidate of candidates){const signature=candidate.orders.map(o=>o.id).join('|');if(seen.has(signature))continue;seen.add(signature);setState(protectedBase);const rows=[],employeeCursor={};for(const original of candidate.orders){const o=findOrder(original.id);if(!o)continue;
+	  for(const candidate of candidates){const signature=candidate.orders.map(o=>o.id).join('|');if(seen.has(signature))continue;seen.add(signature);setState(protectedBase);const rows=[],employeeCursor={},assignmentCount={};for(const original of candidate.orders){const o=findOrder(original.id);if(!o)continue;
 try{
- const baseStart=opts.planningStart||'',emp=balancedEmployee(o,employeeCursor,baseStart),lockedStart=emp&&employeeCursor[emp]&&employeeCursor[emp]>baseStart?employeeCursor[emp]:baseStart;
+ const baseStart=opts.planningStart||'',emp=balancedEmployee(o,employeeCursor,assignmentCount,baseStart),lockedStart=emp&&employeeCursor[emp]&&employeeCursor[emp]>baseStart?employeeCursor[emp]:baseStart;
  p.planOrderStrict(o,{allowPeter:emp==='Peter',allowSaturday:false,planningStart:lockedStart,preferredEmployee:emp||undefined});
- const phaseEnd=emp?p.primaryPhaseFinish?.(o,emp):'';if(emp&&phaseEnd&&phaseEnd>(employeeCursor[emp]||''))employeeCursor[emp]=phaseEnd;
+ const phaseEnd=emp?p.primaryPhaseFinish?.(o,emp):'';if(emp){assignmentCount[emp]=(assignmentCount[emp]||0)+1;if(phaseEnd&&phaseEnd>(employeeCursor[emp]||''))employeeCursor[emp]=phaseEnd;else if(!employeeCursor[emp])employeeCursor[emp]=lockedStart||baseStart||'';}
 }
 catch(err){
  const msg=String(err?.message||err||'Onbekende planningsfout');
