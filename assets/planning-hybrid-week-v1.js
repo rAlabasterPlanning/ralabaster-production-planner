@@ -1,6 +1,6 @@
 // Hybrid planner: exact next 5 workdays, weekly capacity reservations after that.
 (()=>{
-const VERSION='20260924-6';
+const VERSION='20260924-7';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -120,7 +120,9 @@ async function plan(){
   const controls=window.RALAB_ORDER_CONTROLS;
   if(!ready())return alert('De planningsengine kon niet starten. Gebruik Ververs app; als dit terugkomt is er een laadfout die we moeten oplossen.');
   const preview=controls.simulateRemaining();
-  if(!preview)return alert('De planner kon geen planningvoorstel berekenen. Controleer of de open orders een deadline en taakduur hebben.');
+  if(!preview){
+    return openMissingData({invalid:[{id:'__planner__',orderNo:'Planner',product:'',issues:['De berekening gaf geen resultaat terug.'],details:[{type:'planning_error',label:'De berekening gaf geen resultaat terug. Open een order vanuit dit scherm als er een specifieke order wordt genoemd.'}]}],autoDeadlines:[]});
+  }
   if(preview.invalid?.length)return openMissingData(preview);if(!preview.orders?.length)return alert('Er is geen ongepland werk meer.');
   const hybrid=buildHybrid(preview),count=hybrid.weekly.length;hybrid.autoDeadlines=preview.autoDeadlines||[];hybrid.invalid=preview.invalid||[];
   const autoText=hybrid.autoDeadlines.length?`\n\n${hybrid.autoDeadlines.length} order(s) zonder klantdeadline krijgen alleen voor planning automatisch: minimale doorlooptijd + 4 weken.`:'';const invalidText=hybrid.invalid.length?`\n\n${hybrid.invalid.length} onvolledige order(s) worden overgeslagen en hieronder gemeld.`:'';const msg=`Komende 5 werkdagen exact plannen tot en met ${hybrid.horizon}. Daarna worden ${count} order(s) alleen op weekcapaciteit gereserveerd voor levertijdinschatting. Bestaande gestarte en vastgezette planning blijft staan.${autoText}${invalidText}\n\nDoorgaan?`;
