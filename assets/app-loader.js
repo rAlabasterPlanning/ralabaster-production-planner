@@ -1,3 +1,4 @@
+window.RALAB_CORE_READY=window.RALAB_CORE_READY||new Promise((resolve,reject)=>{window.__RALAB_CORE_RESOLVE=resolve;window.__RALAB_CORE_REJECT=reject});
 (async()=>{
   try{
     const ver='20260923-5';
@@ -35,7 +36,10 @@ async function loadCloudState(silent=false){
     // Duplicate function declarations at the end intentionally override the legacy cloud bootstrap before execution.
     s.textContent=texts.join('')+cloudPatch;
     document.body.appendChild(s);
+    window.__RALAB_CORE_RESOLVE?.(true);
+    window.dispatchEvent(new CustomEvent('ralabaster:core-ready'));
   }catch(e){
+    window.__RALAB_CORE_REJECT?.(e);
     console.error('Planner laden mislukt',e);
     const main=document.querySelector('main');
     if(main) main.innerHTML='<div style="padding:24px;font-family:system-ui"><h2>Planner kon niet laden</h2><p>'+String(e.message||e)+'</p><p>Vernieuw de pagina met Ctrl+F5.</p></div>';
