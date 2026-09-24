@@ -1,6 +1,6 @@
 // Hybrid planner: exact next 5 workdays, weekly capacity reservations after that.
 (()=>{
-const VERSION='20260924-12';
+const VERSION='20260924-13';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -152,7 +152,10 @@ function resetGeneratedPlanning(){
   if(!['automatic','hybrid-week','week-auto'].includes(String(t.planningOrigin||'')))continue;
   t.planSegments=[];t.date=null;t.start='';t.employee=null;t.waitStartAt='';t.waitEndAt='';t.externalSentDate='';t.expectedReturnDate='';t.lockedPlanning=false;delete t.assignedMachine;delete t.planningOrigin;
  }
- for(const o of s.orders||[]){if(o?.planningDecision==='hybrid_week_capacity'){delete o.weekCapacityReservations;delete o.expectedReadyWeek;delete o.expectedReadyDate;delete o.productionEmployee}}
+ for(const o of s.orders||[]){
+  if(!o?.productionEmployeeOverride)delete o.productionEmployee;
+  if(o?.planningDecision==='hybrid_week_capacity'){delete o.weekCapacityReservations;delete o.expectedReadyWeek;delete o.expectedReadyDate}
+ }
 }
 async function plan(){
   const btn=document.querySelector('[data-hybrid-plan]');
@@ -185,7 +188,7 @@ async function plan(){
   if(typeof renderWeeks==='function')renderWeeks();
   let done=`Planning bijgewerkt. ${hybrid.detailedWeek} is volledig op dag/tijdniveau gepland (${hybrid.exactTasks} taak/taken). Later werk staat alleen per week gereserveerd.`;if(hybrid.autoDeadlines.length)done+=`\n\nAutomatische planningsdeadline gebruikt voor:\n`+hybrid.autoDeadlines.map(x=>`${x.orderNo}: ${x.date}`).join('\n');if(hybrid.invalid.length)done+=`\n\nNiet ingepland omdat gegevens ontbreken:\n`+hybrid.invalid.map(x=>`${x.orderNo}: ${x.issues.join(', ')}`).join('\n');if(hybrid.late.length)done+=`\n\n${hybrid.late.length} order(s) blijven aandacht vragen voor hun deadline.`;alert(done);
 }
-function futureWorkMarkup(){
+function futureWeekGroups(){
  const s=S(),orders=s?.orders||[],detail=s?.hybridDetailedWeek,groups=new Map();
  for(const o of orders){
   for(const r of o.weekCapacityReservations||[]){
@@ -194,8 +197,23 @@ function futureWorkMarkup(){
    groups.get(r.week).push({order:o,minutes:Number(r.minutes)||0});
   }
  }
- if(!groups.size)return'';
- return `<section class="future-work-panel panel" style="padding:12px;margin:12px 0"><div style="margin-bottom:8px"><b>Werk voor volgende weken</b><div class="muted">Alleen capaciteitsreservering; geen dag- of tijdplanning.</div></div>${[...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([week,rows])=>`<div class="future-week-bucket" style="border-top:1px solid rgba(0,0,0,.1);padding:10px 0"><b>Werk voor week ${esc(week.replace(/^\d{4}-W/,''))}</b><div style="display:grid;gap:5px;margin-top:6px">${rows.sort((a,b)=>(Number(a.order.productionSequence)||9999)-(Number(b.order.productionSequence)||9999)).map(x=>`<div style="display:flex;gap:10px;align-items:center"><span style="flex:1"><b>${esc(x.order.orderNo||'')}</b> · ${esc(x.order.product||'')}</span><span class="muted">${(x.minutes/60).toLocaleString('nl-NL',{maximumFractionDigits:1})} uur${x.order.expectedReadyWeek?' · gereed '+esc(x.order.expectedReadyWeek):''}</span></div>`).join('')}</div></div>`).join('')}</section>`;
+ return groups;
+}
+function renderFutureWeekBuckets(root){
+ root.querySelectorAll('.future-week-inline').forEach(x=>x.remove());
+ const groups=futureWeekGroups();if(!groups.size)return;
+ for(const block of root.querySelectorAll('.week-block')){
+   const h3=block.querySelector(':scope > h3');if(!h3)continue;
+   const m=h3.textContent.match(/Week\s+(\d+)/i);if(!m)continue;
+   const weekNo=String(Number(m[1])).padStart(2,'0');
+   const match=[...groups.entries()].find(([key])=>key.endsWith('-W'+weekNo));if(!match)continue;
+   const [week,rows]=match,total=rows.reduce((n,x)=>n+x.minutes,0);
+   const html=`<div class="future-week-inline" style="margin:8px 10px 10px;padding:10px 12px;border:1px solid rgba(0,0,0,.12);border-radius:9px;background:rgba(127,127,127,.05)">
+     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>Werk voor week ${esc(weekNo)}</b><span class="muted">${(total/60).toLocaleString('nl-NL',{maximumFractionDigits:1})} uur gereserveerd · nog niet op dag/tijd</span></div>
+     <div style="display:grid;gap:4px;margin-top:7px">${rows.sort((a,b)=>(Number(a.order.productionSequence)||9999)-(Number(b.order.productionSequence)||9999)).map(x=>`<div style="display:flex;gap:10px;align-items:center;min-width:0"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(x.order.orderNo||'')}</b> · ${esc(x.order.product||'')}</span><span class="muted" style="white-space:nowrap">${(x.minutes/60).toLocaleString('nl-NL',{maximumFractionDigits:1})} uur</span></div>`).join('')}</div>
+   </div>`;
+   h3.insertAdjacentHTML('afterend',html);
+ }
 }
 function decorate(){
   const root=document.getElementById('view-weeks');if(!root||root.classList.contains('hidden'))return;
@@ -204,7 +222,7 @@ function decorate(){
     const head=panel.querySelector('.prod-seq-head');if(head){const btn=document.createElement('button');btn.type='button';btn.className='btn primary small';btn.dataset.hybridPlan='';btn.textContent=ready()?'Plan komende week':'Planner laden…';btn.disabled=!ready();head.appendChild(btn);if(!ready())setTimeout(()=>{if(ready()&&btn.isConnected){btn.disabled=false;btn.textContent='Plan komende week'}},500)}
   }
   root.querySelector('.future-work-panel')?.remove();
-  const html=futureWorkMarkup();if(html)panel.insertAdjacentHTML('afterend',html);
+  renderFutureWeekBuckets(root);
 }
 async function install(){
   try{await window.RALAB_CORE_READY}catch(_){}
