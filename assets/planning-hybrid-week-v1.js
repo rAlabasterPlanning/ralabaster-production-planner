@@ -1,6 +1,6 @@
 // Hybrid planner: exact next 5 workdays, weekly capacity reservations after that.
 (()=>{
-const VERSION='20260924-13';
+const VERSION='20260924-14';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -199,6 +199,22 @@ function futureWeekGroups(){
  }
  return groups;
 }
+function renderWeekCapacitySummaries(root){
+ root.querySelectorAll('.week-capacity-summary').forEach(x=>x.remove());
+ const s=S(),reservedByWeek=new Map();
+ for(const o of s?.orders||[])for(const r of o.weekCapacityReservations||[])reservedByWeek.set(r.week,(reservedByWeek.get(r.week)||0)+(Number(r.minutes)||0));
+ const hourText=n=>(Math.round((Math.max(0,n)/60)*10)/10).toLocaleString('nl-NL',{minimumFractionDigits:1,maximumFractionDigits:1});
+ for(const block of root.querySelectorAll('.week-block')){
+   const title=block.querySelector(':scope > h3');if(!title)continue;
+   const dates=[...new Set([...block.querySelectorAll('[data-plan-date]')].map(x=>x.dataset.planDate).filter(Boolean))].sort();if(!dates.length)continue;
+   const key=weekKey(dates[0]);let capacity=0,exact=0;
+   const employees=['Ralph','Peter','Kaan','Lance','Shaffi'];
+   for(const date of dates)for(const emp of employees){try{capacity+=Math.max(0,Number(employeeCapacity(date,emp,parse(date).getDay()===6))||0)}catch(_){}}
+   for(const t of s?.tasks||[])for(const g of Array.isArray(t.planSegments)?t.planSegments:[])if(dates.includes(g.date))exact+=Number(g.minutes)||0;
+   const reserved=reservedByWeek.get(key)||0,planned=exact+reserved,free=capacity-planned;
+   title.insertAdjacentHTML('afterend',`<div class="week-capacity-summary" style="margin:5px 10px 8px;display:flex;gap:14px;flex-wrap:wrap;font-size:12px"><b>${hourText(capacity)} uur beschikbaar</b><span>${hourText(planned)} uur gepland</span><span style="font-weight:700">${free>=0?hourText(free)+' uur vrij':hourText(-free)+' uur overpland'}</span>${reserved?`<span class="muted">incl. ${hourText(reserved)} uur weekreservering</span>`:''}</div>`);
+ }
+}
 function renderFutureWeekBuckets(root){
  root.querySelectorAll('.future-week-inline').forEach(x=>x.remove());
  const groups=futureWeekGroups();if(!groups.size)return;
@@ -223,6 +239,7 @@ function decorate(){
   }
   root.querySelector('.future-work-panel')?.remove();
   renderFutureWeekBuckets(root);
+  renderWeekCapacitySummaries(root);
 }
 async function install(){
   try{await window.RALAB_CORE_READY}catch(_){}

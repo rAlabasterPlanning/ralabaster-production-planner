@@ -1,7 +1,7 @@
 window.RALAB_CORE_READY=window.RALAB_CORE_READY||new Promise((resolve,reject)=>{window.__RALAB_CORE_RESOLVE=resolve;window.__RALAB_CORE_REJECT=reject});
 (async()=>{
   try{
-    const ver='20260923-5';
+    const ver='20260924-2';
     const parts=['app.part01.txt','app.part02.txt','app.part03.txt','app.part04.txt','app.part05.txt','app.part06.txt','app.part07.txt'];
     const texts=await Promise.all(parts.map(async p=>{
       const r=await fetch('assets/'+p+'?v='+ver,{cache:'default'});
