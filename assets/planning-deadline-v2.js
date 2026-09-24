@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260924-7';
+const VERSION='20260924-8';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=30;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -106,7 +106,7 @@ function pairSetupWithExecution(setup,run,earliestAt,opts={}){
  return allocateInternal(run,finish,{...opts,preferredEmployee:preferredRun||employees[0]||'Kaan',lockEmployee:true});
 }
 function clearMovablePlanning(orderIds=null){const ids=orderIds?new Set(orderIds):null;for(const t of S()?.tasks||[]){if(isGeneral(t)||taskDone(t)||frozen(t)||(ids&&!ids.has(t.orderId)))continue;clearTaskPlanning(t);resetMachineAssignment(t);if(isExternalTask(t)&&t.status!=='external'){t.externalSentDate='';t.expectedReturnDate=''}}}
-function chainStartForOrder(o,opts={}){const ts=orderTasks(o.id).sort((a,b)=>a.seq-b.seq),fixed=ts.filter(frozen);let cursor=opts.planningStart?dtString(opts.planningStart,'08:15'):(typeof automaticPlanningStart==='function'?automaticPlanningStart(today()):dtString(today(),'08:15'));for(const t of fixed){const f=taskFinishAt(t);if(f&&f>cursor)cursor=f}return cursor}
+function chainStartForOrder(o,opts={}){const ts=orderTasks(o.id).sort((a,b)=>a.seq-b.seq),fixed=ts.filter(frozen);let cursor=opts.planningStart?(String(opts.planningStart).includes('T')?String(opts.planningStart).slice(0,16):dtString(opts.planningStart,'08:15')):(typeof automaticPlanningStart==='function'?automaticPlanningStart(today()):dtString(today(),'08:15'));for(const t of fixed){const f=taskFinishAt(t);if(f&&f>cursor)cursor=f}return cursor}
 function scheduleWaitStrict(t,startAt){
  const start=(startAt&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(startAt))?startAt.slice(0,16):dtString(today(),'00:00');
  const m=String(start).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
@@ -117,6 +117,7 @@ function scheduleWaitStrict(t,startAt){
  return finish;
 }
 function chooseFlowEmployee(o,ts,opts={}){
+ if(opts.preferredEmployee&&opts.preferredEmployee!=='Ralph')return opts.preferredEmployee;
  const existing=o?.productionEmployee;
  if(existing&&existing!=='Ralph')return existing;
  const first=ts.find(t=>!ralphOnlyTask(t)&&!isExternalTask(t)&&!isDryTask(t)&&!frozen(t));
@@ -127,6 +128,30 @@ function chooseFlowEmployee(o,ts,opts={}){
  let candidates=['Kaan','Lance','Shaffi'];if(opts.allowPeter)candidates.push('Peter');
  candidates=window.RALAB_WORKPLACES?.candidateEmployees?.(first,candidates)||candidates;candidates=candidates.filter(x=>x!=='Ralph');
  return candidates[0]||'Kaan';
+}
+function segmentFinishStamp(g){
+ if(!g?.date||!g?.start)return'';
+ const a=String(g.start).split(':').map(Number),elapsed=Number(g.elapsedMinutes)||Number(g.minutes)||0,total=(a[0]||0)*60+(a[1]||0)+elapsed;
+ const d=addCal(g.date,Math.floor(total/1440)),m=((total%1440)+1440)%1440;
+ return dtString(d,tm(m));
+}
+function primaryPhaseFinish(o,employee){
+ if(!o||!employee)return'';
+ const ts=orderTasks(o.id).filter(t=>!taskDone(t)&&!isGeneral(t)).sort((a,b)=>a.seq-b.seq);
+ let started=false,last='';
+ for(const t of ts){
+   if(isDryTask(t)||isExternalTask(t)){if(started)break;continue}
+   if(ralphOnlyTask(t))continue;
+   const segs=(taskSegments(t)||[]).filter(g=>(g.employee||t.employee)===employee);
+   if(!segs.length)continue;
+   started=true;
+   for(const g of segs){const f=segmentFinishStamp(g);if(f>last)last=f}
+ }
+ return last;
+}
+function primaryEmployeeForOrder(o,opts={}){
+ const ts=orderTasks(o.id).filter(t=>!taskDone(t)&&!isGeneral(t)).sort((a,b)=>a.seq-b.seq);
+ return chooseFlowEmployee(o,ts,opts);
 }
 function planOrderStrict(o,opts={}){
  setDerivedDates(o);const ts=orderTasks(o.id).filter(t=>!taskDone(t)&&!isGeneral(t)).sort((a,b)=>a.seq-b.seq);let cursor=chainStartForOrder(o,opts),flowEmployee=chooseFlowEmployee(o,ts,opts),lastEmployee=flowEmployee;if(flowEmployee)o.productionEmployee=flowEmployee;
@@ -253,7 +278,7 @@ function install(){if(typeof window.renderOrders!=='function'||typeof window.ope
  window.openPlanEntireOrder=function(id){const o=order(id);showModal(`<div class="modalhead"><h3>Order inplannen – ${esc(o.orderNo)} – ${esc(o.product)}</h3></div><div class="modalbody"><div class="notice"><b>Vaste procesvolgorde actief.</b> Instellen door Ralph blijft direct gekoppeld aan de uitvoerende machinebewerking. ZL15-werk mag automatisch over ZL15 #1, ZL15 #2 en SL25 worden verdeeld.</div><div class="grid2"><div class="panel" style="padding:12px"><b>Zonder andere orders te wijzigen</b><p class="muted">Plant deze order in om de bestaande planning heen. De taakvolgorde blijft vast.</p><button class="btn" type="button" data-plan-current="${esc(id)}">Alleen deze order plannen</button></div><div class="panel" style="padding:12px"><b>Optimaliseer op deadlines</b><p class="muted">Herschikt nog niet gestarte planning na de freeze-horizon en controleert Peter/overwerk.</p><button class="btn primary" type="button" data-optimize-order="${esc(id)}">Deadline-optimalisatie</button></div></div></div><div class="modalfoot"><button class="btn" onclick="closeModal()">Sluiten</button></div>`)};
  const st=document.createElement('style');st.textContent=`.deadline-health{margin-top:8px;padding:7px 9px;border-radius:7px;background:#eef7ef;font-size:12px}.deadline-health.risk{background:#fff4d8}.deadline-health.bad{background:#ffe5e2}.deadline-v2-box{background:#fbfcfb}`;document.head.appendChild(st);
  document.addEventListener('click',e=>{const pc=e.target.closest('[data-plan-current]');if(pc){e.preventDefault();const id=pc.dataset.planCurrent,o=order(id);clearMovablePlanning([id]);planOrderStrict(o,{allowPeter:false,allowSaturday:false});save();closeModal();render();return}const b=e.target.closest('[data-optimize-order]');if(b){e.preventDefault();openOptimize(b.dataset.optimizeOrder);return}const a=e.target.closest('[data-apply-deadline-opt]');if(a){e.preventDefault();if(window.__ralabOptimizedState){const n=window.__ralabOptimizedState;window.__ralabOptimizedState=null;closeModal();applyState(n)}return}const l=e.target.closest('[data-lock-order]');if(l){e.preventDefault();lockOrder(l.dataset.lockOrder);return}},true);
- window.RALAB_DEADLINE_PLANNER={version:VERSION,optimizeAll,planOrderStrict,health,scenario,attentionAdvice,strategicRecommendation,applyStrategicRecommendation,applyDeadlineMustBeMet,acceptCurrentPlanAndMoveDeadline,shiftCustomerDeadline,openOptimize,normalizeSequences,enforceManualMove,machineOptions,allocateInternal,scheduleWaitStrict};
+ window.RALAB_DEADLINE_PLANNER={version:VERSION,optimizeAll,planOrderStrict,health,scenario,attentionAdvice,strategicRecommendation,applyStrategicRecommendation,applyDeadlineMustBeMet,acceptCurrentPlanAndMoveDeadline,shiftCustomerDeadline,openOptimize,normalizeSequences,enforceManualMove,machineOptions,allocateInternal,scheduleWaitStrict,primaryEmployeeForOrder,primaryPhaseFinish};
  if(typeof currentView!=='undefined'&&currentView==='orders')renderOrders();
 }
 install();

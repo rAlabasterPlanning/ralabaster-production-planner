@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260924-13';
+const VERSION='20260924-14';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -134,12 +134,15 @@ function simulateSequentialRemaining(opts={}){
    if(['automatic','hybrid-week','week-auto'].includes(String(t.planningOrigin||''))){clearOneTask(t);continue}
    t.lockedPlanning=true;t.planningOrigin=t.planningOrigin||'manual-existing';
   }
-  const rows=[];
+  const rows=[],employeeCursor={};
   const ordered=orders.slice().sort((a,b)=>byManualSequence(a,b)||(deadlineOf(a)||'9999-12-31').localeCompare(deadlineOf(b)||'9999-12-31')||priorityOf(b)-priorityOf(a)||(a.orderNo||'').localeCompare(b.orderNo||''));
   for(const original of ordered){
    const o=findOrder(original.id);if(!o)continue;
    try{
-    p.planOrderStrict(o,{allowPeter:false,allowSaturday:false,planningStart:opts.planningStart||''});
+    const emp=p.primaryEmployeeForOrder?.(o,{allowPeter:false})||o.productionEmployee||null;
+    const baseStart=opts.planningStart||'',lockedStart=emp&&employeeCursor[emp]&&employeeCursor[emp]>baseStart?employeeCursor[emp]:baseStart;
+    p.planOrderStrict(o,{allowPeter:false,allowSaturday:false,planningStart:lockedStart,preferredEmployee:emp||undefined});
+    const phaseEnd=emp?p.primaryPhaseFinish?.(o,emp):'';if(emp&&phaseEnd&&phaseEnd>(employeeCursor[emp]||''))employeeCursor[emp]=phaseEnd;
     for(const t of tasksFor(o.id)){if(movable(t)&&hasPlanning(t)&&!t.planningOrigin){t.planningOrigin='automatic';t.lockedPlanning=true}}
     let h=p.health?.(o)||{};if(h.finish){o.internalExpectedDate=h.finish;h=p.health?.(o)||h}
     rows.push({id:o.id,orderNo:o.orderNo||'',product:o.product||'',deadline:deadlineOf(o),priority:priorityOf(o),health:h});
@@ -173,8 +176,13 @@ function simulateRemaining(opts={}){
 	  const byPriority=orders.slice().sort((a,b)=>byManualSequence(a,b)||priorityOf(b)-priorityOf(a)||deadlineOf(a).localeCompare(deadlineOf(b))||(a.orderNo||'').localeCompare(b.orderNo||''));
 	  const grouped=(()=>{const groups=new Map();for(const o of byUrgency){const k=productKey(o);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(o)}const used=new Set(),out=[];for(const o of byUrgency){const k=productKey(o);if(used.has(k))continue;used.add(k);out.push(...groups.get(k).sort((a,b)=>deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a)))}return out})();
 	  const candidates=[{name:'speling',orders:byUrgency},{name:'deadline',orders:byDeadline},{name:'productbatch',orders:grouped},{name:'prioriteit',orders:byPriority}],seen=new Set(),results=[];
-	  for(const candidate of candidates){const signature=candidate.orders.map(o=>o.id).join('|');if(seen.has(signature))continue;seen.add(signature);setState(protectedBase);const rows=[];for(const original of candidate.orders){const o=findOrder(original.id);if(!o)continue;
-try{p.planOrderStrict(o,{allowPeter:false,allowSaturday:false,planningStart:opts.planningStart||''})}
+	  for(const candidate of candidates){const signature=candidate.orders.map(o=>o.id).join('|');if(seen.has(signature))continue;seen.add(signature);setState(protectedBase);const rows=[],employeeCursor={};for(const original of candidate.orders){const o=findOrder(original.id);if(!o)continue;
+try{
+ const emp=p.primaryEmployeeForOrder?.(o,{allowPeter:false})||o.productionEmployee||null;
+ const baseStart=opts.planningStart||'',lockedStart=emp&&employeeCursor[emp]&&employeeCursor[emp]>baseStart?employeeCursor[emp]:baseStart;
+ p.planOrderStrict(o,{allowPeter:false,allowSaturday:false,planningStart:lockedStart,preferredEmployee:emp||undefined});
+ const phaseEnd=emp?p.primaryPhaseFinish?.(o,emp):'';if(emp&&phaseEnd&&phaseEnd>(employeeCursor[emp]||''))employeeCursor[emp]=phaseEnd;
+}
 catch(err){
  const msg=String(err?.message||err||'Onbekende planningsfout');
  if(!invalid.some(x=>x.id===o.id))invalid.push({id:o.id,orderNo:o.orderNo||o.id,product:o.product||'',issues:['planningsfout: '+msg],details:[{type:'planning_error',label:'Planningsfout: '+msg}]});
