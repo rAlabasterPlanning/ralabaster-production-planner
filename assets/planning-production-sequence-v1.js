@@ -60,7 +60,7 @@ function clearSequence(){
 function row(o){
   const seq=seqOf(o)||'';
   const customer=o.customerName||o.customer||'';
-  const deadline=deadlineOf(o)==='9999-12-31'?'—':deadlineOf(o);
+  const deadline=deadlineOf(o)==='9999-12-31'?'—':deadlineOf(o),ready=o.expectedReadyWeek||'';
   return `<div class="prod-seq-row" data-prod-seq-row="${esc(o.id)}">
     <div class="prod-seq-number">
       <label>Volgorde</label>
@@ -68,7 +68,7 @@ function row(o){
     </div>
     <div class="prod-seq-main">
       <b>${esc(o.orderNo||'Order')} · ${esc(o.product||'')}</b>
-      <span>${esc(customer)}${customer?' · ':''}deadline ${esc(deadline)}</span>
+      <span>${esc(customer)}${customer?' · ':''}deadline ${esc(deadline)}${ready?' · verwacht '+esc(ready):''}</span>
     </div>
   </div>`;
 }
