@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260924-5';
+const VERSION='20260924-6';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=30;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -16,7 +16,13 @@ const taskDone=t=>t?.status==='done'||t?.status==='completed';
 const taskStarted=t=>['in_progress','partly','partial','external'].includes(String(t?.status||'').toLowerCase())||Number(t?.actual)>0||Number(t?.doneQty)>0;
 const isGeneral=t=>!!t&&(t.isGeneralWork||t.orderId==='__workshop_general__');
 const isSetup=t=>/\binstellen\b/i.test((t?.name||'')+' '+(t?.machine||''));
-const ralphOnlyTask=t=>!!t&&(t.ralphOnly===true||t.onlyRalph===true||['Ralph'].includes(String(t.requiredEmployee||t.onlyEmployee||t.fixedEmployee||t.employeeRequired||'')));
+const ralphOnlyTask=t=>{
+ if(!t)return false;
+ const explicit=t.ralphOnly===true||t.onlyRalph===true||['Ralph'].includes(String(t.requiredEmployee||t.onlyEmployee||t.fixedEmployee||t.employeeRequired||''));
+ const label=((t.name||'')+' '+(t.machine||'')).toLowerCase();
+ const standard=/\binstellen\b|technisch\s+uitwerken|verpakking\s+bestellen|materiaal\s+bestellen|alabaster\s+klaarzetten/.test(label);
+ return explicit||standard;
+};
 const cleanMachine=s=>String(s||'').replace(/\s*[-–]?\s*instellen\b/ig,'').replace(/\s+/g,' ').trim();
 const machineKey=t=>cleanMachine(t?.assignedMachine||t?.machine||t?.name||'').toLowerCase();
 const machineBase=t=>cleanMachine(t?.machinePreference||t?.machine||t?.name||'');
@@ -113,7 +119,7 @@ function scheduleWaitStrict(t,startAt){
 function chooseFlowEmployee(o,ts,opts={}){
  const existing=o?.productionEmployee;
  if(existing&&existing!=='Ralph')return existing;
- const first=ts.find(t=>!isSetup(t)&&!isExternalTask(t)&&!isDryTask(t)&&!frozen(t));
+ const first=ts.find(t=>!ralphOnlyTask(t)&&!isExternalTask(t)&&!isDryTask(t)&&!frozen(t));
  if(!first)return null;
  if(first.employee&&first.employee!=='Ralph')return first.employee;
  if(first.preferredEmployee&&first.preferredEmployee!=='Ralph')return first.preferredEmployee;
@@ -138,7 +144,7 @@ function planOrderStrict(o,opts={}){
      lastEmployee=next.employee||lastEmployee;i++;continue
    }
    cursor=allocateInternal(t,cursor,flowOpts);
-   lastEmployee=t.employee||lastEmployee;
+   lastEmployee=ralphOnlyTask(t)?flowEmployee:(t.employee||lastEmployee);
  }
  return cursor;
 }
