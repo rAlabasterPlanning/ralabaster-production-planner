@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260924-9';
+const VERSION='20260924-10';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -128,7 +128,11 @@ function simulateRemaining(){
  if(!orders.length){const out={state:clone(S()),orders:[],missingDeadline:[],autoDeadlines,invalid,late:[]};setState(backup);return out}
  const p=planner();if(!p?.planOrderStrict){setState(backup);return {state:backup,orders:[],missingDeadline:[],autoDeadlines,invalid:[...invalid,{id:'__planner__',orderNo:'Planner',product:'',issues:['Planningsengine niet beschikbaar'],details:[{type:'planning_error',label:'Planningsengine niet beschikbaar'}]}],late:[],error:'planner_engine_unavailable'}}
  try{
-  for(const t of S().tasks||[]){if(movable(t)&&hasPlanning(t)){t.lockedPlanning=true;t.planningOrigin=t.planningOrigin||'manual-existing'}}const protectedBase=clone(S());
+  for(const t of S().tasks||[]){
+   if(!movable(t)||!hasPlanning(t))continue;
+   if(['automatic','hybrid-week','week-auto'].includes(String(t.planningOrigin||''))){clearOneTask(t);continue}
+   t.lockedPlanning=true;t.planningOrigin=t.planningOrigin||'manual-existing';
+  }const protectedBase=clone(S());
   const effortDays=o=>minimumLeadDays(o);
   const latestStart=o=>shiftDate(deadlineOf(o),-effortDays(o));
 	  const byDeadline=orders.slice().sort((a,b)=>byManualSequence(a,b)||deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a)||(a.orderNo||'').localeCompare(b.orderNo||''));
