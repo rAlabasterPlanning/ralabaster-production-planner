@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260924-8';
+const VERSION='20260924-9';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -65,6 +65,25 @@ function planningIssueDetails(o){
  return details;
 }
 function planningIssues(o){return planningIssueDetails(o).map(x=>x.label)}
+function diagnosePlanningOrders(){
+ const out=[],seen=new Set();
+ for(const o of remainingOrders()){
+  const details=planningIssueDetails(o);
+  if(!deadlineOf(o)){
+   const fallback=automaticPlanningDeadline(o);
+   details.push({type:'missing_deadline',label:'geen klantdeadline',fallbackDate:fallback.date,leadDays:fallback.leadDays});
+  }
+  if(details.length){out.push({id:o.id,orderNo:o.orderNo||o.id,product:o.product||'',details,issues:details.map(x=>x.label)});seen.add(o.id);continue}
+  try{
+   const test=simulate(o.id,{allowPeter:false,allowSaturday:false});
+   if(!test)throw new Error('deze order gaf geen individueel planningresultaat');
+  }catch(err){
+   const msg=String(err?.message||err||'onbekende planningsfout');
+   out.push({id:o.id,orderNo:o.orderNo||o.id,product:o.product||'',details:[{type:'planning_error',label:'Planningsfout: '+msg}],issues:['planningsfout: '+msg]});seen.add(o.id);
+  }
+ }
+ return out;
+}
 function preparePlanningOrders(){
  const all=remainingOrders(),autoDeadlines=[],invalid=[];
  for(const o of all){
@@ -225,6 +244,6 @@ function safeHandlePlanControl(e){try{return handlePlanControl(e)}catch(err){con
 document.addEventListener('click',e=>{
  safeHandlePlanControl(e);
 },true);
-window.RALAB_ORDER_CONTROLS={version:VERSION,planAndCheck,confirmPlanRemaining,executePlanRemaining,confirmUnplanOrder,confirmUnplanAll,executeUnplanOrder,executeUnplanAll,openPlanReview,recalculateReview,reviewWarnings,simulate,simulateRemaining,remainingOrders,planningIssueDetails,automaticPlanningDeadline};
+window.RALAB_ORDER_CONTROLS={version:VERSION,planAndCheck,confirmPlanRemaining,executePlanRemaining,confirmUnplanOrder,executeUnplanAll,confirmUnplanAll,openPlanReview,recalculateReview,reviewWarnings,simulate,simulateRemaining,remainingOrders,planningIssueDetails,automaticPlanningDeadline,diagnosePlanningOrders};
 const style=document.createElement('style');style.textContent=`.plan-review-modal{width:min(1180px,96vw)!important}.plan-review-table{overflow:auto;max-height:55vh;border:1px solid #d9dfdc;border-radius:8px}.plan-review-table table{min-width:980px}.plan-review-table th{position:sticky;top:0;background:#f5f7f6;z-index:1}.plan-review-table td{vertical-align:top}.plan-review-table .input{min-width:125px}.review-estimate{display:grid;gap:3px;font-size:11px;font-weight:700}.review-estimate>span:last-child{display:flex;align-items:center;gap:5px;white-space:nowrap}.review-estimate .input{min-width:76px;width:76px}.plan-review-summary{padding:11px 13px;border-radius:8px;margin-bottom:12px}.plan-review-summary.ok{background:#e8f6ec}.plan-review-summary.risk{background:#fff4d8}.plan-review-summary.bad{background:#ffe5e2}@media(max-width:800px){.plan-review-modal{width:98vw!important}.plan-review-table{max-height:58vh}}`;document.head.appendChild(style);
 })();
