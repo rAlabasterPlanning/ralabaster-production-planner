@@ -9,7 +9,7 @@
     ['Teach-In draaibank - instellen',40,30,'batch'],['Teach-In Draaibank (RALAB)',41,0,'unit'],['Reichenbacher - Instellen',30,30,'batch'],['Reichenbacher',26,0,'unit'],
     ['KUKA KR210 - Instellen',30,60,'batch'],['KUKA KR210',41,0,'unit'],['Kawasaki Boorrobot',11,0,'unit'],['Kolomboormachine',11,0,'unit'],
     ['Schuren',26,0,'unit'],['Polijsten',26,0,'unit'],['Assemblage',11,0,'unit'],['Inpakken',11,0,'unit'],['INTERN - Algemeen',11,0,'unit'],['Zagen (Wiseco)',16,0,'unit'],['Waterjetten (extern)',0,20160,'external'],
-    ['Gildemeister - Instellen',60,30,'batch'],['Gildemeister',20.5,0,'unit']
+    ['Gildemeister - Instellen',60,30,'batch'],['Gildemeister',20.5,0,'unit'],['Steen inkopen Spanje (extern)',0,50400,'external']
   ].map(x=>({name:x[0],rate:x[1],minutes:x[2],mode:x[3]}));
   const WORKPLACES=[...new Set(OPS.map(x=>x.name))];
   const S=()=>{try{return state}catch(_){return null}};
