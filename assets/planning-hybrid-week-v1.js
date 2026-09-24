@@ -1,6 +1,6 @@
 // Hybrid planner: exact next 5 workdays, weekly capacity reservations after that.
 (()=>{
-const VERSION='20260924-10';
+const VERSION='20260924-11';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -112,6 +112,12 @@ function openMissingData(preview){
 function saveMissingData(){
  const error=document.getElementById('missingPlanningError');if(error)error.textContent='';
  const s=S();if(!s)return false;
+ const editable=document.querySelectorAll('[data-inline-task-duration],[data-inline-order-deadline],[data-fallback-deadline]');
+ if(!editable.length){
+   document.getElementById('modalRoot').innerHTML='';
+   setTimeout(()=>plan(),50);
+   return true;
+ }
  let bad='';
  for(const input of document.querySelectorAll('[data-inline-task-duration]')){
    const hours=Number(String(input.value||'').replace(',','.'));
@@ -154,11 +160,18 @@ async function plan(){
   if(!ready())return alert('De planningsengine kon niet starten. Gebruik Ververs app; als dit terugkomt is er een laadfout die we moeten oplossen.');
   resetGeneratedPlanning();
   const detailedWeek=nextDetailedWeek();
-  const preview=controls.simulateRemaining({planningStart:detailedWeek.start});
-  if(!preview){
-    return openMissingData({invalid:[{id:'__planner__',orderNo:'Planner',product:'',issues:['De berekening gaf geen resultaat terug.'],details:[{type:'planning_error',label:'De berekening gaf geen resultaat terug.'}]}],autoDeadlines:[]});
+  let preview=controls.simulateRemaining({planningStart:detailedWeek.start});
+  const onlyGenericProblem=p=>!p||(!p.orders?.length&&(p.invalid||[]).length>0&&(p.invalid||[]).every(x=>x.id==='__planner__'));
+  if(onlyGenericProblem(preview)){
+    preview=controls.simulateSequentialRemaining?.({planningStart:detailedWeek.start})||preview;
   }
-  if(preview.invalid?.length)return openMissingData(preview);if(!preview.orders?.length)return alert('Er is geen ongepland werk meer.');
+  const specificInvalid=(preview?.invalid||[]).filter(x=>x.id!=='__planner__');
+  if(specificInvalid.length)return openMissingData({...preview,invalid:specificInvalid});
+  if(!preview?.orders?.length){
+    const generic=(preview?.invalid||[]).find(x=>x.id==='__planner__');
+    if(generic)return openMissingData({...preview,invalid:[generic]});
+    return alert('Er is geen ongepland werk meer.');
+  }
   const hybrid=buildHybrid(preview,detailedWeek),count=hybrid.weekly.length;hybrid.autoDeadlines=preview.autoDeadlines||[];hybrid.invalid=preview.invalid||[];
   const autoText=hybrid.autoDeadlines.length?`\n\n${hybrid.autoDeadlines.length} order(s) zonder klantdeadline krijgen alleen voor planning automatisch: minimale doorlooptijd + 4 weken.`:'';const invalidText=hybrid.invalid.length?`\n\n${hybrid.invalid.length} onvolledige order(s) worden overgeslagen en hieronder gemeld.`:'';const msg=`${hybrid.detailedWeek} volledig plannen van ${hybrid.exactStart} t/m ${hybrid.horizon}. Daarna worden ${count} order(s) alleen onder “Werk voor week X” gereserveerd voor levertijdinschatting. Bestaande gestarte en vastgezette planning blijft staan.${autoText}${invalidText}\n\nDoorgaan?`;
   if(!confirm(msg))return;
