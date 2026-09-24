@@ -1,6 +1,6 @@
 // Hybrid planner: exact next 5 workdays, weekly capacity reservations after that.
 (()=>{
-const VERSION='20260924-2';
+const VERSION='20260924-3';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const iso=d=>d.toISOString().slice(0,10);
@@ -71,15 +71,16 @@ function buildHybrid(preview){
 function ready(){
   return !!(window.RALAB_ORDER_CONTROLS?.simulateRemaining&&window.RALAB_DEADLINE_PLANNER?.planOrderStrict);
 }
+async function ensureReady(){
+  try{await window.RALAB_CORE_READY}catch(_){}
+  for(let i=0;i<20&&!ready();i++)await new Promise(r=>setTimeout(r,50));
+  return ready();
+}
 async function plan(){
-  if(!ready()){
-    const btn=document.querySelector('[data-hybrid-plan]');
-    if(btn){btn.disabled=true;btn.textContent='Planner laden…'}
-    for(let i=0;i<20&&!ready();i++)await new Promise(r=>setTimeout(r,150));
-    if(btn){btn.disabled=false;btn.textContent='Plan komende week'}
-  }
+  const btn=document.querySelector('[data-hybrid-plan]');
+  if(!ready()){if(btn){btn.disabled=true;btn.textContent='Planner starten…'};await ensureReady();if(btn){btn.disabled=false;btn.textContent='Plan komende week'}}
   const controls=window.RALAB_ORDER_CONTROLS;
-  if(!ready())return alert('De planningsmodules zijn nog niet volledig geladen. Ververs de app één keer en probeer opnieuw.');
+  if(!ready())return alert('De planningsengine kon niet starten. Gebruik Ververs app; als dit terugkomt is er een laadfout die we moeten oplossen.');
   const preview=controls.simulateRemaining();
   if(!preview)return alert('De planner kon geen planningvoorstel berekenen. Controleer of de open orders een deadline en taakduur hebben.');
   if(!preview.orders?.length)return alert(preview.missingDeadline?.length?'De open orders hebben nog geen bruikbare deadline.':'Er is geen ongepland werk meer.');
@@ -101,8 +102,9 @@ function decorate(){
   head.appendChild(btn);
   if(!ready())setTimeout(()=>{if(ready()&&btn.isConnected){btn.disabled=false;btn.textContent='Plan komende week'}},500);
 }
-function install(){
-  if(typeof window.renderWeeks!=='function'||!window.RALAB_ORDER_CONTROLS||!window.RALAB_DEADLINE_PLANNER)return setTimeout(install,250);
+async function install(){
+  try{await window.RALAB_CORE_READY}catch(_){}
+  if(typeof window.renderWeeks!=='function'||!window.RALAB_ORDER_CONTROLS||!window.RALAB_DEADLINE_PLANNER)return setTimeout(install,100);
   const old=window.renderWeeks;window.renderWeeks=function(){const r=old.apply(this,arguments);setTimeout(decorate,0);return r};
   document.addEventListener('click',e=>{const b=e.target.closest?.('[data-hybrid-plan]');if(!b)return;e.preventDefault();plan()},true);
   window.RALAB_HYBRID_PLANNER={version:VERSION,plan,buildHybrid};
