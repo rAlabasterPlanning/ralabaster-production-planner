@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260913-2';
+const VERSION='20260924-3';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=30;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -55,7 +55,7 @@ function freeWindows(date,emp,key,excludeIds,allowSaturday,allowPeter){
 }
 function allocateInternal(t,earliestAt,opts={}){
  const allowSaturday=!!opts.allowSaturday,allowPeter=!!opts.allowPeter,excludeIds=opts.excludeIds||new Set([t.id]);
- const preferred=t.employee&&!isSetup(t)?t.employee:null;let employees=preferred?[preferred]:['Kaan','Lance','Shaffi','Ralph'];if(allowPeter)employees.push('Peter');if(!preferred&&!isSetup(t))employees=window.RALAB_WORKPLACES?.candidateEmployees?.(t,employees)||employees;
+ const preferred=!isSetup(t)?(opts.preferredEmployee||t.employee||null):null;let employees=preferred?[preferred,...['Kaan','Lance','Shaffi','Ralph'].filter(x=>x!==preferred)]:['Kaan','Lance','Shaffi','Ralph'];if(allowPeter)employees.push('Peter');if(!preferred&&!isSetup(t))employees=window.RALAB_WORKPLACES?.candidateEmployees?.(t,employees)||employees;
  if(isSetup(t))employees=['Ralph'];
  let need=Math.max(0,Number(t.estimate)||0);if(need===0){t.planSegments=[];t.date=dtDate(earliestAt);return earliestAt}
  let d=dtDate(earliestAt),firstDay=true,segs=[],guard=0,selectedMachine=t.assignedMachine||null;
@@ -66,7 +66,7 @@ function allocateInternal(t,earliestAt,opts={}){
 }
 function pairSetupWithExecution(setup,run,earliestAt,opts={}){
  const sd=Math.max(1,Number(setup.estimate)||30),exclude=new Set([setup.id,run.id]);let d=dtDate(earliestAt),guard=0;
- let employees=run.employee&&run.employee!=='Ralph'?[run.employee]:['Kaan','Lance','Shaffi'];if(opts.allowPeter)employees.push('Peter');if(!run.employee)employees=window.RALAB_WORKPLACES?.candidateEmployees?.(run,employees)||employees;
+ let preferredRun=(opts.preferredEmployee&&opts.preferredEmployee!=='Ralph')?opts.preferredEmployee:(run.employee&&run.employee!=='Ralph'?run.employee:null);let employees=preferredRun?[preferredRun,...['Kaan','Lance','Shaffi'].filter(x=>x!==preferredRun)]:['Kaan','Lance','Shaffi'];if(opts.allowPeter&&!employees.includes('Peter'))employees.push('Peter');if(!preferredRun&&!run.employee)employees=window.RALAB_WORKPLACES?.candidateEmployees?.(run,employees)||employees;
  const machines=run.assignedMachine?[run.assignedMachine]:machineOptions(run);
  while(guard++<180){for(const machine of machines){const key=cleanMachine(machine).toLowerCase(),rw=freeWindows(d,'Ralph',key,exclude,!!opts.allowSaturday,!!opts.allowPeter);for(const emp of employees){const ew=freeWindows(d,emp,key,exclude,!!opts.allowSaturday,!!opts.allowPeter);for(const e of ew){let runStart=Math.max(e[0],min(dtTime(earliestAt))*(d===dtDate(earliestAt)?1:0));if(d!==dtDate(earliestAt))runStart=e[0];for(const r of rw){const candidate=Math.max(runStart,r[0]+sd),runRoom=e[1]-candidate;if(runRoom>=Math.min(Math.max(1,Number(run.estimate)||0),MIN_USEFUL_BLOCK)&&candidate<e[1]&&candidate<=r[1]&&candidate-sd>=r[0]){
            setAssignedMachine(run,machine);setAssignedMachine(setup,machine);setup.planSegments=[{date:d,employee:'Ralph',start:tm(candidate-sd),minutes:sd}];setup.employee='Ralph';setup.date=d;setup.start=tm(candidate-sd);setup.preferredEmployee='Ralph';
@@ -88,22 +88,22 @@ function scheduleWaitStrict(t,startAt){
  return finish;
 }
 function planOrderStrict(o,opts={}){
- setDerivedDates(o);const ts=orderTasks(o.id).filter(t=>!taskDone(t)&&!isGeneral(t)).sort((a,b)=>a.seq-b.seq);let cursor=chainStartForOrder(o);
- for(let i=0;i<ts.length;i++){const t=ts[i];if(frozen(t)){const f=taskFinishAt(t);if(f&&f>cursor)cursor=f;continue}
-   const next=ts[i+1];if(isDryTask(t)){cursor=scheduleWaitStrict(t,cursor);continue}
-   if(isExternalTask(t)){const send=dtDate(cursor),lead=Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14);t.employee=null;t.planSegments=[];t.date=send;t.start='';if(t.status==='external'&&t.externalSentDate)t.expectedReturnDate=addCal(t.externalSentDate,lead);else t.expectedReturnDate=addCal(send,lead);cursor=dtString(t.expectedReturnDate,'00:00');continue}
+ setDerivedDates(o);const ts=orderTasks(o.id).filter(t=>!taskDone(t)&&!isGeneral(t)).sort((a,b)=>a.seq-b.seq);let cursor=chainStartForOrder(o),lastEmployee=null;
+ for(let i=0;i<ts.length;i++){const t=ts[i];if(frozen(t)){const f=taskFinishAt(t);if(f&&f>cursor)cursor=f;lastEmployee=t.employee||lastEmployee;continue}
+   const next=ts[i+1];
+   if(isDryTask(t)){cursor=scheduleWaitStrict(t,cursor);lastEmployee=null;continue}
+   if(isExternalTask(t)){const send=dtDate(cursor),lead=Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14);t.employee=null;t.planSegments=[];t.date=send;t.start='';if(t.status==='external'&&t.externalSentDate)t.expectedReturnDate=addCal(t.externalSentDate,lead);else t.expectedReturnDate=addCal(send,lead);cursor=dtString(t.expectedReturnDate,'00:00');lastEmployee=null;continue}
+   const flowOpts={...opts,preferredEmployee:lastEmployee||opts.preferredEmployee||null};
    if(isSetup(t)&&next&&!isExternalTask(next)&&!isDryTask(next)&&!frozen(next)){
-     cursor=pairSetupWithExecution(t,next,cursor,opts);
-     // Sla de uitvoerende stap alleen over als die door pairing ook echt is ingepland.
-     // Zo kan een mislukte pairing nooit een taak stilletjes ongepland achterlaten.
+     cursor=pairSetupWithExecution(t,next,cursor,flowOpts);
      const nextPlanned=taskDone(next)||taskStarted(next)||(Array.isArray(next.planSegments)&&next.planSegments.length>0)||!!next.date;
-     if(nextPlanned){i++;continue}
-     // Fallback: plan setup en uitvoering los, maar nog steeds strikt achter elkaar.
-     cursor=allocateInternal(t,cursor,opts);
-     cursor=allocateInternal(next,cursor,opts);
-     i++;continue
+     if(nextPlanned){lastEmployee=next.employee||lastEmployee;i++;continue}
+     cursor=allocateInternal(t,cursor,flowOpts);
+     cursor=allocateInternal(next,cursor,{...flowOpts,preferredEmployee:lastEmployee||next.employee||null});
+     lastEmployee=next.employee||lastEmployee;i++;continue
    }
-   cursor=allocateInternal(t,cursor,opts);
+   cursor=allocateInternal(t,cursor,flowOpts);
+   lastEmployee=t.employee||lastEmployee;
  }
  return cursor;
 }
