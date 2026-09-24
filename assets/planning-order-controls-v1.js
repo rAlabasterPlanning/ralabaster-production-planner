@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260924-10';
+const VERSION='20260924-11';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -122,7 +122,7 @@ function simulate(id,opts){
  const result={state:isolateTargets(clone(S()),backup,[id]),health:h,peterMinutes:countMinutes(id,g=>g.employee==='Peter'),saturdayMinutes:countMinutes(id,g=>g.date&&typeof parseDate==='function'&&parseDate(g.date).getDay()===6)};
  setState(backup);return result;
 }
-function simulateRemaining(){
+function simulateRemaining(opts={}){
  const backup=clone(S());setState(backup);
  const prepared=preparePlanningOrders(),orders=prepared.orders,autoDeadlines=prepared.autoDeadlines,invalid=prepared.invalid;
  if(!orders.length){const out={state:clone(S()),orders:[],missingDeadline:[],autoDeadlines,invalid,late:[]};setState(backup);return out}
