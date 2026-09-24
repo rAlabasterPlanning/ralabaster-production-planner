@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260924-6';
+const VERSION='20260924-7';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=30;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -20,7 +20,7 @@ const ralphOnlyTask=t=>{
  if(!t)return false;
  const explicit=t.ralphOnly===true||t.onlyRalph===true||['Ralph'].includes(String(t.requiredEmployee||t.onlyEmployee||t.fixedEmployee||t.employeeRequired||''));
  const label=((t.name||'')+' '+(t.machine||'')).toLowerCase();
- const standard=/\binstellen\b|technisch\s+uitwerken|verpakking\s+bestellen|materiaal\s+bestellen|alabaster\s+klaarzetten/.test(label);
+ const standard=/\binstellen\b|technisch\s+uitwerken|verpakking\s+bestellen|materiaal\s+bestellen/.test(label);
  return explicit||standard;
 };
 const cleanMachine=s=>String(s||'').replace(/\s*[-–]?\s*instellen\b/ig,'').replace(/\s+/g,' ').trim();
