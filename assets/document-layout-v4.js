@@ -10,7 +10,7 @@ function S(){try{return state}catch(_){return null}}
 function persist(){try{save()}catch(e){console.error(e)}}
 function customer(id){return(S()?.customers||[]).find(c=>c.id===id)}
 function linesFor(no){return(S()?.quotes||[]).filter(q=>(q.quoteNo||q.orderNo)===no).sort((a,b)=>(a.lineNo||0)-(b.lineNo||0))}
-function snapshot(q){const c=customer(q.customerId)||{},s=q.customerSnapshot||{};return{company:s.company||c.name||'',contact:s.contact||c.contact||'',address:s.address||c.address||'',postal:s.postal||c.postal||c.postcode||'',city:s.city||c.city||'',country:s.country||c.country||'',vat:s.vat||c.vat||c.vatNo||'',email:s.email||c.email||'',phone:s.phone||c.phone||''}}
+function snapshot(q){const c=customer(q.customerId),s=q.customerSnapshot||{};return c?{company:c.name||'',contact:c.contact||'',address:c.street||c.address||'',postal:c.zip||c.postal||c.postcode||'',city:c.city||'',country:c.country||'',vat:c.vatNo||c.vat||'',email:c.email||'',phone:c.phone||''}:s}
 function isDutch(c){const x=String(c?.country||'').trim().toLowerCase();return['netherlands','the netherlands','nederland','nl','nld'].includes(x)}
 let logoData='';
 const logoReady=fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error('logo');return r.text()}).then(x=>{logoData='data:image/jpeg;base64,'+x.replace(/\s+/g,'');return logoData}).catch(()=>{logoData='';return''});
