@@ -1,6 +1,6 @@
 // Hybrid planner: exact next 5 workdays, weekly capacity reservations after that.
 (()=>{
-const VERSION='20260924-1';
+const VERSION='20260924-2';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const iso=d=>d.toISOString().slice(0,10);
@@ -68,9 +68,20 @@ function buildHybrid(preview){
   }
   return {state:next,horizon,today,weekly:[...byOrder.entries()].map(([orderId,weeks])=>({orderId,weeks})),exactTasks:exactTaskIds.size,futureTasks:futureTaskIds.size,orders:preview.orders||[],late:preview.late||[]};
 }
-function plan(){
-  const controls=window.RALAB_ORDER_CONTROLS,preview=controls?.simulateRemaining?.();
-  if(!preview)return alert('De planner is nog niet gereed. Ververs de app en probeer opnieuw.');
+function ready(){
+  return !!(window.RALAB_ORDER_CONTROLS?.simulateRemaining&&window.RALAB_DEADLINE_PLANNER?.planOrderStrict);
+}
+async function plan(){
+  if(!ready()){
+    const btn=document.querySelector('[data-hybrid-plan]');
+    if(btn){btn.disabled=true;btn.textContent='Planner laden…'}
+    for(let i=0;i<20&&!ready();i++)await new Promise(r=>setTimeout(r,150));
+    if(btn){btn.disabled=false;btn.textContent='Plan komende week'}
+  }
+  const controls=window.RALAB_ORDER_CONTROLS;
+  if(!ready())return alert('De planningsmodules zijn nog niet volledig geladen. Ververs de app één keer en probeer opnieuw.');
+  const preview=controls.simulateRemaining();
+  if(!preview)return alert('De planner kon geen planningvoorstel berekenen. Controleer of de open orders een deadline en taakduur hebben.');
   if(!preview.orders?.length)return alert(preview.missingDeadline?.length?'De open orders hebben nog geen bruikbare deadline.':'Er is geen ongepland werk meer.');
   const hybrid=buildHybrid(preview),count=hybrid.weekly.length;
   const msg=`Komende 5 werkdagen exact plannen tot en met ${hybrid.horizon}. Daarna worden ${count} order(s) alleen op weekcapaciteit gereserveerd voor levertijdinschatting. Bestaande gestarte en vastgezette planning blijft staan. Doorgaan?`;
@@ -86,11 +97,12 @@ function decorate(){
   const panel=document.querySelector('#view-weeks .production-sequence-panel');if(!panel)return;
   if(panel.querySelector('[data-hybrid-plan]'))return;
   const head=panel.querySelector('.prod-seq-head');if(!head)return;
-  const btn=document.createElement('button');btn.type='button';btn.className='btn primary small';btn.dataset.hybridPlan='';btn.textContent='Plan komende week';
+  const btn=document.createElement('button');btn.type='button';btn.className='btn primary small';btn.dataset.hybridPlan='';btn.textContent=ready()?'Plan komende week':'Planner laden…';btn.disabled=!ready();
   head.appendChild(btn);
+  if(!ready())setTimeout(()=>{if(ready()&&btn.isConnected){btn.disabled=false;btn.textContent='Plan komende week'}},500);
 }
 function install(){
-  if(typeof window.renderWeeks!=='function'||!window.RALAB_ORDER_CONTROLS)return setTimeout(install,250);
+  if(typeof window.renderWeeks!=='function'||!window.RALAB_ORDER_CONTROLS||!window.RALAB_DEADLINE_PLANNER)return setTimeout(install,250);
   const old=window.renderWeeks;window.renderWeeks=function(){const r=old.apply(this,arguments);setTimeout(decorate,0);return r};
   document.addEventListener('click',e=>{const b=e.target.closest?.('[data-hybrid-plan]');if(!b)return;e.preventDefault();plan()},true);
   window.RALAB_HYBRID_PLANNER={version:VERSION,plan,buildHybrid};
