@@ -9,6 +9,8 @@ const findOrder=id=>(S()?.orders||[]).find(o=>o.id===id&&!o.deleted);
 const tasksFor=id=>(S()?.tasks||[]).filter(t=>t.orderId===id&&!t.deleted);
 const deadlineOf=o=>o?.communicatedDeadline||o?.maximumReadyDate||o?.deadline||'';
 const priorityOf=o=>{const n=Number(o?.planningPriority);return n>=1&&n<=3?n:3};
+const productionSequenceOf=o=>{const n=Number(o?.productionSequence);return Number.isFinite(n)&&n>0?n:0};
+const byManualSequence=(a,b)=>{const sa=productionSequenceOf(a),sb=productionSequenceOf(b);if(sa&&sb&&sa!==sb)return sa-sb;if(sa&&!sb)return -1;if(!sa&&sb)return 1;return 0};
 const productKey=o=>String(o?.productTemplateId||'')?`id:${o.productTemplateId}`:`name:${String(o?.product||'').trim().replace(/\s+/g,' ').toLowerCase()}`;
 const done=t=>['done','completed'].includes(String(t?.status||'').toLowerCase());
 const started=t=>['in_progress','partial','partly','external'].includes(String(t?.status||'').toLowerCase())||Number(t?.actual)>0||Number(t?.doneQty)>0;
@@ -38,7 +40,7 @@ function unplanOrderInternal(id){
 }
 function activeOrders(){return(S()?.orders||[]).filter(o=>!o.deleted&&o.active!==false&&o.status!=='completed'&&!o.isGeneralWork)}
 function hasPlanning(t){if(t.type==='wait'||/droog|wacht/i.test((t.name||'')+' '+(t.machine||'')))return!!(t.waitStartAt&&t.waitEndAt);if(t.type==='external'||/extern/i.test((t.name||'')+' '+(t.machine||'')))return!!(t.date&&t.expectedReturnDate);return!!(segments(t).length||t.date)}
-function remainingOrders(){return activeOrders().filter(o=>!o.waitingMaterial&&o.materialStatus!=='waiting').filter(o=>tasksFor(o.id).some(t=>movable(t)&&!hasPlanning(t))).sort((a,b)=>(deadlineOf(a)||'9999-12-31').localeCompare(deadlineOf(b)||'9999-12-31')||priorityOf(b)-priorityOf(a)||(a.orderNo||'').localeCompare(b.orderNo||''))}
+function remainingOrders(){return activeOrders().filter(o=>!o.waitingMaterial&&o.materialStatus!=='waiting').filter(o=>tasksFor(o.id).some(t=>movable(t)&&!hasPlanning(t))).sort((a,b)=>byManualSequence(a,b)||(deadlineOf(a)||'9999-12-31').localeCompare(deadlineOf(b)||'9999-12-31')||priorityOf(b)-priorityOf(a)||(a.orderNo||'').localeCompare(b.orderNo||''))}
 function isolateTargets(next,baseline,targetIds){const ids=new Set(targetIds),orders=new Map((baseline.orders||[]).map(o=>[o.id,o])),tasks=new Map((baseline.tasks||[]).map(t=>[t.id,t]));next.orders=(next.orders||[]).map(o=>ids.has(o.id)?o:clone(orders.get(o.id)||o));next.tasks=(next.tasks||[]).map(t=>ids.has(t.orderId)?t:clone(tasks.get(t.id)||t));return next}
 function persistAndRender(){invalidate();try{save()}catch(e){console.error(e)}try{closeModal()}catch(_){ }setTimeout(()=>window.RALAB_ERP?.renderOrders?.(0),0)}
 function showConfirm(title,body,confirmText,action,value=''){
@@ -71,9 +73,9 @@ function simulateRemaining(){
   for(const t of S().tasks||[]){if(movable(t)&&hasPlanning(t)){t.lockedPlanning=true;t.planningOrigin=t.planningOrigin||'manual-existing'}}const protectedBase=clone(S());
   const effortDays=o=>{let work=0,calendar=0;for(const t of tasksFor(o.id)){if(!movable(t)||hasPlanning(t))continue;if(isExternalTask(t))calendar+=Number(t.externalLeadDays)||14;else if(isDryTask(t))calendar+=Math.ceil((Number(t.estimate)||540)/1440);else work+=Number(t.estimate)||0}return Math.max(1,Math.ceil(work/450)+calendar)};
   const latestStart=o=>shiftDate(deadlineOf(o),-effortDays(o));
-	  const byDeadline=orders.slice().sort((a,b)=>deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a)||(a.orderNo||'').localeCompare(b.orderNo||''));
-	  const byUrgency=orders.slice().sort((a,b)=>latestStart(a).localeCompare(latestStart(b))||deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a));
-	  const byPriority=orders.slice().sort((a,b)=>priorityOf(b)-priorityOf(a)||deadlineOf(a).localeCompare(deadlineOf(b))||(a.orderNo||'').localeCompare(b.orderNo||''));
+	  const byDeadline=orders.slice().sort((a,b)=>byManualSequence(a,b)||deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a)||(a.orderNo||'').localeCompare(b.orderNo||''));
+	  const byUrgency=orders.slice().sort((a,b)=>byManualSequence(a,b)||latestStart(a).localeCompare(latestStart(b))||deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a));
+	  const byPriority=orders.slice().sort((a,b)=>byManualSequence(a,b)||priorityOf(b)-priorityOf(a)||deadlineOf(a).localeCompare(deadlineOf(b))||(a.orderNo||'').localeCompare(b.orderNo||''));
 	  const grouped=(()=>{const groups=new Map();for(const o of byUrgency){const k=productKey(o);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(o)}const used=new Set(),out=[];for(const o of byUrgency){const k=productKey(o);if(used.has(k))continue;used.add(k);out.push(...groups.get(k).sort((a,b)=>deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a)))}return out})();
 	  const candidates=[{name:'speling',orders:byUrgency},{name:'deadline',orders:byDeadline},{name:'productbatch',orders:grouped},{name:'prioriteit',orders:byPriority}],seen=new Set(),results=[];
 	  for(const candidate of candidates){const signature=candidate.orders.map(o=>o.id).join('|');if(seen.has(signature))continue;seen.add(signature);setState(protectedBase);const rows=[];for(const original of candidate.orders){const o=findOrder(original.id);if(!o)continue;p.planOrderStrict(o,{allowPeter:false,allowSaturday:false});for(const t of tasksFor(o.id)){if(movable(t)&&hasPlanning(t)&&!t.planningOrigin){t.planningOrigin='automatic';t.lockedPlanning=true}}let h=p.health?.(o)||{};if(h.finish){o.internalExpectedDate=h.finish;h=p.health?.(o)||h}rows.push({id:o.id,orderNo:o.orderNo||'',product:o.product||'',deadline:deadlineOf(o),priority:priorityOf(o),health:h})}const allLate=rows.filter(x=>x.health?.status==='bad'),score=[allLate.length,allLate.reduce((n,x)=>n+Math.max(1,daysLate(x.deadline,x.health?.finish)),0)];for(const priority of [3,2,1]){const late=allLate.filter(x=>x.priority===priority);score.push(late.length,late.reduce((n,x)=>n+Math.max(1,daysLate(x.deadline,x.health?.finish)),0))}results.push({name:candidate.name,state:clone(S()),orders:rows,score})}
