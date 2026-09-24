@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260924-5';
+const VERSION='20260924-6';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -55,20 +55,21 @@ function automaticPlanningDeadline(o){
  const lead=minimumLeadDays(o),base=typeof isoDate==='function'?isoDate(new Date()):new Date().toISOString().slice(0,10);
  return {date:shiftDate(base,lead+28),leadDays:lead};
 }
-function planningIssues(o){
- const own=tasksFor(o.id).filter(t=>!general(t)&&!done(t)),issues=[];
- if(!own.length)issues.push('geen processtappen');
+function planningIssueDetails(o){
+ const own=tasksFor(o.id).filter(t=>!general(t)&&!done(t)),details=[];
+ if(!own.length)details.push({type:'no_process',label:'geen processtappen'});
  for(const t of own){
   const external=typeof isExternalTask==='function'&&isExternalTask(t),dry=typeof isDryTask==='function'&&isDryTask(t);
-  if(!external&&!dry&&movable(t)&&!hasPlanning(t)&&!(Number(t.estimate)>0))issues.push(`taak “${t.name||t.id}” heeft geen duur`);
+  if(!external&&!dry&&movable(t)&&!hasPlanning(t)&&!(Number(t.estimate)>0))details.push({type:'no_duration',taskId:t.id,taskName:t.name||t.id,label:`taak “${t.name||t.id}” heeft geen duur`});
  }
- return issues;
+ return details;
 }
+function planningIssues(o){return planningIssueDetails(o).map(x=>x.label)}
 function preparePlanningOrders(){
  const all=remainingOrders(),autoDeadlines=[],invalid=[];
  for(const o of all){
   const issues=planningIssues(o);
-  if(issues.length){invalid.push({id:o.id,orderNo:o.orderNo||o.id,product:o.product||'',issues});continue}
+  if(issues.length){invalid.push({id:o.id,orderNo:o.orderNo||o.id,product:o.product||'',issues,details:planningIssueDetails(o)});continue}
   if(!deadlineOf(o)){
    const fallback=automaticPlanningDeadline(o);
    o.planningFallbackDeadline=fallback.date;o.planningFallbackLeadDays=fallback.leadDays;o.planningDeadlineSource='automatic_minimum_plus_4_weeks';
@@ -212,6 +213,6 @@ function safeHandlePlanControl(e){try{return handlePlanControl(e)}catch(err){con
 document.addEventListener('click',e=>{
  safeHandlePlanControl(e);
 },true);
-window.RALAB_ORDER_CONTROLS={version:VERSION,planAndCheck,confirmPlanRemaining,executePlanRemaining,confirmUnplanOrder,confirmUnplanAll,executeUnplanOrder,executeUnplanAll,openPlanReview,recalculateReview,reviewWarnings,simulate,simulateRemaining,remainingOrders};
+window.RALAB_ORDER_CONTROLS={version:VERSION,planAndCheck,confirmPlanRemaining,executePlanRemaining,confirmUnplanOrder,confirmUnplanAll,executeUnplanOrder,executeUnplanAll,openPlanReview,recalculateReview,reviewWarnings,simulate,simulateRemaining,remainingOrders,planningIssueDetails,automaticPlanningDeadline};
 const style=document.createElement('style');style.textContent=`.plan-review-modal{width:min(1180px,96vw)!important}.plan-review-table{overflow:auto;max-height:55vh;border:1px solid #d9dfdc;border-radius:8px}.plan-review-table table{min-width:980px}.plan-review-table th{position:sticky;top:0;background:#f5f7f6;z-index:1}.plan-review-table td{vertical-align:top}.plan-review-table .input{min-width:125px}.review-estimate{display:grid;gap:3px;font-size:11px;font-weight:700}.review-estimate>span:last-child{display:flex;align-items:center;gap:5px;white-space:nowrap}.review-estimate .input{min-width:76px;width:76px}.plan-review-summary{padding:11px 13px;border-radius:8px;margin-bottom:12px}.plan-review-summary.ok{background:#e8f6ec}.plan-review-summary.risk{background:#fff4d8}.plan-review-summary.bad{background:#ffe5e2}@media(max-width:800px){.plan-review-modal{width:98vw!important}.plan-review-table{max-height:58vh}}`;document.head.appendChild(style);
 })();
