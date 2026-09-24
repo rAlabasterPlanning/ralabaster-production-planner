@@ -37,7 +37,7 @@ function buildHybrid(preview){
     const before=baseline.get(t.id),newlyPlanned=before&&!((before.planSegments||[]).length||before.date||before.waitStartAt||before.externalSentDate);
     if(!newlyPlanned||exactExisting(before))continue;
     const o=orders.get(t.orderId);if(!o)continue;
-    const simulatedFinish=finishOf(t);if(simulatedFinish)futureFinish.set(t.orderId,simulatedFinish);
+    const simulatedFinish=finishOf(t);if(simulatedFinish&&simulatedFinish>(futureFinish.get(t.orderId)||''))futureFinish.set(t.orderId,simulatedFinish);
     const segs=Array.isArray(t.planSegments)?t.planSegments:[];
     const keep=[],later=[];
     for(const g of segs){
