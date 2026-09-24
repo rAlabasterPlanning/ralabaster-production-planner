@@ -1,6 +1,6 @@
 // Hybrid planner: exact next 5 workdays, weekly capacity reservations after that.
 (()=>{
-const VERSION='20260924-11';
+const VERSION='20260924-12';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -46,12 +46,13 @@ function buildHybrid(preview,range=nextDetailedWeek()){
     const o=orders.get(t.orderId);if(!o)continue;
     const simulatedFinish=finishOf(t);if(simulatedFinish&&simulatedFinish>(futureFinish.get(t.orderId)||''))futureFinish.set(t.orderId,simulatedFinish);
     const segs=Array.isArray(t.planSegments)?t.planSegments:[];
-    const keep=[],later=[];
+    const keep=[],later=[],outside=[];
     for(const g of segs){
       if(g.date&&g.date>=exactStart&&g.date<=horizon){keep.push(g);exactTaskIds.add(t.id)}
       else if(g.date&&g.date>horizon){later.push(g);futureTaskIds.add(t.id);const k=t.orderId+'|'+weekKey(g.date);weekly.set(k,(weekly.get(k)||0)+(Number(g.minutes)||0))}
+      else if(g.date){outside.push(g)}
     }
-    if(later.length){
+    if(later.length||outside.length){
       t.planSegments=keep;
       if(keep.length){t.date=keep[0].date;t.start=keep[0].start||'';t.employee=keep[0].employee||t.employee;t.planningOrigin='hybrid-week'}
       else{t.planSegments=[];t.date=null;t.start='';t.employee=null;delete t.assignedMachine;t.lockedPlanning=false}
@@ -161,8 +162,10 @@ async function plan(){
   resetGeneratedPlanning();
   const detailedWeek=nextDetailedWeek();
   let preview=controls.simulateRemaining({planningStart:detailedWeek.start});
+  const expectedCount=controls.remainingOrders?.().length||0;
   const onlyGenericProblem=p=>!p||(!p.orders?.length&&(p.invalid||[]).length>0&&(p.invalid||[]).every(x=>x.id==='__planner__'));
-  if(onlyGenericProblem(preview)){
+  const incompleteCoverage=p=>expectedCount>0&&((p?.orders?.length||0)+(p?.invalid||[]).filter(x=>x.id!=='__planner__').length)<expectedCount;
+  if(onlyGenericProblem(preview)||incompleteCoverage(preview)){
     preview=controls.simulateSequentialRemaining?.({planningStart:detailedWeek.start})||preview;
   }
   const specificInvalid=(preview?.invalid||[]).filter(x=>x.id!=='__planner__');
