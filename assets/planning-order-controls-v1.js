@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260924-12';
+const VERSION='20260924-13';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -174,7 +174,7 @@ function simulateRemaining(opts={}){
 	  const grouped=(()=>{const groups=new Map();for(const o of byUrgency){const k=productKey(o);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(o)}const used=new Set(),out=[];for(const o of byUrgency){const k=productKey(o);if(used.has(k))continue;used.add(k);out.push(...groups.get(k).sort((a,b)=>deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a)))}return out})();
 	  const candidates=[{name:'speling',orders:byUrgency},{name:'deadline',orders:byDeadline},{name:'productbatch',orders:grouped},{name:'prioriteit',orders:byPriority}],seen=new Set(),results=[];
 	  for(const candidate of candidates){const signature=candidate.orders.map(o=>o.id).join('|');if(seen.has(signature))continue;seen.add(signature);setState(protectedBase);const rows=[];for(const original of candidate.orders){const o=findOrder(original.id);if(!o)continue;
-try{p.planOrderStrict(o,{allowPeter:false,allowSaturday:false})}
+try{p.planOrderStrict(o,{allowPeter:false,allowSaturday:false,planningStart:opts.planningStart||''})}
 catch(err){
  const msg=String(err?.message||err||'Onbekende planningsfout');
  if(!invalid.some(x=>x.id===o.id))invalid.push({id:o.id,orderNo:o.orderNo||o.id,product:o.product||'',issues:['planningsfout: '+msg],details:[{type:'planning_error',label:'Planningsfout: '+msg}]});
