@@ -9,7 +9,7 @@ const DEFAULTS=[
  ['Teach-In draaibank - instellen','machine',40],['Teach-In Draaibank (RALAB)','machine',41],['Reichenbacher - Instellen','machine',30],['Reichenbacher','machine',26],
  ['KUKA KR210 - Instellen','machine',30],['KUKA KR210','machine',41],['Kawasaki Boorrobot','machine',11],['Kolomboormachine','machine',11],
  ['Schuren','manual',26],['Polijsten','manual',26],['Assemblage','manual',11],['Inpakken','manual',11],['INTERN - Algemeen','manual',11],
- ['Zagen (Wiseco)','machine',16],['Waterjetten (extern)','external',0],['Gildemeister - Instellen','machine',60],['Gildemeister','machine',20.5]
+ ['Zagen (Wiseco)','machine',16],['Waterjetten (extern)','external',0],['Gildemeister - Instellen','machine',60],['Gildemeister','machine',20.5],['Steen inkopen Spanje (extern)','external',0]
 ];
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
