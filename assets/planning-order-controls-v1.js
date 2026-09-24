@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260924-16';
+const VERSION='20260924-17';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -133,6 +133,27 @@ function balancedEmployee(o,employeeCursor,assignmentCount,baseStart=''){
    if(aa!==ab)return aa-ab;
    return people.indexOf(a)-people.indexOf(b);
  })[0];
+}
+function fillCapacityByPhase(candidateOrders,opts,p){
+ const people=['Kaan','Lance','Shaffi'],baseStart=opts.planningStart||'',cursor={},count={};
+ for(const emp of people){cursor[emp]=baseStart;count[emp]=0}
+ const ordered=candidateOrders.slice();
+ for(const original of ordered){
+   const o=findOrder(original.id);if(!o)continue;
+   const manual=String(o.productionEmployeeOverride||'').trim();
+   const emp=manual||people.slice().sort((a,b)=>{
+     const ca=cursor[a]||baseStart,cb=cursor[b]||baseStart;
+     if(ca!==cb)return ca.localeCompare(cb);
+     if(count[a]!==count[b])return count[a]-count[b];
+     return people.indexOf(a)-people.indexOf(b);
+   })[0];
+   const start=cursor[emp]||baseStart;
+   p.planOrderStrict(o,{allowPeter:emp==='Peter',allowSaturday:false,planningStart:start,preferredEmployee:emp});
+   const phaseEnd=p.primaryPhaseFinish?.(o,emp)||start;
+   count[emp]=(count[emp]||0)+1;
+   if(phaseEnd>cursor[emp])cursor[emp]=phaseEnd;
+ }
+ return {cursor,count};
 }
 function simulateSequentialRemaining(opts={}){
  const backup=clone(S());setState(backup);
