@@ -1,6 +1,6 @@
 // Hybrid planner: exact next 5 workdays, weekly capacity reservations after that.
 (()=>{
-const VERSION='20260924-13';
+const VERSION='20260924-14';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -199,6 +199,32 @@ function futureWeekGroups(){
  }
  return groups;
 }
+function renderWeekCapacitySummaries(root){
+ root.querySelectorAll('.week-capacity-summary').forEach(x=>x.remove());
+ const s=S(),reservations=new Map();
+ for(const o of s?.orders||[])for(const r of o.weekCapacityReservations||[])reservations.set(r.week,(reservations.get(r.week)||0)+(Number(r.minutes)||0));
+ for(const block of root.querySelectorAll('.week-block')){
+   const title=block.querySelector(':scope > h3');if(!title)continue;
+   const m=title.textContent.match(/Week\s+(\d+)/i);if(!m)continue;
+   const dates=[...new Set([...block.querySelectorAll('[data-plan-date]')].map(x=>x.dataset.planDate).filter(Boolean))].sort();
+   if(!dates.length)continue;
+   const week=weekKey(dates[0]);
+   let capacity=0,exact=0;
+   const employees=Array.isArray(window.EMPLOYEES)?window.EMPLOYEES:(typeof EMPLOYEES!=='undefined'?EMPLOYEES:['Ralph','Peter','Kaan','Lance','Shaffi']);
+   for(const d of dates)for(const emp of employees){
+     try{capacity+=Math.max(0,Number(employeeCapacity(d,emp,parse(d).getDay()===6))||0)}catch(_){}
+   }
+   for(const t of s?.tasks||[])for(const g of Array.isArray(t.planSegments)?t.planSegments:[])if(dates.includes(g.date))exact+=Number(g.minutes)||0;
+   const reserved=reservations.get(week)||0,planned=exact+reserved,free=capacity-planned;
+   const hours=n=>(Math.round((n/60)*10)/10).toLocaleString('nl-NL',{minimumFractionDigits:1,maximumFractionDigits:1});
+   const html=`<div class="week-capacity-summary" style="margin:6px 10px 8px;padding:8px 10px;border-radius:8px;background:rgba(127,127,127,.06);font-size:12px;display:flex;gap:14px;flex-wrap:wrap">
+     <b>${hours(capacity)} uur beschikbaar</b>
+     <span>${hours(planned)} uur gepland${reserved? ' · incl. '+hours(reserved)+' uur weekreservering':''}</span>
+     <span style="font-weight:700">${free>=0?hours(free)+' uur vrij':hours(-free)+' uur overpland'}</span>
+   </div>`;
+   title.insertAdjacentHTML('afterend',html);
+ }
+}
 function renderFutureWeekBuckets(root){
  root.querySelectorAll('.future-week-inline').forEach(x=>x.remove());
  const groups=futureWeekGroups();if(!groups.size)return;
@@ -223,6 +249,7 @@ function decorate(){
   }
   root.querySelector('.future-work-panel')?.remove();
   renderFutureWeekBuckets(root);
+  renderWeekCapacitySummaries(root);
 }
 async function install(){
   try{await window.RALAB_CORE_READY}catch(_){}
