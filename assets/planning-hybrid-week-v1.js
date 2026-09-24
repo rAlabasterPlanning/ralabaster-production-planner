@@ -1,6 +1,6 @@
 // Hybrid planner: exact next 5 workdays, weekly capacity reservations after that.
 (()=>{
-const VERSION='20260924-3';
+const VERSION='20260924-4';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const iso=d=>d.toISOString().slice(0,10);
@@ -83,16 +83,16 @@ async function plan(){
   if(!ready())return alert('De planningsengine kon niet starten. Gebruik Ververs app; als dit terugkomt is er een laadfout die we moeten oplossen.');
   const preview=controls.simulateRemaining();
   if(!preview)return alert('De planner kon geen planningvoorstel berekenen. Controleer of de open orders een deadline en taakduur hebben.');
-  if(!preview.orders?.length)return alert(preview.missingDeadline?.length?'De open orders hebben nog geen bruikbare deadline.':'Er is geen ongepland werk meer.');
-  const hybrid=buildHybrid(preview),count=hybrid.weekly.length;
-  const msg=`Komende 5 werkdagen exact plannen tot en met ${hybrid.horizon}. Daarna worden ${count} order(s) alleen op weekcapaciteit gereserveerd voor levertijdinschatting. Bestaande gestarte en vastgezette planning blijft staan. Doorgaan?`;
+  if(!preview.orders?.length){if(preview.invalid?.length)return alert('Deze orders zijn nog niet compleet:\n\n'+preview.invalid.map(x=>x.orderNo+' · '+(x.product||'')+'\n- '+x.issues.join('\n- ')).join('\n\n'));return alert('Er is geen ongepland werk meer.');}
+  const hybrid=buildHybrid(preview),count=hybrid.weekly.length;hybrid.autoDeadlines=preview.autoDeadlines||[];hybrid.invalid=preview.invalid||[];
+  const autoText=hybrid.autoDeadlines.length?`\n\n${hybrid.autoDeadlines.length} order(s) zonder klantdeadline krijgen alleen voor planning automatisch: minimale doorlooptijd + 4 weken.`:'';const invalidText=hybrid.invalid.length?`\n\n${hybrid.invalid.length} onvolledige order(s) worden overgeslagen en hieronder gemeld.`:'';const msg=`Komende 5 werkdagen exact plannen tot en met ${hybrid.horizon}. Daarna worden ${count} order(s) alleen op weekcapaciteit gereserveerd voor levertijdinschatting. Bestaande gestarte en vastgezette planning blijft staan.${autoText}${invalidText}\n\nDoorgaan?`;
   if(!confirm(msg))return;
   state=hybrid.state;
   const now=new Date().toISOString();
   for(const o of state.orders||[])if(o.weekCapacityReservations){o.planningDecision='hybrid_week_capacity';o.planningDecisionAt=now}
   if(typeof save==='function')save();
   if(typeof renderWeeks==='function')renderWeeks();
-  alert(`Planning bijgewerkt. ${hybrid.exactTasks} taak/taken staan exact in de komende 5 werkdagen. Later werk is alleen per week gereserveerd.${hybrid.late.length?' '+hybrid.late.length+' order(s) blijven aandacht vragen voor hun deadline.':''}`);
+  let done=`Planning bijgewerkt. ${hybrid.exactTasks} taak/taken staan exact in de komende 5 werkdagen. Later werk is alleen per week gereserveerd.`;if(hybrid.autoDeadlines.length)done+=`\n\nAutomatische planningsdeadline gebruikt voor:\n`+hybrid.autoDeadlines.map(x=>`${x.orderNo}: ${x.date}`).join('\n');if(hybrid.invalid.length)done+=`\n\nNiet ingepland omdat gegevens ontbreken:\n`+hybrid.invalid.map(x=>`${x.orderNo}: ${x.issues.join(', ')}`).join('\n');if(hybrid.late.length)done+=`\n\n${hybrid.late.length} order(s) blijven aandacht vragen voor hun deadline.`;alert(done);
 }
 function decorate(){
   const panel=document.querySelector('#view-weeks .production-sequence-panel');if(!panel)return;
