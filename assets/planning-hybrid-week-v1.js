@@ -145,7 +145,7 @@ function resetGeneratedPlanning(){
   if(!['automatic','hybrid-week','week-auto'].includes(String(t.planningOrigin||'')))continue;
   t.planSegments=[];t.date=null;t.start='';t.employee=null;t.waitStartAt='';t.waitEndAt='';t.externalSentDate='';t.expectedReturnDate='';t.lockedPlanning=false;delete t.assignedMachine;delete t.planningOrigin;
  }
- for(const o of s.orders||[]){if(o?.planningDecision==='hybrid_week_capacity'){delete o.weekCapacityReservations;delete o.expectedReadyWeek;delete o.expectedReadyDate}}
+ for(const o of s.orders||[]){if(o?.planningDecision==='hybrid_week_capacity'){delete o.weekCapacityReservations;delete o.expectedReadyWeek;delete o.expectedReadyDate;delete o.productionEmployee}}
 }
 async function plan(){
   const btn=document.querySelector('[data-hybrid-plan]');
