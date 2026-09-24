@@ -1,6 +1,6 @@
 // Hybrid planner: exact next 5 workdays, weekly capacity reservations after that.
 (()=>{
-const VERSION='20260924-5';
+const VERSION='20260924-6';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -84,6 +84,7 @@ function openMissingData(preview){
    const fields=(x.details||[]).map(d=>{
      if(d.type==='no_duration')return `<label style="display:grid;grid-template-columns:minmax(180px,1fr) 130px;gap:10px;align-items:center;margin:8px 0"><span>${esc(d.taskName||'Taak')} · duur</span><span style="display:flex;align-items:center;gap:6px"><input class="input" type="number" min="0.01" step="0.05" inputmode="decimal" data-missing-duration="${esc(d.taskId)}" placeholder="uren"> uur</span></label>`;
      if(d.type==='no_process')return `<div class="notice" style="margin:8px 0">Deze order heeft nog geen processtappen. <button class="btn small" type="button" data-open-missing-order="${esc(x.id)}">Order openen</button></div>`;
+     if(d.type==='planning_error')return `<div class="notice" style="margin:8px 0"><b>${esc(d.label||'Planningsfout')}</b>${x.id!=='__planner__'?` <button class="btn small" type="button" data-open-missing-order="${esc(x.id)}">Order openen</button>`:''}</div>`;
      return `<div>${esc(d.label||'Ontbrekende gegevens')}</div>`;
    }).join('');
    return `<div class="panel" style="padding:12px;margin:10px 0"><b>${esc(x.orderNo)} · ${esc(x.product||'')}</b>${fields}</div>`;
