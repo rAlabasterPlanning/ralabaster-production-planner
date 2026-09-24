@@ -181,7 +181,10 @@ function shiftDate(date,days){return typeof addDays==='function'?addDays(date,da
 function dateDistance(a,b){const x=new Date(a+'T12:00:00'),y=new Date(b+'T12:00:00');return Math.round((y-x)/86400000)}
 function manualPlanReview(){if(!recalculateReview(false))return;const review=window.__ralabOrderPlanReview;if(!review)return;const live=clone(S());setState(review.result.state);const o=findOrder(review.id),assessment=reviewAssessment(S(),review.id),warnings=[...assessment.blocking,...assessment.notices];if(warnings.length&&!confirm(`Deze handmatige planning overschrijft de normale regels.\n\n${warnings.slice(0,8).join('\n')}\n\nToch exact zo inplannen en vastzetten?`)){setState(live);return}for(const t of tasksFor(review.id)){if(!done(t)&&hasPlanning(t)){t.lockedPlanning=true;t.planningOrigin='manual'}}const next={...review.result,state:clone(S()),health:planner()?.health?.(o)||review.result.health,parallelNotices:assessment.notices,manualOverride:true};setState(live);window.__ralabOrderPlanReview=null;applyPlannedState(next,review.id,'manual_override')}
 function planAndCheck(id){
- const o=findOrder(id);if(!o)return;const deadline=deadlineOf(o);if(!deadline){alert('Vul eerst een klantdeadline in. Zonder deadline kan de planner de haalbaarheid niet controleren.');return}
+ const o=findOrder(id);if(!o)return;
+ const issues=planningIssues(o);if(issues.length){alert('Deze order is nog niet compleet:\n\n'+(o.orderNo||o.id)+' · '+(o.product||'')+'\n- '+issues.join('\n- '));return}
+ if(!deadlineOf(o)){const fallback=automaticPlanningDeadline(o);o.planningFallbackDeadline=fallback.date;o.planningFallbackLeadDays=fallback.leadDays;o.planningDeadlineSource='automatic_minimum_plus_4_weeks';}
+ const deadline=deadlineOf(o);
  try{closeModal()}catch(_){ }
  const normal=simulate(id,{allowPeter:false,allowSaturday:false});if(!normal){alert('De planningsmodule is nog niet gereed. Ververs de app en probeer opnieuw.');return}
  if(normal.health?.status!=='bad'){openPlanReview(normal,id,'planned_deadline_order');return}
