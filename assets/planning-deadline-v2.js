@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260924-3';
+const VERSION='20260924-4';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=30;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -55,7 +55,11 @@ function freeWindows(date,emp,key,excludeIds,allowSaturday,allowPeter){
 }
 function allocateInternal(t,earliestAt,opts={}){
  const allowSaturday=!!opts.allowSaturday,allowPeter=!!opts.allowPeter,excludeIds=opts.excludeIds||new Set([t.id]);
- const preferred=!isSetup(t)?(opts.preferredEmployee||t.employee||null):null;let employees=preferred?[preferred,...['Kaan','Lance','Shaffi','Ralph'].filter(x=>x!==preferred)]:['Kaan','Lance','Shaffi','Ralph'];if(allowPeter)employees.push('Peter');if(!preferred&&!isSetup(t))employees=window.RALAB_WORKPLACES?.candidateEmployees?.(t,employees)||employees;
+ const preferred=!isSetup(t)?(opts.preferredEmployee||t.employee||null):null;
+ let base=['Kaan','Lance','Shaffi','Ralph'];if(allowPeter)base.push('Peter');
+ if(!isSetup(t))base=window.RALAB_WORKPLACES?.candidateEmployees?.(t,base)||base;
+ let employees=base;
+ if(preferred&&base.includes(preferred))employees=opts.lockEmployee?[preferred]:[preferred,...base.filter(x=>x!==preferred)];
  if(isSetup(t))employees=['Ralph'];
  let need=Math.max(0,Number(t.estimate)||0);if(need===0){t.planSegments=[];t.date=dtDate(earliestAt);return earliestAt}
  let d=dtDate(earliestAt),firstDay=true,segs=[],guard=0,selectedMachine=t.assignedMachine||null;
@@ -87,13 +91,24 @@ function scheduleWaitStrict(t,startAt){
  t.employee=null;t.planSegments=[];t.waitStartAt=start;t.waitEndAt=finish;t.date=dtDate(start);t.start=dtTime(start);t.plannedReleaseAt=finish;
  return finish;
 }
+function chooseFlowEmployee(o,ts,opts={}){
+ const existing=o?.productionEmployee;
+ if(existing)return existing;
+ const first=ts.find(t=>!isSetup(t)&&!isExternalTask(t)&&!isDryTask(t)&&!frozen(t));
+ if(!first)return null;
+ if(first.employee&&first.employee!=='Ralph')return first.employee;
+ if(first.preferredEmployee&&first.preferredEmployee!=='Ralph')return first.preferredEmployee;
+ let candidates=['Kaan','Lance','Shaffi','Ralph'];if(opts.allowPeter)candidates.push('Peter');
+ candidates=window.RALAB_WORKPLACES?.candidateEmployees?.(first,candidates)||candidates;
+ return candidates.find(x=>x!=='Ralph')||candidates[0]||null;
+}
 function planOrderStrict(o,opts={}){
- setDerivedDates(o);const ts=orderTasks(o.id).filter(t=>!taskDone(t)&&!isGeneral(t)).sort((a,b)=>a.seq-b.seq);let cursor=chainStartForOrder(o),lastEmployee=null;
+ setDerivedDates(o);const ts=orderTasks(o.id).filter(t=>!taskDone(t)&&!isGeneral(t)).sort((a,b)=>a.seq-b.seq);let cursor=chainStartForOrder(o),flowEmployee=chooseFlowEmployee(o,ts,opts),lastEmployee=flowEmployee;if(flowEmployee)o.productionEmployee=flowEmployee;
  for(let i=0;i<ts.length;i++){const t=ts[i];if(frozen(t)){const f=taskFinishAt(t);if(f&&f>cursor)cursor=f;lastEmployee=t.employee||lastEmployee;continue}
    const next=ts[i+1];
-   if(isDryTask(t)){cursor=scheduleWaitStrict(t,cursor);lastEmployee=null;continue}
-   if(isExternalTask(t)){const send=dtDate(cursor),lead=Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14);t.employee=null;t.planSegments=[];t.date=send;t.start='';if(t.status==='external'&&t.externalSentDate)t.expectedReturnDate=addCal(t.externalSentDate,lead);else t.expectedReturnDate=addCal(send,lead);cursor=dtString(t.expectedReturnDate,'00:00');lastEmployee=null;continue}
-   const flowOpts={...opts,preferredEmployee:lastEmployee||opts.preferredEmployee||null};
+   if(isDryTask(t)){cursor=scheduleWaitStrict(t,cursor);lastEmployee=flowEmployee;continue}
+   if(isExternalTask(t)){const send=dtDate(cursor),lead=Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14);t.employee=null;t.planSegments=[];t.date=send;t.start='';if(t.status==='external'&&t.externalSentDate)t.expectedReturnDate=addCal(t.externalSentDate,lead);else t.expectedReturnDate=addCal(send,lead);cursor=dtString(t.expectedReturnDate,'00:00');lastEmployee=flowEmployee;continue}
+   const flowOpts={...opts,preferredEmployee:lastEmployee||flowEmployee||opts.preferredEmployee||null,lockEmployee:true};
    if(isSetup(t)&&next&&!isExternalTask(next)&&!isDryTask(next)&&!frozen(next)){
      cursor=pairSetupWithExecution(t,next,cursor,flowOpts);
      const nextPlanned=taskDone(next)||taskStarted(next)||(Array.isArray(next.planSegments)&&next.planSegments.length>0)||!!next.date;
