@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260924-11';
+const VERSION='20260924-12';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -121,6 +121,39 @@ function simulate(id,opts){
  if(h?.finish){o.internalExpectedDate=h.finish;h=p.health(o)}
  const result={state:isolateTargets(clone(S()),backup,[id]),health:h,peterMinutes:countMinutes(id,g=>g.employee==='Peter'),saturdayMinutes:countMinutes(id,g=>g.date&&typeof parseDate==='function'&&parseDate(g.date).getDay()===6)};
  setState(backup);return result;
+}
+function simulateSequentialRemaining(opts={}){
+ const backup=clone(S());setState(backup);
+ let prepared;
+ try{prepared=preparePlanningOrders()}catch(err){setState(backup);return{state:backup,orders:[],autoDeadlines:[],invalid:[{id:'__planner__',orderNo:'Planner',product:'',issues:[String(err?.message||err)],details:[{type:'planning_error',label:String(err?.message||err)}]}],late:[],error:String(err?.message||err)}}
+ const orders=prepared.orders,autoDeadlines=prepared.autoDeadlines,invalid=[...(prepared.invalid||[])],p=planner();
+ if(!p?.planOrderStrict){setState(backup);return{state:backup,orders:[],autoDeadlines,invalid:[...invalid,{id:'__planner__',orderNo:'Planner',product:'',issues:['Planningsengine niet beschikbaar'],details:[{type:'planning_error',label:'Planningsengine niet beschikbaar'}]}],late:[]}}
+ try{
+  for(const t of S().tasks||[]){
+   if(!movable(t)||!hasPlanning(t))continue;
+   if(['automatic','hybrid-week','week-auto'].includes(String(t.planningOrigin||''))){clearOneTask(t);continue}
+   t.lockedPlanning=true;t.planningOrigin=t.planningOrigin||'manual-existing';
+  }
+  const rows=[];
+  const ordered=orders.slice().sort((a,b)=>byManualSequence(a,b)||(deadlineOf(a)||'9999-12-31').localeCompare(deadlineOf(b)||'9999-12-31')||priorityOf(b)-priorityOf(a)||(a.orderNo||'').localeCompare(b.orderNo||''));
+  for(const original of ordered){
+   const o=findOrder(original.id);if(!o)continue;
+   try{
+    p.planOrderStrict(o,{allowPeter:false,allowSaturday:false,planningStart:opts.planningStart||''});
+    for(const t of tasksFor(o.id)){if(movable(t)&&hasPlanning(t)&&!t.planningOrigin){t.planningOrigin='automatic';t.lockedPlanning=true}}
+    let h=p.health?.(o)||{};if(h.finish){o.internalExpectedDate=h.finish;h=p.health?.(o)||h}
+    rows.push({id:o.id,orderNo:o.orderNo||'',product:o.product||'',deadline:deadlineOf(o),priority:priorityOf(o),health:h});
+   }catch(err){
+    const msg=String(err?.message||err||'Onbekende planningsfout');
+    invalid.push({id:o.id,orderNo:o.orderNo||o.id,product:o.product||'',issues:['planningsfout: '+msg],details:[{type:'planning_error',label:'Planningsfout: '+msg}]});
+   }
+  }
+  const stateOut=clone(S()),late=rows.filter(x=>x.health?.status==='bad');setState(backup);
+  return{state:stateOut,orders:rows,autoDeadlines,invalid,late,strategy:'productievolgorde',alternatives:1,batchAlternative:null,sequentialFallback:true};
+ }catch(err){
+  const msg=String(err?.message||err||'Onbekende planningsfout');setState(backup);
+  return{state:backup,orders:[],autoDeadlines,invalid:[...invalid,{id:'__planner__',orderNo:'Planner',product:'',issues:[msg],details:[{type:'planning_error',label:msg}]}],late:[],error:msg};
+ }
 }
 function simulateRemaining(opts={}){
  const backup=clone(S());setState(backup);
@@ -248,6 +281,6 @@ function safeHandlePlanControl(e){try{return handlePlanControl(e)}catch(err){con
 document.addEventListener('click',e=>{
  safeHandlePlanControl(e);
 },true);
-window.RALAB_ORDER_CONTROLS={version:VERSION,planAndCheck,confirmPlanRemaining,executePlanRemaining,confirmUnplanOrder,executeUnplanAll,confirmUnplanAll,openPlanReview,recalculateReview,reviewWarnings,simulate,simulateRemaining,remainingOrders,planningIssueDetails,automaticPlanningDeadline,diagnosePlanningOrders};
+window.RALAB_ORDER_CONTROLS={version:VERSION,planAndCheck,confirmPlanRemaining,executePlanRemaining,confirmUnplanOrder,executeUnplanAll,confirmUnplanAll,openPlanReview,recalculateReview,reviewWarnings,simulate,simulateRemaining,simulateSequentialRemaining,remainingOrders,planningIssueDetails,automaticPlanningDeadline,diagnosePlanningOrders};
 const style=document.createElement('style');style.textContent=`.plan-review-modal{width:min(1180px,96vw)!important}.plan-review-table{overflow:auto;max-height:55vh;border:1px solid #d9dfdc;border-radius:8px}.plan-review-table table{min-width:980px}.plan-review-table th{position:sticky;top:0;background:#f5f7f6;z-index:1}.plan-review-table td{vertical-align:top}.plan-review-table .input{min-width:125px}.review-estimate{display:grid;gap:3px;font-size:11px;font-weight:700}.review-estimate>span:last-child{display:flex;align-items:center;gap:5px;white-space:nowrap}.review-estimate .input{min-width:76px;width:76px}.plan-review-summary{padding:11px 13px;border-radius:8px;margin-bottom:12px}.plan-review-summary.ok{background:#e8f6ec}.plan-review-summary.risk{background:#fff4d8}.plan-review-summary.bad{background:#ffe5e2}@media(max-width:800px){.plan-review-modal{width:98vw!important}.plan-review-table{max-height:58vh}}`;document.head.appendChild(style);
 })();
