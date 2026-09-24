@@ -1,6 +1,6 @@
 // Weekly production sequence: one persisted order-level ranking used as the base for daily planning.
 (()=>{
-const VERSION='20260924-3';
+const VERSION='20260924-4';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const S=()=>{try{return state}catch(_){return null}};
 const activeOrders=()=>{
@@ -70,6 +70,7 @@ function row(o){
       <b>${esc(o.orderNo||'Order')} · ${esc(o.product||'')}</b>
       <span>${esc(customer)}${customer?' · ':''}deadline ${esc(deadline)}${ready?' · verwacht '+esc(ready):''}</span>
     </div>
+    <label class="prod-seq-owner"><span>Hoofdmedewerker</span><select class="input" data-prod-owner="${esc(o.id)}"><option value="" ${!o.productionEmployeeOverride?'selected':''}>Auto</option><option value="Kaan" ${o.productionEmployeeOverride==='Kaan'?'selected':''}>Kaan</option><option value="Lance" ${o.productionEmployeeOverride==='Lance'?'selected':''}>Lance</option><option value="Shaffi" ${o.productionEmployeeOverride==='Shaffi'?'selected':''}>Shaffi</option><option value="Peter" ${o.productionEmployeeOverride==='Peter'?'selected':''}>Peter</option></select></label>
   </div>`;
 }
 function decorate(){
@@ -101,7 +102,7 @@ function installStyle(){
   .prod-seq-list{display:grid;gap:7px;margin-top:10px;max-height:360px;overflow:auto;padding-right:2px}
   .prod-seq-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(127,127,127,.18);border-radius:9px;background:rgba(127,127,127,.04)}
   .prod-seq-number{width:82px;flex:0 0 82px}.prod-seq-number label{display:block;font-size:10px;opacity:.65;margin-bottom:2px}.prod-seq-input{width:72px;text-align:center;font-weight:800}
-  .prod-seq-main{min-width:0;display:flex;flex-direction:column;gap:2px}.prod-seq-main b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.prod-seq-main span{font-size:11px;opacity:.68;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prod-seq-main{min-width:0;display:flex;flex:1;flex-direction:column;gap:2px}.prod-seq-main b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.prod-seq-main span{font-size:11px;opacity:.68;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.prod-seq-owner{width:150px;flex:0 0 150px}.prod-seq-owner>span{display:block;font-size:10px;opacity:.65;margin-bottom:2px}.prod-seq-owner select{width:100%}
   @media(max-width:700px){.prod-seq-head{align-items:center}.prod-seq-row{padding:7px}.prod-seq-number{width:70px;flex-basis:70px}.prod-seq-input{width:62px}}
   `;
   document.head.appendChild(style);
@@ -112,6 +113,16 @@ function install(){
   const old=window.renderWeeks;
   window.renderWeeks=function(){const r=old.apply(this,arguments);setTimeout(decorate,0);return r};
   document.addEventListener('change',e=>{
+    const owner=e.target.closest?.('[data-prod-owner]');
+    if(owner){
+      const o=activeOrders().find(x=>x.id===owner.dataset.prodOwner);if(!o)return;
+      const v=String(owner.value||'').trim();
+      if(v)o.productionEmployeeOverride=v;else delete o.productionEmployeeOverride;
+      delete o.productionEmployee;
+      if(typeof save==='function')save();
+      refreshSequencePanel();
+      return;
+    }
     const input=e.target.closest?.('[data-prod-seq-input]');if(!input)return;
     const raw=String(input.value||'').trim();
     move(input.dataset.prodSeqInput,raw===''?'':Math.max(1,Math.min(activeOrders().length,Number(raw)||1)));
