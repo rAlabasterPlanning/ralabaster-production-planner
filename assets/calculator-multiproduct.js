@@ -1,6 +1,6 @@
 // rAlabaster - overzichtelijke processelectie + meerdere producten per calculatie
 (()=>{
-const OPS_NAMES=['Technisch uitwerken','Verpakking bestellen','Materiaal bestellen','Alabaster klaarzetten','Zagerij Ermelo (extern)','Ruw materiaal boren','Doppen lijmen','Droogruimte','Mori - Instellen','Mori ZL15 #1','Mori ZL15 #2','Mori SL25','Teach-In draaibank - instellen','Teach-In Draaibank (RALAB)','Reichenbacher - Instellen','Reichenbacher','KUKA KR210 - Instellen','KUKA KR210','Kawasaki Boorrobot','Kolomboormachine','Schuren','Polijsten','Assemblage','Inpakken','INTERN - Algemeen','Zagen (Wiseco)','Waterjetten (extern)','Gildemeister - Instellen','Gildemeister'];
+const OPS_NAMES=['Technisch uitwerken','Verpakking bestellen','Materiaal bestellen','Alabaster klaarzetten','Zagerij Ermelo (extern)','Ruw materiaal boren','Doppen lijmen','Droogruimte','Mori - Instellen','Mori ZL15 #1','Mori ZL15 #2','Mori SL25','Teach-In draaibank - instellen','Teach-In Draaibank (RALAB)','Reichenbacher - Instellen','Reichenbacher','KUKA KR210 - Instellen','KUKA KR210','Kawasaki Boorrobot','Kolomboormachine','Schuren','Polijsten','Assemblage','Inpakken','INTERN - Algemeen','Zagen (Wiseco)','Waterjetten (extern)','Gildemeister - Instellen','Gildemeister','Steen inkopen Spanje (extern)'];
 const euro=n=>new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(Number(n)||0);
 const num=v=>{const n=Number(String(v??'').replace(',','.'));return Number.isFinite(n)?n:0};
 function S(){try{return state}catch(_){return null}}
