@@ -1,6 +1,6 @@
 // Weekly production sequence: one persisted order-level ranking used as the base for daily planning.
 (()=>{
-const VERSION='20260924-2';
+const VERSION='20260924-3';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const S=()=>{try{return state}catch(_){return null}};
 const activeOrders=()=>{
@@ -60,7 +60,7 @@ function clearSequence(){
 function row(o){
   const seq=seqOf(o)||'';
   const customer=o.customerName||o.customer||'';
-  const deadline=deadlineOf(o)==='9999-12-31'?'—':deadlineOf(o);
+  const deadline=deadlineOf(o)==='9999-12-31'?'—':deadlineOf(o),ready=o.expectedReadyWeek||'';
   return `<div class="prod-seq-row" data-prod-seq-row="${esc(o.id)}">
     <div class="prod-seq-number">
       <label>Volgorde</label>
@@ -68,7 +68,7 @@ function row(o){
     </div>
     <div class="prod-seq-main">
       <b>${esc(o.orderNo||'Order')} · ${esc(o.product||'')}</b>
-      <span>${esc(customer)}${customer?' · ':''}deadline ${esc(deadline)}</span>
+      <span>${esc(customer)}${customer?' · ':''}deadline ${esc(deadline)}${ready?' · verwacht '+esc(ready):''}</span>
     </div>
   </div>`;
 }
@@ -79,12 +79,16 @@ function decorate(){
   const list=normalize(false);
   const toolbar=root.querySelector('.toolbar');
   if(!toolbar)return;
-  const html=`<section class="production-sequence-panel">
+  const collapsed=localStorage.getItem('ralab-prod-seq-collapsed')==='1';
+  const html=`<section class="production-sequence-panel ${collapsed?'collapsed':''}">
     <div class="prod-seq-head">
+      <button class="prod-seq-toggle" type="button" data-prod-seq-toggle aria-expanded="${collapsed?'false':'true'}">${collapsed?'▸':'▾'}</button>
       <div><b>Productievolgorde</b><div>Dit is de hoofdvolgorde voor de week. Zet een order op een andere positie; de rest schuift automatisch door.</div></div>
       <button class="btn small" type="button" data-prod-seq-clear>Volgorde wissen</button>
     </div>
-    <div class="prod-seq-list">${list.length?list.map(row).join(''):'<div class="muted">Geen actieve orders.</div>'}</div>
+    <div class="prod-seq-body">
+      <div class="prod-seq-list">${list.length?list.map(row).join(''):'<div class="muted">Geen actieve orders.</div>'}</div>
+    </div>
   </section>`;
   toolbar.insertAdjacentHTML('afterend',html);
 }
@@ -93,7 +97,7 @@ function installStyle(){
   const style=document.createElement('style');style.id='prod-seq-style';
   style.textContent=`
   .production-sequence-panel{margin:10px 0 14px;padding:12px;border:1px solid var(--line,#d9dfdc);border-radius:12px;background:var(--card,#fff)}
-  .prod-seq-head{display:flex;gap:12px;align-items:flex-start}.prod-seq-head>div:first-child{flex:1}.prod-seq-head b{font-size:15px}.prod-seq-head div div{font-size:12px;opacity:.72;margin-top:2px}
+  .prod-seq-head{display:flex;gap:10px;align-items:flex-start}.prod-seq-head>div:nth-child(2){flex:1}.prod-seq-toggle{border:0;background:transparent;font-size:18px;line-height:1;padding:4px 2px;cursor:pointer}.production-sequence-panel.collapsed .prod-seq-body{display:none}.prod-seq-head b{font-size:15px}.prod-seq-head div div{font-size:12px;opacity:.72;margin-top:2px}
   .prod-seq-list{display:grid;gap:7px;margin-top:10px;max-height:360px;overflow:auto;padding-right:2px}
   .prod-seq-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(127,127,127,.18);border-radius:9px;background:rgba(127,127,127,.04)}
   .prod-seq-number{width:82px;flex:0 0 82px}.prod-seq-number label{display:block;font-size:10px;opacity:.65;margin-bottom:2px}.prod-seq-input{width:72px;text-align:center;font-weight:800}
@@ -113,6 +117,17 @@ function install(){
     move(input.dataset.prodSeqInput,raw===''?'':Math.max(1,Math.min(activeOrders().length,Number(raw)||1)));
   },true);
   document.addEventListener('click',e=>{
+    const toggle=e.target.closest?.('[data-prod-seq-toggle]');
+    if(toggle){
+      e.preventDefault();
+      const panel=toggle.closest('.production-sequence-panel');
+      const collapsed=!panel.classList.contains('collapsed');
+      panel.classList.toggle('collapsed',collapsed);
+      toggle.textContent=collapsed?'▸':'▾';
+      toggle.setAttribute('aria-expanded',collapsed?'false':'true');
+      localStorage.setItem('ralab-prod-seq-collapsed',collapsed?'1':'0');
+      return;
+    }
     if(e.target.closest?.('[data-prod-seq-clear]')){e.preventDefault();clearSequence();}
   },true);
   window.RALAB_PRODUCTION_SEQUENCE={version:VERSION,list:()=>normalize(false),move,normalize:()=>normalize(true),decorate};
