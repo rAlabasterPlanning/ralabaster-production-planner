@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260924-6';
+const VERSION='20260924-7';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -117,9 +117,21 @@ function simulateRemaining(){
 	  const byPriority=orders.slice().sort((a,b)=>byManualSequence(a,b)||priorityOf(b)-priorityOf(a)||deadlineOf(a).localeCompare(deadlineOf(b))||(a.orderNo||'').localeCompare(b.orderNo||''));
 	  const grouped=(()=>{const groups=new Map();for(const o of byUrgency){const k=productKey(o);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(o)}const used=new Set(),out=[];for(const o of byUrgency){const k=productKey(o);if(used.has(k))continue;used.add(k);out.push(...groups.get(k).sort((a,b)=>deadlineOf(a).localeCompare(deadlineOf(b))||priorityOf(b)-priorityOf(a)))}return out})();
 	  const candidates=[{name:'speling',orders:byUrgency},{name:'deadline',orders:byDeadline},{name:'productbatch',orders:grouped},{name:'prioriteit',orders:byPriority}],seen=new Set(),results=[];
-	  for(const candidate of candidates){const signature=candidate.orders.map(o=>o.id).join('|');if(seen.has(signature))continue;seen.add(signature);setState(protectedBase);const rows=[];for(const original of candidate.orders){const o=findOrder(original.id);if(!o)continue;p.planOrderStrict(o,{allowPeter:false,allowSaturday:false});for(const t of tasksFor(o.id)){if(movable(t)&&hasPlanning(t)&&!t.planningOrigin){t.planningOrigin='automatic';t.lockedPlanning=true}}let h=p.health?.(o)||{};if(h.finish){o.internalExpectedDate=h.finish;h=p.health?.(o)||h}rows.push({id:o.id,orderNo:o.orderNo||'',product:o.product||'',deadline:deadlineOf(o),priority:priorityOf(o),health:h})}const allLate=rows.filter(x=>x.health?.status==='bad'),score=[allLate.length,allLate.reduce((n,x)=>n+Math.max(1,daysLate(x.deadline,x.health?.finish)),0)];for(const priority of [3,2,1]){const late=allLate.filter(x=>x.priority===priority);score.push(late.length,late.reduce((n,x)=>n+Math.max(1,daysLate(x.deadline,x.health?.finish)),0))}results.push({name:candidate.name,state:clone(S()),orders:rows,score})}
+	  for(const candidate of candidates){const signature=candidate.orders.map(o=>o.id).join('|');if(seen.has(signature))continue;seen.add(signature);setState(protectedBase);const rows=[];for(const original of candidate.orders){const o=findOrder(original.id);if(!o)continue;
+try{p.planOrderStrict(o,{allowPeter:false,allowSaturday:false})}
+catch(err){
+ const msg=String(err?.message||err||'Onbekende planningsfout');
+ if(!invalid.some(x=>x.id===o.id))invalid.push({id:o.id,orderNo:o.orderNo||o.id,product:o.product||'',issues:['planningsfout: '+msg],details:[{type:'planning_error',label:'Planningsfout: '+msg}]});
+ continue;
+}
+for(const t of tasksFor(o.id)){if(movable(t)&&hasPlanning(t)&&!t.planningOrigin){t.planningOrigin='automatic';t.lockedPlanning=true}}let h=p.health?.(o)||{};if(h.finish){o.internalExpectedDate=h.finish;h=p.health?.(o)||h}rows.push({id:o.id,orderNo:o.orderNo||'',product:o.product||'',deadline:deadlineOf(o),priority:priorityOf(o),health:h})}const allLate=rows.filter(x=>x.health?.status==='bad'),score=[allLate.length,allLate.reduce((n,x)=>n+Math.max(1,daysLate(x.deadline,x.health?.finish)),0)];for(const priority of [3,2,1]){const late=allLate.filter(x=>x.priority===priority);score.push(late.length,late.reduce((n,x)=>n+Math.max(1,daysLate(x.deadline,x.health?.finish)),0))}results.push({name:candidate.name,state:clone(S()),orders:rows,score})}
 		  results.sort((a,b)=>{for(let i=0;i<a.score.length;i++){if(a.score[i]!==b.score[i])return a.score[i]-b.score[i]}return candidates.findIndex(x=>x.name===a.name)-candidates.findIndex(x=>x.name===b.name)});let best=results[0],batch=results.find(x=>x.name==='productbatch'),batchAlternative=null;if(batch){const deadlineWorse=batch.score[0]>best.score[0]||(batch.score[0]===best.score[0]&&batch.score[1]>best.score[1]);if(!deadlineWorse)best=batch;else{const baseFinish=new Map(best.orders.map(x=>[x.id,x.health?.finish||''])),delays=batch.orders.filter(x=>x.health?.finish&&baseFinish.get(x.id)&&x.health.finish>baseFinish.get(x.id)).map(x=>({...x,from:baseFinish.get(x.id),days:dateDistance(baseFinish.get(x.id),x.health.finish)}));const groups=[...new Map(orders.map(o=>[productKey(o),orders.filter(x=>productKey(x)===productKey(o))])).values()].filter(g=>g.length>1).map(g=>({product:g[0].product||'',orders:g.map(x=>x.orderNo||x.id)}));batchAlternative={state:batch.state,orders:batch.orders,late:batch.orders.filter(x=>x.health?.status==='bad'),strategy:batch.name,delays,groups}}setState(backup);return{state:best.state,orders:best.orders,missingDeadline:[],autoDeadlines,invalid,late:best.orders.filter(x=>x.health?.status==='bad'),strategy:best.name,alternatives:results.length,batchAlternative}}
- }catch(e){console.error(e);setState(backup);return null}
+ }catch(e){
+ console.error(e);
+ const msg=String(e?.message||e||'Onbekende planningsfout');
+ setState(backup);
+ return {state:backup,orders:[],missingDeadline:[],autoDeadlines,invalid:[...invalid,{id:'__planner__',orderNo:'Planner',product:'',issues:[msg],details:[{type:'planning_error',label:msg}]}],late:[],error:msg};
+}
 }
 function confirmPlanRemaining(){
  const preview=simulateRemaining();if(!preview)return alert('De planningsmodule kon geen voorstel berekenen.');if(!preview.orders.length){if(preview.invalid?.length)return alert('Deze orders zijn nog niet compleet:\n\n'+preview.invalid.map(x=>x.orderNo+' · '+(x.product||'')+'\n- '+x.issues.join('\n- ')).join('\n\n'));return alert('Er zijn geen ongeplande taken meer.');}
