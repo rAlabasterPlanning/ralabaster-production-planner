@@ -112,7 +112,7 @@ function scheduleWaitStrict(t,startAt){
 }
 function chooseFlowEmployee(o,ts,opts={}){
  const existing=o?.productionEmployee;
- if(existing)return existing;
+ if(existing&&existing!=='Ralph')return existing;
  const first=ts.find(t=>!isSetup(t)&&!isExternalTask(t)&&!isDryTask(t)&&!frozen(t));
  if(!first)return null;
  if(first.employee&&first.employee!=='Ralph')return first.employee;
