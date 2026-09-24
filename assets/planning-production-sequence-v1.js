@@ -1,6 +1,6 @@
 // Weekly production sequence: one persisted order-level ranking used as the base for daily planning.
 (()=>{
-const VERSION='20260924-1';
+const VERSION='20260924-2';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const S=()=>{try{return state}catch(_){return null}};
 const activeOrders=()=>{
@@ -26,6 +26,18 @@ function normalize(saveNow=false){
   if(saveNow&&typeof save==='function')save();
   return normalizedOrders();
 }
+function refreshSequencePanel(focusId=''){
+  const listEl=document.querySelector('#view-weeks .prod-seq-list');
+  if(!listEl)return decorate();
+  const panel=document.querySelector('#view-weeks .production-sequence-panel');
+  const panelScroll=listEl.scrollTop;
+  listEl.innerHTML=normalizedOrders().map(row).join('')||'<div class="muted">Geen actieve orders.</div>';
+  listEl.scrollTop=panelScroll;
+  if(focusId){
+    const input=listEl.querySelector('[data-prod-seq-input="'+CSS.escape(focusId)+'"]');
+    if(input){input.focus({preventScroll:true});input.select?.()}
+  }
+}
 function move(orderId,target){
   const all=activeOrders(),item=all.find(o=>o.id===orderId);if(!item)return;
   const ranked=all.filter(o=>o.id!==orderId&&seqOf(o)>0).sort((a,b)=>seqOf(a)-seqOf(b));
@@ -37,13 +49,13 @@ function move(orderId,target){
     ranked.forEach((o,i)=>o.productionSequence=i+1);
   }
   if(typeof save==='function')save();
-  if(typeof renderWeeks==='function')renderWeeks();
+  refreshSequencePanel(orderId);
 }
 function clearSequence(){
   if(!confirm('Productievolgorde wissen?'))return;
   activeOrders().forEach(o=>delete o.productionSequence);
   if(typeof save==='function')save();
-  if(typeof renderWeeks==='function')renderWeeks();
+  refreshSequencePanel();
 }
 function row(o){
   const seq=seqOf(o)||'';
