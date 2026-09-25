@@ -136,22 +136,21 @@ async function refreshEarliestDeliveryDates(){
  const controls=window.RALAB_ORDER_CONTROLS;
  const cells=[...root.querySelectorAll('[data-earliest-delivery]')];if(!cells.length)return;
  const fallback=new Map((S()?.orders||[]).map(o=>[o.id,plannedReadyDate(o)]));
- if(!controls?.simulateRemaining){for(const cell of cells){const d=fallback.get(cell.dataset.earliestDelivery)||'';cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Nog berekenen</span>'}return}
- try{
-   const today=iso();
-   let preview=controls.simulateRemaining({planningStart:today});
-   const expected=controls.remainingOrders?.().length||0;
-   const covered=(preview?.orders?.length||0)+(preview?.invalid||[]).filter(x=>x.id!=='__planner__').length;
-   if(expected>covered)preview=controls.simulateSequentialRemaining?.({planningStart:today})||preview;
+ if(!controls?.simulate){for(const cell of cells){const d=fallback.get(cell.dataset.earliestDelivery)||'';cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Nog berekenen</span>'}return}
+ const today=iso();
+ for(const cell of cells){
    if(run!==earliestDeliveryRun)return;
-   const finish=new Map((preview?.orders||[]).map(x=>[x.id,String(x.health?.finish||'').slice(0,10)]));
-   for(const cell of cells){
-     const id=cell.dataset.earliestDelivery,d=finish.get(id)||fallback.get(id)||'';
+   const id=cell.dataset.earliestDelivery;
+   try{
+     const preview=controls.simulate(id,{planningStart:today,allowPeter:false,allowSaturday:false});
+     const d=String(preview?.health?.finish||'').slice(0,10)||fallback.get(id)||'';
+     cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Niet berekend</span>';
+   }catch(e){
+     console.error('Vroegst uitleveren berekenen mislukt voor order',id,e);
+     const d=fallback.get(id)||'';
      cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Niet berekend</span>';
    }
- }catch(e){
-   console.error('Vroegst uitleveren berekenen mislukt',e);
-   for(const cell of cells){const d=fallback.get(cell.dataset.earliestDelivery)||'';cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Niet berekend</span>'}
+   await new Promise(r=>setTimeout(r,0));
  }
 }
 function renderOrderOverview(){
