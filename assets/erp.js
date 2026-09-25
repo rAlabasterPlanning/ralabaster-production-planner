@@ -91,17 +91,18 @@ function renderOrderOverview(){
  root.innerHTML=`<div class="toolbar"><h2>Orderoverzicht</h2><span class="pill">${all.length} actief</span><div class="spacer"></div><button class="btn" onclick="RALAB_ERP.show('calculation')">+ Nieuwe calculatie</button></div>
  <div class="notice"><b>Productievolgorde:</b> standaard op deadline. Vul alleen een volgordenummer in als je handmatig wilt overrulen. Deadline is direct in de lijst aanpasbaar.</div>
  <div class="panel" style="overflow:auto">
- <table class="order-overview-list" style="min-width:1000px"><thead><tr><th style="width:78px">Volgorde</th><th>Order</th><th>Klant / product</th><th style="width:155px">Deadline</th><th>Volgende stap</th><th style="width:170px">Wanneer</th><th style="width:110px">Prioriteit</th><th style="width:80px"></th></tr></thead><tbody>
+ <table class="order-overview-list" style="min-width:1000px"><thead><tr><th style="width:78px">Volgorde</th><th>Order</th><th>Klant / product</th><th style="width:155px">Deadline</th><th style="width:120px">Productiestart</th><th>Volgende stap</th><th style="width:170px">Wanneer</th><th style="width:110px">Prioriteit</th><th style="width:80px"></th></tr></thead><tbody>
  ${all.map(o=>{const n=nextStepInfo(o),seq=orderSequenceValue(o)||'',deadline=(o.communicatedDeadline||o.maximumReadyDate||o.deadline||'');return `<tr data-overview-order="${esc(o.id)}">
    <td><input class="input" style="width:68px;text-align:center" type="number" min="1" placeholder="auto" data-overview-sequence="${esc(o.id)}" value="${esc(seq)}"></td>
    <td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')"><b>${esc(o.orderNo||'')}</b></button></td>
    <td><b>${esc(o.product||'')}</b><div class="muted">${esc(o.customerName||'')} · ${Number(o.qty)||0} st.</div></td>
    <td><div style="display:grid;grid-template-columns:minmax(135px,1fr) 92px;gap:6px;align-items:center"><input class="input" type="date" data-overview-deadline="${esc(o.id)}" value="${esc(deadline)}"><label style="display:flex;align-items:center;gap:4px;white-space:nowrap"><input class="input" style="width:58px;text-align:center" type="number" min="0" step="1" placeholder="x" data-overview-deadline-weeks="${esc(o.id)}"><span class="muted">wk</span></label></div></td>
+   <td><b>${esc(o.productionStartWeek?('Week '+String(o.productionStartWeek).slice(-2)):'Nog berekenen')}</b><div class="muted">${esc(o.planningTargetReadyDate?('gereeddoel '+o.planningTargetReadyDate):'')}</div></td>
    <td><b>${esc(n.task?.name||'Gereed')}</b><div class="muted">${esc(n.task?.machine||'')}</div></td>
    <td><b>${esc(n.label)}</b>${n.date?`<div class="muted">${esc(n.date)}</div>`:''}</td>
    <td>${priorityStars(o)}</td>
    <td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')">Open</button></td>
- </tr>`}).join('')||'<tr><td colspan="8">Geen actieve orders.</td></tr>'}
+ </tr>`}).join('')||'<tr><td colspan="9">Geen actieve orders.</td></tr>'}
  </tbody></table></div>`;
 }
 function orderDeadlineValue(o){return o?.communicatedDeadline||o?.maximumReadyDate||o?.deadline||'9999-12-31'}
@@ -116,7 +117,7 @@ function setOrderPriority(id,value){
 }
 function setOverviewDeadline(id,value){
  const o=S()?.orders?.find(x=>x.id===id&&!x.deleted);if(!o)return false;
- o.communicatedDeadline=value||'';o.deadline=value||'';o.maximumReadyDate=value||'';o.internalTargetDate=value?(()=>{const d=new Date(value+'T12:00:00');d.setDate(d.getDate()-14);return d.toISOString().slice(0,10)})():'';
+ o.communicatedDeadline=value||'';o.deadline=value||'';o.maximumReadyDate=value||'';o.internalTargetDate=value?(()=>{const d=new Date(value+'T12:00:00');d.setDate(d.getDate()-7);return d.toISOString().slice(0,10)})():'';
  o.planningCheckedAt='';o.weekPlanningUpdatedAt='';try{window.RALAB_PERFORMANCE?.invalidate?.();save()}catch(e){console.error(e);return false}const p=window.RALAB_HYBRID_PLANNER?.ensureWeekAssignments?.(true);if(p?.then)p.then(()=>renderOrderOverview());else renderOrderOverview();return true;
 }
 function setOverviewDeadlineWeeks(id,weeks){
