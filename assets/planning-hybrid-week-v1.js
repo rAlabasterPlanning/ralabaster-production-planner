@@ -1,6 +1,6 @@
 // Week-only planner: automatically allocate work to weeks; exact day/time planning stays manual.
 (()=>{
-const VERSION='20260925-11';
+const VERSION='20260925-12';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -222,6 +222,26 @@ function needsWeekAssignment(){
  const ids=new Set(active.map(o=>o.id));
  return (s.tasks||[]).some(t=>ids.has(t.orderId)&&!t.deleted&&!['done','completed','external','in_progress','partial','partly'].includes(String(t.status||'').toLowerCase())&&!t.planningWeek);
 }
+function theoreticalPreview(controls,weekStart){
+ const live=clone(S()),theory=clone(live);
+ for(const t of theory.tasks||[]){
+   const st=String(t.status||'').toLowerCase();
+   if(t.deleted||['done','completed','in_progress','started','partial','partly'].includes(st)||Number(t.actual)>0||Number(t.doneQty)>0)continue;
+   t.planSegments=[];t.date=null;t.start='';t.employee=null;t.lockedPlanning=false;
+   t.waitStartAt='';t.waitEndAt='';t.externalSentDate='';t.expectedReturnDate='';
+   delete t.assignedMachine;delete t.planningOrigin;
+ }
+ try{
+   state=theory;
+   let preview=controls.simulateRemaining({planningStart:weekStart});
+   const expectedCount=controls.remainingOrders?.().length||0;
+   const incomplete=p=>expectedCount>0&&((p?.orders?.length||0)+(p?.invalid||[]).filter(x=>x.id!=='__planner__').length)<expectedCount;
+   if(!preview?.orders?.length||incomplete(preview))preview=controls.simulateSequentialRemaining?.({planningStart:weekStart})||preview;
+   return preview;
+ }finally{
+   state=live;
+ }
+}
 let autoAssignBusy=false;
 async function ensureWeekAssignments(force=false){
  if(autoAssignBusy)return false;
@@ -232,10 +252,7 @@ async function ensureWeekAssignments(force=false){
    const controls=window.RALAB_ORDER_CONTROLS;if(!controls||!ready())return false;
    resetGeneratedPlanning();
    const weekStart=nextDetailedWeeks().start;
-   let preview=controls.simulateRemaining({planningStart:weekStart});
-   const expectedCount=controls.remainingOrders?.().length||0;
-   const incomplete=p=>expectedCount>0&&((p?.orders?.length||0)+(p?.invalid||[]).filter(x=>x.id!=='__planner__').length)<expectedCount;
-   if(!preview?.orders?.length||incomplete(preview))preview=controls.simulateSequentialRemaining?.({planningStart:weekStart})||preview;
+   const preview=theoreticalPreview(controls,weekStart);
    if((preview?.invalid||[]).some(x=>x.id!=='__planner__'))return false;
    if(!preview?.orders?.length)return false;
    const weekPlan=buildWeekOnly(preview);
@@ -253,11 +270,7 @@ async function plan(){
   if(!ready())return alert('De planningsengine kon niet starten.');
   resetGeneratedPlanning();
   const weekStart=nextDetailedWeeks().start;
-  let preview=controls.simulateRemaining({planningStart:weekStart});
-  const expectedCount=controls.remainingOrders?.().length||0;
-  const onlyGenericProblem=p=>!p||(!p.orders?.length&&(p.invalid||[]).length>0&&(p.invalid||[]).every(x=>x.id==='__planner__'));
-  const incompleteCoverage=p=>expectedCount>0&&((p?.orders?.length||0)+(p?.invalid||[]).filter(x=>x.id!=='__planner__').length)<expectedCount;
-  if(onlyGenericProblem(preview)||incompleteCoverage(preview))preview=controls.simulateSequentialRemaining?.({planningStart:weekStart})||preview;
+  let preview=theoreticalPreview(controls,weekStart);
   const specificInvalid=(preview?.invalid||[]).filter(x=>x.id!=='__planner__');
   if(specificInvalid.length)return openMissingData({...preview,invalid:specificInvalid});
   if(!preview?.orders?.length)return alert('Er is geen ongepland werk meer.');
@@ -333,7 +346,7 @@ async function install(){
     const cancel=e.target.closest?.('[data-missing-cancel]');if(cancel){e.preventDefault();document.getElementById('modalRoot').innerHTML='';return}
     const b=e.target.closest?.('[data-hybrid-plan]');if(!b)return;e.preventDefault();plan()
   },true);
-  window.RALAB_HYBRID_PLANNER={version:VERSION,plan,buildWeekOnly,openMissingData,ensureWeekAssignments,needsWeekAssignment};
+  window.RALAB_HYBRID_PLANNER={version:VERSION,plan,buildWeekOnly,openMissingData,ensureWeekAssignments,needsWeekAssignment,theoreticalPreview};
   setTimeout(()=>ensureWeekAssignments().then(changed=>{if(changed){try{window.RALAB_ERP?.renderOrderOverview?.()}catch(_){}try{window.renderWeeks?.()}catch(_){}}else decorate()}),250);
 }
 install();
