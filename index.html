@@ -22,6 +22,19 @@
 <button class="navbtn erp-nav" data-view="quotes">Offertes</button>
 <button class="navbtn erp-nav" data-view="orderoverview">Orderoverzicht</button>
 <button class="navbtn" data-view="weeks">Overzichtplanner</button>
+<details class="nav-more" style="position:relative">
+  <summary class="navbtn" style="list-style:none;cursor:pointer">Meer ▾</summary>
+  <div style="position:absolute;right:0;top:calc(100% + 6px);z-index:1000;min-width:190px;padding:8px;background:var(--card,#fff);border:1px solid var(--line,#d9dfdc);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);display:grid;gap:4px">
+    <button class="navbtn" data-view="external">Extern / binnenmelden</button>
+    <button class="navbtn erp-nav" data-view="completed">Afgeronde orders</button>
+    <button class="navbtn erp-nav" data-view="products">Producten</button>
+    <button class="navbtn" data-view="workplaces">Werkplekken</button>
+    <button class="navbtn" data-view="tooling">Gereedschap</button>
+    <button class="navbtn erp-nav" data-view="customers">Klanten</button>
+    <button class="navbtn" data-view="history">Historie</button>
+    <button class="navbtn" data-view="settings">Instellingen</button>
+  </div>
+</details>
 <button class="navbtn" id="refreshAppBtn" type="button" title="Laad de nieuwste versie van de planner">↻ Ververs app</button>
 </nav></header>
 <main>
@@ -95,7 +108,7 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/modal-layer-v1.js?v=20260914-2"></script>
 <script src="assets/completed-order-actions-v1.js?v=20260923-2"></script>
 <script src="assets/planning-order-controls-v1.js?v=20260925-1"></script>
-<script src="assets/planning-week-proposal-v1.js?v=20260921-6"></script>\n<script src="assets/planning-production-sequence-v1.js?v=20260924-5"></script>\n<script src="assets/planning-hybrid-week-v1.js?v=20260925-5"></script>
+<script src="assets/planning-week-proposal-v1.js?v=20260921-6"></script>\n<script src="assets/planning-production-sequence-v1.js?v=20260925-1"></script>\n<script src="assets/planning-hybrid-week-v1.js?v=20260925-6"></script>
 <script src="assets/planning-gap-compaction-v1.js?v=20260913-2"></script>
 <script src="assets/planning-manual-start-v1.js?v=20260925-6"></script>
 <script src="assets/planning-touch-reorder-v1.js?v=20260925-1"></script>
@@ -119,6 +132,7 @@ document.addEventListener('click',function(e){
   requestAnimationFrame(()=>{
     if(window.RALAB_ERP)window.RALAB_ERP.show(v);
     if(v==='dashboard'&&window.RALAB_COMMERCIAL)window.RALAB_COMMERCIAL.renderDashboard();
+    b.closest('details.nav-more')?.removeAttribute('open');
   });
 },true);
 </script>
