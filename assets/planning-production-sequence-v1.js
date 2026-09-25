@@ -1,6 +1,6 @@
 // Weekly production sequence: one persisted order-level ranking used as the base for daily planning.
 (()=>{
-const VERSION='20260924-5';
+const VERSION='20260925-1';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const S=()=>{try{return state}catch(_){return null}};
 const activeOrders=()=>{
@@ -84,7 +84,7 @@ function decorate(){
   const html=`<section class="production-sequence-panel ${collapsed?'collapsed':''}">
     <div class="prod-seq-head">
       <button class="prod-seq-toggle" type="button" data-prod-seq-toggle aria-expanded="${collapsed?'false':'true'}">${collapsed?'▸':'▾'}</button>
-      <div><b>Productievolgorde</b><div>Dit is de hoofdvolgorde voor de week. Zet een order op een andere positie; de rest schuift automatisch door.</div></div>
+      <div><b>Productievolgorde</b><div>Standaard staat de volgorde op deadline. Vul alleen een volgordenummer in als je handmatig wilt overrulen. Kies hier ook de hoofdmedewerker per order.</div></div>
       <button class="btn small" type="button" data-prod-seq-clear>Volgorde wissen</button>
     </div>
     <div class="prod-seq-body">
