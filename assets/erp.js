@@ -117,7 +117,7 @@ function setOrderPriority(id,value){
 function setOverviewDeadline(id,value){
  const o=S()?.orders?.find(x=>x.id===id&&!x.deleted);if(!o)return false;
  o.communicatedDeadline=value||'';o.deadline=value||'';o.maximumReadyDate=value||'';o.internalTargetDate=value?(()=>{const d=new Date(value+'T12:00:00');d.setDate(d.getDate()-14);return d.toISOString().slice(0,10)})():'';
- o.planningCheckedAt='';o.weekPlanningUpdatedAt='';try{window.RALAB_PERFORMANCE?.invalidate?.();save()}catch(e){console.error(e);return false}renderOrderOverview();return true;
+ o.planningCheckedAt='';o.weekPlanningUpdatedAt='';try{window.RALAB_PERFORMANCE?.invalidate?.();save()}catch(e){console.error(e);return false}const p=window.RALAB_HYBRID_PLANNER?.ensureWeekAssignments?.(true);if(p?.then)p.then(()=>renderOrderOverview());else renderOrderOverview();return true;
 }
 function setOverviewDeadlineWeeks(id,weeks){
  const n=Number(weeks);if(!Number.isFinite(n)||n<0)return false;
