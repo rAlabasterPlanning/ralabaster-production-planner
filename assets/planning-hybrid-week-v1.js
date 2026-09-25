@@ -1,6 +1,6 @@
 // Week-only planner: automatically allocate work to weeks; exact day/time planning stays manual.
 (()=>{
-const VERSION='20260925-12';
+const VERSION='20260925-13';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -91,10 +91,11 @@ function buildWeekOnly(preview){
   for(const [key,minutes] of weekly){const [orderId,week]=key.split('|');if(!byOrder.has(orderId))byOrder.set(orderId,[]);byOrder.get(orderId).push({week,minutes})}
   for(const t of next.tasks||[]){const x=taskWeeks.get(t.id);if(x){t.planningWeek=x.week;t.planningSimulatedWeek=x.simulatedWeek;t.planningWeekEarly=!!x.early;if(x.latestStartDate)t.planningLatestStartDate=x.latestStartDate;else delete t.planningLatestStartDate}else if(!((t.planSegments||[]).length||t.date)){delete t.planningWeek;delete t.planningSimulatedWeek;delete t.planningWeekEarly}}
   for(const o of next.orders||[]){
-    const productionWeeks=(next.tasks||[]).filter(t=>t.orderId===o.id&&!preparationTask(t)&&t.planningWeek).map(t=>t.planningWeek).sort();
+    const realProductionTask=t=>{const st=String(t?.status||'').toLowerCase(),type=String(t?.type||'').toLowerCase();return t?.orderId===o.id&&!t?.deleted&&!['done','completed','external'].includes(st)&&!preparationTask(t)&&!['wait','external'].includes(type)};
+    const productionWeeks=(next.tasks||[]).filter(t=>realProductionTask(t)&&t.planningWeek).map(t=>t.planningWeek).sort();
     o.productionStartWeek=productionWeeks[0]||'';
     o.productionFinishWeek=productionWeeks.at(-1)||'';
-    const prodDates=(next.tasks||[]).filter(t=>t.orderId===o.id&&!preparationTask(t)&&t.planningLatestStartDate).map(t=>t.planningLatestStartDate).sort();
+    const prodDates=(next.tasks||[]).filter(t=>realProductionTask(t)&&t.planningLatestStartDate).map(t=>t.planningLatestStartDate).sort();
     o.productionLatestStartDate=prodDates[0]||'';
     o.productionLatestWorkDate=targetReadyDate(o)||'';
     o.productionLatestStartWeek=o.productionLatestStartDate?weekKey(o.productionLatestStartDate):o.productionStartWeek||'';
