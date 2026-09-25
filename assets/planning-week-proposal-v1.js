@@ -1,6 +1,6 @@
 // Conceptplanning directly in the three-week board. Nothing is persisted until accepted.
 (()=>{
-const VERSION='20260925-7',clone=x=>JSON.parse(JSON.stringify(x));
+const VERSION='20260925-8',clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const S=()=>{try{return state}catch(_){return null}};
 const employees=()=>typeof EMPLOYEES!=='undefined'?EMPLOYEES:['Ralph','Peter','Kaan','Lance','Shaffi'];
@@ -62,10 +62,19 @@ function editTask(id,index=0){const t=taskById(id);if(!t)return;const g=taskSegm
 function saveEdit(id){const t=taskById(id),duration=minutes(document.getElementById('proposalHours')?.value),date=document.getElementById('proposalDate')?.value,start=document.getElementById('proposalStart')?.value||'08:15',employee=document.getElementById('proposalEmployee')?.value;if(!t||!duration||!date)return alert('Vul een geldige datum en duur in.');withDraft(()=>{t.name=document.getElementById('proposalName')?.value.trim()||t.name;t.estimate=duration;t.lockedPlanning=false;if(isDry(t)){window.RALAB_DEADLINE_PLANNER?.scheduleWaitStrict?.(t,`${date}T${start}`);window.RALAB_DEADLINE_PLANNER?.enforceManualMove?.(t)}else if(isExternal(t)){t.date=date;t.start=start;t.expectedReturnDate=addDays(date,Number(t.externalLeadDays)||14);window.RALAB_DEADLINE_PLANNER?.enforceManualMove?.(t)}else{t.employee=employee;if(typeof clearTaskPlanning==='function')clearTaskPlanning(t);window.RALAB_DEADLINE_PLANNER?.allocateInternal?.(t,`${date}T${start}`,{allowPeter:employee==='Peter'});window.RALAB_DEADLINE_PLANNER?.enforceManualMove?.(t)}});closeModal();renderWeeks()}
 function deleteTask(id){if(!confirm('Deze taak uit het planning voorstel verwijderen?'))return;withDraft(()=>{const tasks=state.tasks.filter(x=>x.orderId===proposal.orderId&&!x.deleted).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0)),idx=tasks.findIndex(x=>x.id===id),previous=idx>0?tasks[idx-1]:null;state.tasks=state.tasks.filter(x=>x.id!==id);window.RALAB_DEADLINE_PLANNER?.normalizeSequences?.();if(previous)window.RALAB_DEADLINE_PLANNER?.enforceManualMove?.(previous);else{const o=state.orders.find(x=>x.id===proposal.orderId);for(const t of state.tasks.filter(x=>x.orderId===proposal.orderId))if(typeof clearTaskPlanning==='function')clearTaskPlanning(t);window.RALAB_DEADLINE_PLANNER?.planOrderStrict?.(o,{allowPeter:false,allowSaturday:false})}});closeModal();renderWeeks()}
 function shiftTask(id,days){const t=taskById(id),g=taskSegmentsOf(t)[0];if(!t||!g)return;moveTask(id,addDays(g.date,Number(days)||0),g.employee||t.employee,g.start||'08:15')}
+function plannerScrollState(){
+ const root=document.getElementById('view-weeks'),sc=root?.querySelector('.week-scroll');
+ return {windowX:window.scrollX,windowY:window.scrollY,scrollLeft:sc?.scrollLeft||0,scrollTop:sc?.scrollTop||0};
+}
+function restorePlannerScroll(pos){
+ if(!pos)return;
+ const apply=()=>{const root=document.getElementById('view-weeks'),sc=root?.querySelector('.week-scroll');if(sc){sc.scrollLeft=pos.scrollLeft||0;sc.scrollTop=pos.scrollTop||0}window.scrollTo(pos.windowX||0,pos.windowY||0)};
+ requestAnimationFrame(()=>{apply();requestAnimationFrame(apply)});
+}
 function acceptTask(id){
  if(!proposal||confirmedTask(id))return false;
  const draftTask=taskById(id);if(!draftTask)return false;
- const live=S(),idx=(live.tasks||[]).findIndex(x=>x.id===id);if(idx<0)return false;
+ const scroll=plannerScrollState(),live=S(),idx=(live.tasks||[]).findIndex(x=>x.id===id);if(idx<0)return false;
  const accepted=clone(draftTask);accepted.lockedPlanning=true;accepted.manualPlanning=true;accepted.planningOrigin='proposal-confirmed';accepted.planningConfirmedAt=new Date().toISOString();
  live.tasks[idx]=accepted;
  const draftCopy=proposal.draft.tasks.find(x=>x.id===id);if(draftCopy){draftCopy.lockedPlanning=true;draftCopy.manualPlanning=true;draftCopy.planningOrigin='proposal-confirmed'}
@@ -73,6 +82,7 @@ function acceptTask(id){
  try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
  try{save()}catch(e){console.error(e)}
  renderWeeks();
+ restorePlannerScroll(scroll);
  return true;
 }
 function accept(){
