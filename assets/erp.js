@@ -157,8 +157,8 @@ async function openOrder(id){
  ts=ts.filter(t=>!t.deleted).slice().sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));
  const knownMachines=[...new Set((S()?.tasks||[]).map(t=>String(t.machine||'').trim()).filter(Boolean))].sort();
  const machineList=knownMachines.map(x=>`<option value="${esc(x)}"></option>`).join('');
- const rows=ts.map((t,i)=>{const done=['done','completed'].includes(String(t.status||'').toLowerCase());return `<div data-order-task-row="${esc(t.id)}" style="display:grid;grid-template-columns:34px minmax(220px,1fr) 105px 110px 92px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #eee">
-   <div><b>${i+1}.</b></div>
+ const rows=ts.map((t,i)=>{const done=['done','completed'].includes(String(t.status||'').toLowerCase());return `<div data-order-task-row="${esc(t.id)}" style="display:grid;grid-template-columns:82px minmax(220px,1fr) 105px 110px 92px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #eee">
+   <div style="display:flex;align-items:center;gap:4px"><b style="min-width:22px">${i+1}.</b><button class="btn small" type="button" data-order-task-move="${esc(t.id)}" data-move-dir="-1" ${i===0?'disabled':''} title="Omhoog">↑</button><button class="btn small" type="button" data-order-task-move="${esc(t.id)}" data-move-dir="1" ${i===ts.length-1?'disabled':''} title="Omlaag">↓</button></div>
    <div><b>${esc(t.name||'Taak')}</b><div class="muted">${esc(t.machine||'')}${t.employee?' · '+esc(t.employee):''}${t.date?' · '+esc(t.date):''}</div></div>
    <label style="display:flex;align-items:center;gap:5px"><input class="input" style="width:72px" type="number" min="1" step="1" data-order-task-duration="${esc(t.id)}" value="${Math.max(1,Math.round(Number(t.estimate)||1))}"><span class="muted">min</span></label>
    <button class="btn small ${done?'':'primary'}" type="button" data-order-task-toggle="${esc(t.id)}">${done?'Heropenen':'Klaar'}</button>
@@ -184,6 +184,15 @@ async function refreshOrderAfterTaskChange(orderId){
  try{await window.RALAB_HYBRID_PLANNER?.ensureWeekAssignments?.(true)}catch(e){console.error(e)}
  try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
  renderOrderOverview();openOrder(orderId);
+}
+function moveOrderTask(id,dir){
+ const t=mutableTask(id);if(!t)return false;
+ const list=(S()?.tasks||[]).filter(x=>x.orderId===t.orderId&&!x.deleted).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));
+ const i=list.findIndex(x=>x.id===id),j=i+(Number(dir)||0);if(i<0||j<0||j>=list.length)return false;
+ const a=list[i],b=list[j],tmp=Number(a.seq)||i+1;a.seq=Number(b.seq)||j+1;b.seq=tmp;
+ renumberOrderTasks(t.orderId);
+ const o=S()?.orders?.find(x=>x.id===t.orderId);if(o){o.weekPlanningUpdatedAt='';o.productionLatestStartDate='';o.productionLatestStartWeek=''}
+ refreshOrderAfterTaskChange(t.orderId);return true;
 }
 function setOrderTaskDuration(id,value){
  const t=mutableTask(id);if(!t)return false;const minutes=Math.max(1,Math.round(Number(value)||0));if(!minutes)return false;t.estimate=minutes;
@@ -243,11 +252,12 @@ document.addEventListener('input',searchOrders);
 document.addEventListener('search',searchOrders);
 document.addEventListener('change',e=>{const td=e.target.closest?.('[data-order-task-duration]');if(td){setOrderTaskDuration(td.dataset.orderTaskDuration,td.value);return}const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(dl){setOverviewDeadline(dl.dataset.overviewDeadline,dl.value);return}const sq=e.target.closest?.('#view-orderoverview [data-overview-sequence]');if(sq){setOverviewSequence(sq.dataset.overviewSequence,sq.value);return}if(e.target.matches?.('#view-orders [data-order-search]'))return searchOrders(e);const root=e.target.closest?.('#view-orders');if(!root)return;if(e.target.matches('[data-order-sort]'))root.dataset.orderSort=e.target.value;else if(e.target.matches('[data-only-unplanned]'))root.dataset.onlyUnplanned=e.target.checked?'1':'0';else return;renderOrders(0)});
 document.addEventListener('click',e=>{
+ const move=e.target.closest?.('[data-order-task-move]');if(move){e.preventDefault();moveOrderTask(move.dataset.orderTaskMove,move.dataset.moveDir);return}
  const add=e.target.closest?.('[data-add-order-task]');if(add){e.preventDefault();const root=add.closest('.modalbody')||document;const name=root.querySelector('[data-new-order-task-name]')?.value||'',machine=root.querySelector('[data-new-order-task-machine]')?.value||'',minutes=root.querySelector('[data-new-order-task-duration]')?.value||30;addOrderTask(add.dataset.addOrderTask,name,machine,minutes);return}
  const toggle=e.target.closest?.('[data-order-task-toggle]');if(toggle){e.preventDefault();toggleOrderTaskDone(toggle.dataset.orderTaskToggle);return}
  const del=e.target.closest?.('[data-order-task-delete]');if(del){e.preventDefault();removeOrderTask(del.dataset.orderTaskDelete);return}
  const star=e.target.closest?.('#view-orders [data-priority-order], #view-orderoverview [data-priority-order]');if(!star||star.disabled)return;e.preventDefault();e.stopPropagation();setOrderPriority(star.dataset.priorityOrder,star.dataset.priorityValue)},true);
-window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,toggleOrderTaskDone,removeOrderTask,addOrderTask};
+window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask};
 const priorityStyle=document.createElement('style');priorityStyle.textContent='.order-priority{display:inline-flex;gap:1px;white-space:nowrap}.priority-star{appearance:none;border:0;background:transparent;color:#b8bfbb;font-size:25px;line-height:1;padding:2px;cursor:pointer;touch-action:manipulation}.priority-star.active{color:#d99a00}.priority-star:focus-visible{outline:2px solid #176b55;border-radius:4px}@media(max-width:700px){.priority-star{font-size:29px;padding:4px}}';document.head.appendChild(priorityStyle);
 setTimeout(()=>{if(!init())return;document.querySelectorAll('.erp-nav').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();show(b.dataset.view)}));},1200);
 })();
