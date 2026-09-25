@@ -66,18 +66,18 @@ function freeWindows(date,emp,key,excludeIds,allowSaturday,allowPeter,currentTas
 }
 function allocateInternal(t,earliestAt,opts={}){
  const allowSaturday=!!opts.allowSaturday,allowPeter=!!opts.allowPeter,excludeIds=opts.excludeIds||new Set([t.id]);
- const ralphOnly=ralphOnlyTask(t),rawPreferred=opts.preferredEmployee||t.employee||null,preferred=(!ralphOnly&&rawPreferred==='Ralph')?null:rawPreferred;
- let base=ralphOnly?['Ralph']:['Kaan','Lance','Shaffi'];if(allowPeter&&!ralphOnly)base.push('Peter');
+ const ralphOnly=ralphOnlyTask(t),explicitOverride=String(t.taskEmployeeOverride||''),explicitRalph=!ralphOnly&&explicitOverride==='Ralph',rawPreferred=explicitOverride||opts.preferredEmployee||t.employee||null,preferred=rawPreferred;
+ let base=(ralphOnly||explicitRalph)?['Ralph']:['Kaan','Lance','Shaffi'];if(allowPeter&&!ralphOnly&&!explicitRalph)base.push('Peter');
  base=window.RALAB_WORKPLACES?.candidateEmployees?.(t,base)||base;
- if(!ralphOnly)base=base.filter(x=>x!=='Ralph');
- if(ralphOnly)base=['Ralph'];
+ if(!ralphOnly&&!explicitRalph)base=base.filter(x=>x!=='Ralph');
+ if(ralphOnly||explicitRalph)base=['Ralph'];
  let employees=[...new Set(base)];
  if(preferred&&employees.includes(preferred))employees=opts.lockEmployee?[preferred]:[preferred,...employees.filter(x=>x!==preferred)];
- if(!employees.length)employees=ralphOnly?['Ralph']:['Kaan','Lance','Shaffi'];
+ if(!employees.length)employees=(ralphOnly||explicitRalph)?['Ralph']:['Kaan','Lance','Shaffi'];
  let need=Math.max(0,Number(t.estimate)||0);if(need===0){t.planSegments=[];t.date=dtDate(earliestAt);return earliestAt}
  let d=dtDate(earliestAt),firstDay=true,segs=[],guard=0,selectedMachine=t.assignedMachine||null;
  while(need>0&&guard++<240){let best=null;const machines=selectedMachine?[selectedMachine]:machineOptions(t);for(const machine of machines){const key=cleanMachine(machine).toLowerCase();for(const [rank,emp] of employees.entries()){for(const w of freeWindows(d,emp,key,excludeIds,allowSaturday,allowPeter,t)){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));const free=z-a;if(free<=0||(free<MIN_USEFUL_BLOCK&&need>free))continue;if(!best||a<best.a||(a===best.a&&(rank<best.rank||(rank===best.rank&&free>best.free))))best={emp,a,z,free,machine,rank}}}}
-   if(best){if(!selectedMachine){selectedMachine=best.machine;setAssignedMachine(t,selectedMachine)}const key=cleanMachine(selectedMachine).toLowerCase(),windows=freeWindows(d,best.emp,key,excludeIds,allowSaturday,allowPeter);for(const w of windows){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));if(a>=z||((z-a)<MIN_USEFUL_BLOCK&&need>(z-a)))continue;const take=Math.min(need,z-a);if(take>0){segs.push({date:d,employee:best.emp,start:tm(a),minutes:take});need-=take;if(!need)break}}firstDay=false;if(need>0)d=addCal(d,1)}else{d=addCal(d,1);firstDay=false}
+   if(best){if(!selectedMachine){selectedMachine=best.machine;setAssignedMachine(t,selectedMachine)}const key=cleanMachine(selectedMachine).toLowerCase(),windows=freeWindows(d,best.emp,key,excludeIds,allowSaturday,allowPeter,t);for(const w of windows){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));if(a>=z||((z-a)<MIN_USEFUL_BLOCK&&need>(z-a)))continue;const take=Math.min(need,z-a);if(take>0){segs.push({date:d,employee:best.emp,start:tm(a),minutes:take});need-=take;if(!need)break}}firstDay=false;if(need>0)d=addCal(d,1)}else{d=addCal(d,1);firstDay=false}
  }
  segs=typeof mergePauseSegments==='function'?mergePauseSegments(segs):segs;t.planSegments=segs;t.employee=segs[0]?.employee||preferred||null;t.date=segs[0]?.date||dtDate(earliestAt);t.start=segs[0]?.start||'';return taskFinishAt(t)||earliestAt;
 }
