@@ -10,7 +10,7 @@ if(!Array.isArray(state.deletedTasks))state.deletedTasks=[];
 if(!Array.isArray(state.history))state.history=[];
 state.version=Math.max(Number(state.version)||1,11);
 state.tasks.forEach(t=>{if(!Array.isArray(t.planSegments))t.planSegments=[];if(isExternalTask(t)&&!t.externalLeadDays)t.externalLeadDays=CFG.rules?.externalLeadDays||14;if(isDryTask(t)&&!t.estimate)t.estimate=CFG.rules?.dryRoomMinutes||540});
-let currentView='today';
+let currentView='dashboard';
 let selectedDate=isoDate(new Date());
 let weekAnchor=isoDate(mondayOf(new Date()));
 let visibleWeekCount=4,weekLoadingMore=false,weekScrollObserver=null,weekCompactView=true;
