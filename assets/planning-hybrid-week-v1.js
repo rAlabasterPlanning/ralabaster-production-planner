@@ -1,6 +1,6 @@
-// Hybrid planner: exact next 2 workweeks, weekly capacity reservations after that.
+// Week-only planner: automatically allocate work to weeks; exact day/time planning stays manual.
 (()=>{
-const VERSION='20260924-15';
+const VERSION='20260925-5';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -33,49 +33,36 @@ function finishOf(t){
 function exactExisting(t){
   return !!(t?.status==='done'||t?.status==='completed'||t?.status==='in_progress'||t?.status==='started'||t?.actual>0||t?.doneQty>0||t?.lockedPlanning);
 }
-function buildHybrid(preview,range=nextDetailedWeeks()){
-  const live=clone(S()),next=clone(preview.state),today=iso(new Date()),exactStart=range.start,horizon=range.end;
+function buildWeekOnly(preview){
+  const live=clone(S()),sim=clone(preview.state),next=clone(live),weekly=new Map(),futureFinish=new Map();
   const baseline=new Map((live.tasks||[]).map(t=>[t.id,t]));
-  const orders=new Map((next.orders||[]).map(o=>[o.id,o]));
-  const weekly=new Map(),exactTaskIds=new Set(),futureTaskIds=new Set();
-  const futureFinish=new Map();
-
-  for(const t of next.tasks||[]){
-    const before=baseline.get(t.id),newlyPlanned=before&&!((before.planSegments||[]).length||before.date||before.waitStartAt||before.externalSentDate);
-    if(!newlyPlanned||exactExisting(before))continue;
-    const o=orders.get(t.orderId);if(!o)continue;
-    const simulatedFinish=finishOf(t);if(simulatedFinish&&simulatedFinish>(futureFinish.get(t.orderId)||''))futureFinish.set(t.orderId,simulatedFinish);
-    const segs=Array.isArray(t.planSegments)?t.planSegments:[];
-    const keep=[],later=[],outside=[];
-    for(const g of segs){
-      if(g.date&&g.date>=exactStart&&g.date<=horizon){keep.push(g);exactTaskIds.add(t.id)}
-      else if(g.date&&g.date>horizon){later.push(g);futureTaskIds.add(t.id);const k=t.orderId+'|'+weekKey(g.date);weekly.set(k,(weekly.get(k)||0)+(Number(g.minutes)||0))}
-      else if(g.date){outside.push(g)}
-    }
-    if(later.length||outside.length){
-      t.planSegments=keep;
-      if(keep.length){t.date=keep[0].date;t.start=keep[0].start||'';t.employee=keep[0].employee||t.employee;t.planningOrigin='hybrid-week'}
-      else{t.planSegments=[];t.date=null;t.start='';t.employee=null;delete t.assignedMachine;t.lockedPlanning=false}
-    }
-    const specialDate=t.expectedReturnDate||String(t.waitEndAt||'').slice(0,10)||t.date||'';
-    if(!segs.length&&specialDate&&specialDate>horizon){
-      futureTaskIds.add(t.id);t.date=null;t.start='';t.employee=null;t.waitStartAt='';t.waitEndAt='';t.externalSentDate='';t.expectedReturnDate='';t.lockedPlanning=false;
+  for(const t of sim.tasks||[]){
+    const before=baseline.get(t.id);if(!before)continue;
+    const hadExact=!!((before.planSegments||[]).length||before.date||before.waitStartAt||before.externalSentDate);
+    if(hadExact||exactExisting(before))continue;
+    const finish=finishOf(t);if(finish&&finish>(futureFinish.get(t.orderId)||''))futureFinish.set(t.orderId,finish);
+    for(const g of Array.isArray(t.planSegments)?t.planSegments:[]){
+      if(!g?.date)continue;
+      const key=t.orderId+'|'+weekKey(g.date);
+      weekly.set(key,(weekly.get(key)||0)+(Number(g.minutes)||0));
     }
   }
-
   const byOrder=new Map();
   for(const [key,minutes] of weekly){const [orderId,week]=key.split('|');if(!byOrder.has(orderId))byOrder.set(orderId,[]);byOrder.get(orderId).push({week,minutes})}
   for(const o of next.orders||[]){
     const reservations=(byOrder.get(o.id)||[]).sort((a,b)=>a.week.localeCompare(b.week));
     if(reservations.length||futureFinish.has(o.id)){
       o.weekCapacityReservations=reservations;
-      o.expectedReadyDate=futureFinish.get(o.id)||o.expectedReadyDate||'';
+      o.expectedReadyDate=futureFinish.get(o.id)||'';
       o.expectedReadyWeek=o.expectedReadyDate?weekKey(o.expectedReadyDate):'';
-      o.hybridPlanningUpdatedAt=new Date().toISOString();
+      o.planningDecision='week_capacity_only';
+      o.planningDecisionAt=new Date().toISOString();
+      o.weekPlanningUpdatedAt=new Date().toISOString();
     }
   }
-  next.hybridDetailedWeek={start:exactStart,end:horizon,week:range.week,endWeek:range.endWeek,updatedAt:new Date().toISOString()};
-  return {state:next,exactStart,horizon,today,detailedWeek:range.week,detailedEndWeek:range.endWeek,weekly:[...byOrder.entries()].map(([orderId,weeks])=>({orderId,weeks})),exactTasks:exactTaskIds.size,futureTasks:futureTaskIds.size,orders:preview.orders||[],late:preview.late||[]};
+  next.weekPlanningMode='manual_exact';
+  next.weekPlanningUpdatedAt=new Date().toISOString();
+  return {state:next,weekly:[...byOrder.entries()].map(([orderId,weeks])=>({orderId,weeks})),orders:preview.orders||[],late:preview.late||[],autoDeadlines:preview.autoDeadlines||[],invalid:preview.invalid||[]};
 }
 function ready(){
   return !!(window.RALAB_ORDER_CONTROLS?.simulateRemaining&&window.RALAB_DEADLINE_PLANNER?.planOrderStrict);
@@ -159,40 +146,29 @@ function resetGeneratedPlanning(){
 }
 async function plan(){
   const btn=document.querySelector('[data-hybrid-plan]');
-  if(!ready()){if(btn){btn.disabled=true;btn.textContent='Planner starten…'};await ensureReady();if(btn){btn.disabled=false;btn.textContent='Plan komende 2 weken'}}
+  if(!ready()){if(btn){btn.disabled=true;btn.textContent='Planner starten…'};await ensureReady();if(btn){btn.disabled=false;btn.textContent='Orders over weken verdelen'}}
   const controls=window.RALAB_ORDER_CONTROLS;
-  if(!ready())return alert('De planningsengine kon niet starten. Gebruik Ververs app; als dit terugkomt is er een laadfout die we moeten oplossen.');
+  if(!ready())return alert('De planningsengine kon niet starten.');
   resetGeneratedPlanning();
-  const detailedWeek=nextDetailedWeeks();
-  let preview=controls.simulateRemaining({planningStart:detailedWeek.start});
+  let preview=controls.simulateRemaining({planningStart:iso(new Date())});
   const expectedCount=controls.remainingOrders?.().length||0;
   const onlyGenericProblem=p=>!p||(!p.orders?.length&&(p.invalid||[]).length>0&&(p.invalid||[]).every(x=>x.id==='__planner__'));
   const incompleteCoverage=p=>expectedCount>0&&((p?.orders?.length||0)+(p?.invalid||[]).filter(x=>x.id!=='__planner__').length)<expectedCount;
-  if(onlyGenericProblem(preview)||incompleteCoverage(preview)){
-    preview=controls.simulateSequentialRemaining?.({planningStart:detailedWeek.start})||preview;
-  }
+  if(onlyGenericProblem(preview)||incompleteCoverage(preview))preview=controls.simulateSequentialRemaining?.({planningStart:iso(new Date())})||preview;
   const specificInvalid=(preview?.invalid||[]).filter(x=>x.id!=='__planner__');
   if(specificInvalid.length)return openMissingData({...preview,invalid:specificInvalid});
-  if(!preview?.orders?.length){
-    const generic=(preview?.invalid||[]).find(x=>x.id==='__planner__');
-    if(generic)return openMissingData({...preview,invalid:[generic]});
-    return alert('Er is geen ongepland werk meer.');
-  }
-  const hybrid=buildHybrid(preview,detailedWeek),count=hybrid.weekly.length;hybrid.autoDeadlines=preview.autoDeadlines||[];hybrid.invalid=preview.invalid||[];
-  const autoText=hybrid.autoDeadlines.length?`\n\n${hybrid.autoDeadlines.length} order(s) zonder klantdeadline krijgen alleen voor planning automatisch: minimale doorlooptijd + 4 weken.`:'';const invalidText=hybrid.invalid.length?`\n\n${hybrid.invalid.length} onvolledige order(s) worden overgeslagen en hieronder gemeld.`:'';const msg=`${hybrid.detailedWeek} t/m ${hybrid.detailedEndWeek} volledig plannen van ${hybrid.exactStart} t/m ${hybrid.horizon}. Daarna worden ${count} order(s) alleen onder “Werk voor week X” gereserveerd voor levertijdinschatting. Bestaande gestarte en vastgezette planning blijft staan.${autoText}${invalidText}\n\nDoorgaan?`;
-  if(!confirm(msg))return;
-  state=hybrid.state;
-  const now=new Date().toISOString();
-  for(const o of state.orders||[])if(o.weekCapacityReservations){o.planningDecision='hybrid_week_capacity';o.planningDecisionAt=now}
+  if(!preview?.orders?.length)return alert('Er is geen ongepland werk meer.');
+  const weekPlan=buildWeekOnly(preview),count=weekPlan.weekly.length;
+  if(!confirm(`Orders worden alleen over weken verdeeld. Er wordt niets automatisch op dag, tijd, medewerker of machine gezet. Daarna plan je de eerste week zelf door taken te slepen.\n\n${count} order(s) krijgen een weekreservering. Doorgaan?`))return;
+  state=weekPlan.state;
   if(typeof save==='function')save();
   if(typeof renderWeeks==='function')renderWeeks();
-  let done=`Planning bijgewerkt. ${hybrid.detailedWeek} t/m ${hybrid.detailedEndWeek} zijn volledig op dag/tijdniveau gepland (${hybrid.exactTasks} taak/taken). Later werk staat alleen per week gereserveerd.`;if(hybrid.autoDeadlines.length)done+=`\n\nAutomatische planningsdeadline gebruikt voor:\n`+hybrid.autoDeadlines.map(x=>`${x.orderNo}: ${x.date}`).join('\n');if(hybrid.invalid.length)done+=`\n\nNiet ingepland omdat gegevens ontbreken:\n`+hybrid.invalid.map(x=>`${x.orderNo}: ${x.issues.join(', ')}`).join('\n');if(hybrid.late.length)done+=`\n\n${hybrid.late.length} order(s) blijven aandacht vragen voor hun deadline.`;alert(done);
+  alert('Weekverdeling bijgewerkt. Exacte dag/tijdplanning blijft volledig handmatig.');
 }
 function futureWeekGroups(){
- const s=S(),orders=s?.orders||[],detail=s?.hybridDetailedWeek,groups=new Map();
+ const s=S(),orders=s?.orders||[],groups=new Map();
  for(const o of orders){
   for(const r of o.weekCapacityReservations||[]){
-   if(detail?.week&&r.week<=detail.week)continue;
    if(!groups.has(r.week))groups.set(r.week,[]);
    groups.get(r.week).push({order:o,minutes:Number(r.minutes)||0});
   }
@@ -235,7 +211,7 @@ function decorate(){
   const root=document.getElementById('view-weeks');if(!root||root.classList.contains('hidden'))return;
   const panel=root.querySelector('.production-sequence-panel');if(!panel)return;
   if(!panel.querySelector('[data-hybrid-plan]')){
-    const head=panel.querySelector('.prod-seq-head');if(head){const btn=document.createElement('button');btn.type='button';btn.className='btn primary small';btn.dataset.hybridPlan='';btn.textContent=ready()?'Plan komende 2 weken':'Planner laden…';btn.disabled=!ready();head.appendChild(btn);if(!ready())setTimeout(()=>{if(ready()&&btn.isConnected){btn.disabled=false;btn.textContent='Plan komende 2 weken'}},500)}
+    const head=panel.querySelector('.prod-seq-head');if(head){const btn=document.createElement('button');btn.type='button';btn.className='btn primary small';btn.dataset.hybridPlan='';btn.textContent=ready()?'Orders over weken verdelen':'Planner laden…';btn.disabled=!ready();head.appendChild(btn);if(!ready())setTimeout(()=>{if(ready()&&btn.isConnected){btn.disabled=false;btn.textContent='Orders over weken verdelen'}},500)}
   }
   root.querySelector('.future-work-panel')?.remove();
   renderFutureWeekBuckets(root);
