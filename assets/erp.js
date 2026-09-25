@@ -240,14 +240,33 @@ function addOrderTask(orderId,name,machine,minutes){
  o.weekPlanningUpdatedAt='';o.productionLatestStartDate='';o.productionLatestStartWeek='';
  refreshOrderAfterTaskChange(orderId);return true;
 }
+function nextStandardOrderNo(){
+ const s=S(),d=new Date(),prefix=String(d.getFullYear())+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'-';
+ let max=0;
+ for(const o of s?.orders||[]){const m=String(o.orderNo||'').match(new RegExp('^'+prefix+'(\\d+)$'));if(m)max=Math.max(max,Number(m[1])||0)}
+ return prefix+String(max+1).padStart(2,'0');
+}
 function copyOrder(id){
  const s=S(),src=s?.orders?.find(o=>o.id===id&&!o.deleted);if(!s||!src)return false;
- if(!confirm('Order '+(src.orderNo||'')+' kopiëren als nieuwe order?'))return false;
- const now=Date.now(),newId='o_copy_'+now,newNo='COPY-'+String(now).slice(-6);
- const cloned=structuredClone(src);
+ const root=document.getElementById('modalRoot');if(!root)return false;
+ const existingRef=src.customerReference||src.customerRef||src.reference||src.project||'';
+ root.innerHTML=`<div class="modalback"><div class="modal" style="width:min(560px,92vw)"><div class="modalhead"><h3>Order kopiëren</h3></div><div class="modalbody">
+   <p><b>${esc(src.orderNo||'')}</b> · ${esc(src.product||'')}</p>
+   <label style="display:block;margin-top:10px"><b>Klantreferentie</b><input class="input" type="text" data-copy-customer-reference value="${esc(existingRef)}" placeholder="Klantreferentie" style="width:100%;margin-top:5px"></label>
+   <label style="display:block;margin-top:12px"><b>Deadline</b><input class="input" type="date" data-copy-deadline style="width:100%;margin-top:5px"></label>
+   <div class="muted" style="margin-top:10px">De nieuwe order krijgt automatisch het volgende standaard ordernummer. Taken, volgorde, werkplekken en duren worden gekopieerd; planning en status niet.</div>
+ </div><div class="modalfoot"><button class="btn" type="button" data-copy-cancel>Annuleren</button><div class="spacer"></div><button class="btn primary" type="button" data-copy-confirm="${esc(id)}">Kopiëren</button></div></div></div>`;
+ return true;
+}
+function confirmCopyOrder(id){
+ const s=S(),src=s?.orders?.find(o=>o.id===id&&!o.deleted);if(!s||!src)return false;
+ const root=document.getElementById('modalRoot'),ref=String(root?.querySelector('[data-copy-customer-reference]')?.value||'').trim(),deadline=root?.querySelector('[data-copy-deadline]')?.value||'';
+ if(!deadline)return alert('Kies een deadline.');
+ const now=Date.now(),newId='o_'+now,newNo=nextStandardOrderNo(),cloned=structuredClone(src);
  Object.assign(cloned,{
    id:newId,orderNo:newNo,created:iso(),active:true,status:'confirmed',deleted:false,
-   communicatedDeadline:'',deadline:'',maximumReadyDate:'',internalExpectedDate:'',
+   customerReference:ref,customerRef:ref,reference:ref,
+   communicatedDeadline:deadline,deadline,maximumReadyDate:deadline,internalExpectedDate:'',
    expectedReadyDate:'',expectedReadyWeek:'',weekCapacityReservations:[],
    productionStartWeek:'',productionFinishWeek:'',productionLatestStartDate:'',
    productionLatestStartWeek:'',productionLatestWorkDate:'',weekPlanningUpdatedAt:'',
@@ -259,7 +278,7 @@ function copyOrder(id){
  srcTasks.forEach((t,i)=>{
    const nt=structuredClone(t);
    Object.assign(nt,{
-     id:'t_copy_'+now+'_'+i,orderId:newId,seq:i+1,status:'open',
+     id:'t_'+now+'_'+i,orderId:newId,seq:i+1,status:'open',
      employee:null,date:null,start:'',planSegments:[],actual:0,doneQty:0,note:t.note||''
    });
    delete nt.completedAt;delete nt.completedAtDT;delete nt.deleted;delete nt.deletedAt;
@@ -270,7 +289,10 @@ function copyOrder(id){
  });
  try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
  try{save()}catch(e){console.error(e);alert('Kopiëren opslaan mislukt.');return false}
- renderOrderOverview();openOrder(newId);return true;
+ root.innerHTML='';
+ renderOrderOverview();
+ try{window.RALAB_HYBRID_PLANNER?.ensureWeekAssignments?.(true)}catch(_){}
+ openOrder(newId);return true;
 }
 function deleteOrder(id){
  const o=findOrder(id);if(!o)return false;
@@ -307,13 +329,15 @@ document.addEventListener('click',e=>{
  const custom=e.target.closest?.('[data-deadline-custom-apply]');if(custom){e.preventDefault();const box=custom.closest('.deadline-quick-pick'),id=box?.dataset.orderId||'',weeks=box?.querySelector('[data-deadline-custom-weeks]')?.value;if(id&&weeks!==''){setOverviewDeadline(id,deadlineFromWeeks(weeks));closeDeadlineQuickPick()}return}
  if(!e.target.closest?.('.deadline-quick-pick')&&!e.target.closest?.('#view-orderoverview [data-overview-deadline]'))closeDeadlineQuickPick();
 
+ const copyCancel=e.target.closest?.('[data-copy-cancel]');if(copyCancel){e.preventDefault();document.getElementById('modalRoot').innerHTML='';return}
+ const copyConfirm=e.target.closest?.('[data-copy-confirm]');if(copyConfirm){e.preventDefault();confirmCopyOrder(copyConfirm.dataset.copyConfirm);return}
  const copy=e.target.closest?.('[data-copy-order]');if(copy){e.preventDefault();copyOrder(copy.dataset.copyOrder);return}
  const move=e.target.closest?.('[data-order-task-move]');if(move){e.preventDefault();moveOrderTask(move.dataset.orderTaskMove,move.dataset.moveDir);return}
  const add=e.target.closest?.('[data-add-order-task]');if(add){e.preventDefault();const root=add.closest('.modalbody')||document;const name=root.querySelector('[data-new-order-task-name]')?.value||'',machine=root.querySelector('[data-new-order-task-machine]')?.value||'',minutes=root.querySelector('[data-new-order-task-duration]')?.value||30;addOrderTask(add.dataset.addOrderTask,name,machine,minutes);return}
  const toggle=e.target.closest?.('[data-order-task-toggle]');if(toggle){e.preventDefault();toggleOrderTaskDone(toggle.dataset.orderTaskToggle);return}
  const del=e.target.closest?.('[data-order-task-delete]');if(del){e.preventDefault();removeOrderTask(del.dataset.orderTaskDelete);return}
  const star=e.target.closest?.('#view-orders [data-priority-order], #view-orderoverview [data-priority-order]');if(!star||star.disabled)return;e.preventDefault();e.stopPropagation();setOrderPriority(star.dataset.priorityOrder,star.dataset.priorityValue)},true);
-window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask,copyOrder};
+window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask,copyOrder,confirmCopyOrder,nextStandardOrderNo};
 const priorityStyle=document.createElement('style');priorityStyle.textContent='.order-priority{display:inline-flex;gap:1px;white-space:nowrap}.priority-star{appearance:none;border:0;background:transparent;color:#b8bfbb;font-size:25px;line-height:1;padding:2px;cursor:pointer;touch-action:manipulation}.priority-star.active{color:#d99a00}.priority-star:focus-visible{outline:2px solid #176b55;border-radius:4px}@media(max-width:700px){.priority-star{font-size:29px;padding:4px}}';document.head.appendChild(priorityStyle);
 setTimeout(()=>{if(!init())return;document.querySelectorAll('.erp-nav').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();show(b.dataset.view)}));},1200);
 })();
