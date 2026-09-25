@@ -1,6 +1,6 @@
 // Week-only planner: automatically allocate work to weeks; exact day/time planning stays manual.
 (()=>{
-const VERSION='20260925-7';
+const VERSION='20260925-8';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -195,9 +195,38 @@ function resetGeneratedPlanning(){
   if(o?.planningDecision==='hybrid_week_capacity'){delete o.weekCapacityReservations;delete o.expectedReadyWeek;delete o.expectedReadyDate}
  }
 }
+function needsWeekAssignment(){
+ const s=S();if(!s)return false;
+ const active=new Set((s.orders||[]).filter(o=>o&&!o.deleted&&o.active!==false&&!o.isGeneralWork&&o.status!=='completed').map(o=>o.id));
+ return (s.tasks||[]).some(t=>active.has(t.orderId)&&!t.deleted&&!['done','completed','external','in_progress','partial','partly'].includes(String(t.status||'').toLowerCase())&&!t.planningWeek&&!((t.planSegments||[]).length||t.date||t.waitStartAt||t.externalSentDate));
+}
+let autoAssignBusy=false;
+async function ensureWeekAssignments(force=false){
+ if(autoAssignBusy)return false;
+ if(!force&&!needsWeekAssignment())return false;
+ autoAssignBusy=true;
+ try{
+   if(!ready())await ensureReady();
+   const controls=window.RALAB_ORDER_CONTROLS;if(!controls||!ready())return false;
+   resetGeneratedPlanning();
+   const weekStart=nextDetailedWeeks().start;
+   let preview=controls.simulateRemaining({planningStart:weekStart});
+   const expectedCount=controls.remainingOrders?.().length||0;
+   const incomplete=p=>expectedCount>0&&((p?.orders?.length||0)+(p?.invalid||[]).filter(x=>x.id!=='__planner__').length)<expectedCount;
+   if(!preview?.orders?.length||incomplete(preview))preview=controls.simulateSequentialRemaining?.({planningStart:weekStart})||preview;
+   if((preview?.invalid||[]).some(x=>x.id!=='__planner__'))return false;
+   if(!preview?.orders?.length)return false;
+   const weekPlan=buildWeekOnly(preview);
+   state=weekPlan.state;
+   if(typeof save==='function')save();
+   try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
+   return true;
+ }catch(e){console.error('Automatische weektoewijzing mislukt',e);return false}
+ finally{autoAssignBusy=false}
+}
 async function plan(){
   const btn=document.querySelector('[data-hybrid-plan]');
-  if(!ready()){if(btn){btn.disabled=true;btn.textContent='Planner starten…'};await ensureReady();if(btn){btn.disabled=false;btn.textContent='Orders over weken verdelen'}}
+  if(!ready()){if(btn){btn.disabled=true;btn.textContent='Planner starten…'};await ensureReady();if(btn){btn.disabled=false;btn.textContent='Herbereken weekplanning'}}
   const controls=window.RALAB_ORDER_CONTROLS;
   if(!ready())return alert('De planningsengine kon niet starten.');
   resetGeneratedPlanning();
@@ -267,7 +296,7 @@ function decorate(){
   const root=document.getElementById('view-weeks');if(!root||root.classList.contains('hidden'))return;
   const panel=root.querySelector('.production-sequence-panel');if(!panel)return;
   if(!panel.querySelector('[data-hybrid-plan]')){
-    const head=panel.querySelector('.prod-seq-head');if(head){const btn=document.createElement('button');btn.type='button';btn.className='btn primary small';btn.dataset.hybridPlan='';btn.textContent=ready()?'Orders over weken verdelen':'Planner laden…';btn.disabled=!ready();head.appendChild(btn);if(!ready())setTimeout(()=>{if(ready()&&btn.isConnected){btn.disabled=false;btn.textContent='Orders over weken verdelen'}},500)}
+    const head=panel.querySelector('.prod-seq-head');if(head){const btn=document.createElement('button');btn.type='button';btn.className='btn primary small';btn.dataset.hybridPlan='';btn.textContent=ready()?'Herbereken weekplanning':'Planner laden…';btn.disabled=!ready();head.appendChild(btn);if(!ready())setTimeout(()=>{if(ready()&&btn.isConnected){btn.disabled=false;btn.textContent='Herbereken weekplanning'}},500)}
   }
   root.querySelector('.future-work-panel')?.remove();
   renderFutureWeekBuckets(root);
@@ -276,14 +305,14 @@ function decorate(){
 async function install(){
   try{await window.RALAB_CORE_READY}catch(_){}
   if(typeof window.renderWeeks!=='function'||!window.RALAB_ORDER_CONTROLS||!window.RALAB_DEADLINE_PLANNER)return setTimeout(install,100);
-  const old=window.renderWeeks;window.renderWeeks=function(){const r=old.apply(this,arguments);setTimeout(decorate,0);return r};
+  const old=window.renderWeeks;window.renderWeeks=function(){const r=old.apply(this,arguments);setTimeout(()=>{decorate();if(needsWeekAssignment())ensureWeekAssignments().then(changed=>{if(changed)old.apply(window,arguments)})},0);return r};
   document.addEventListener('click',e=>{
     const saveBtn=e.target.closest?.('[data-missing-save]');if(saveBtn){e.preventDefault();return saveMissingData()}
     const cancel=e.target.closest?.('[data-missing-cancel]');if(cancel){e.preventDefault();document.getElementById('modalRoot').innerHTML='';return}
     const b=e.target.closest?.('[data-hybrid-plan]');if(!b)return;e.preventDefault();plan()
   },true);
-  window.RALAB_HYBRID_PLANNER={version:VERSION,plan,buildWeekOnly,openMissingData};
-  setTimeout(decorate,0);
+  window.RALAB_HYBRID_PLANNER={version:VERSION,plan,buildWeekOnly,openMissingData,ensureWeekAssignments,needsWeekAssignment};
+  setTimeout(()=>ensureWeekAssignments().then(changed=>{if(changed){try{window.RALAB_ERP?.renderOrderOverview?.()}catch(_){}try{window.renderWeeks?.()}catch(_){}}else decorate()}),250);
 }
 install();
 })();
