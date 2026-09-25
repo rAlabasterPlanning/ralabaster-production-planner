@@ -30,7 +30,7 @@ function plannedReadyDate(o){
 function productContractKey(v){return String(v||'').trim().toLowerCase().replace(/\s+/g,' ')}
 function contractStats(cust,contract){
  const s=S(),key=productContractKey(contract.product),orders=(s?.orders||[]).filter(o=>!o.deleted&&o.customerId===cust.id&&productContractKey(o.product)===key);
- const delivered=orders.filter(o=>o.active===false||o.status==='completed').reduce((n,o)=>n+(Number(o.qty)||0),0);
+ const delivered=Math.max(0,Number(contract.deliveredBaseline)||0);
  const open=orders.filter(o=>o.active!==false&&o.status!=='completed').reduce((n,o)=>n+(Number(o.qty)||0),0);
  const stock=(s?.contractStockWork||[]).filter(x=>!x.deleted&&x.customerId===cust.id&&productContractKey(x.product)===key).reduce((n,x)=>n+(Number(x.qty)||0),0);
  const remaining=Math.max(0,(Number(contract.contractQty)||0)-delivered-open-stock);
@@ -40,12 +40,13 @@ function addCustomerProductContract(customerId){
  const s=S(),cust=s?.customers?.find(c=>c.id===customerId);if(!cust)return false;
  const root=document.getElementById('modalRoot'),product=String(root?.querySelector('[data-contract-product]')?.value||'').trim();
  const contractQty=Math.max(0,Math.round(Number(root?.querySelector('[data-contract-qty]')?.value)||0));
+ const deliveredBaseline=Math.max(0,Math.round(Number(root?.querySelector('[data-contract-delivered]')?.value)||0));
  const batchSize=Math.max(0,Math.round(Number(root?.querySelector('[data-contract-batch]')?.value)||0));
  const minStock=Math.max(0,Math.round(Number(root?.querySelector('[data-contract-min-stock]')?.value)||0));
  if(!product||!contractQty)return alert('Vul product en contractaantal in.');
  cust.productContracts=cust.productContracts||[];
  const existing=cust.productContracts.find(x=>productContractKey(x.product)===productContractKey(product));
- if(existing)Object.assign(existing,{product,contractQty,batchSize,minStock});else cust.productContracts.push({id:'pc_'+Date.now(),product,contractQty,batchSize,minStock});
+ if(existing)Object.assign(existing,{product,contractQty,deliveredBaseline,batchSize,minStock});else cust.productContracts.push({id:'pc_'+Date.now(),product,contractQty,deliveredBaseline,batchSize,minStock});
  persist();openCustomer(customerId);return true;
 }
 function removeCustomerProductContract(customerId,contractId){
@@ -85,12 +86,14 @@ function openCustomer(id){
  <div class="grid3" style="margin-top:12px"><div><b>Lopende orderwaarde</b><br>${euro(totalOpen)}</div><div><b>Totale orderwaarde</b><br>${euro(totalAll)}</div><div><b>Adres</b><br>${esc([cust.address,cust.country].filter(Boolean).join(', ')||'—')}</div></div>
  <h3 style="margin-top:18px">Productcontracten</h3>
  <div style="overflow:auto"><table><thead><tr><th>Product</th><th>Contract</th><th>Geleverd</th><th>Open</th><th>Voorraadwerk</th><th>Restant</th><th>Batch</th><th></th></tr></thead><tbody>${contractRows||'<tr><td colspan="8">Nog geen productcontracten.</td></tr>'}</tbody></table></div>
- <div class="panel" style="padding:10px;margin-top:10px"><b>Contract toevoegen / aanpassen</b><div style="display:grid;grid-template-columns:minmax(180px,1fr) 120px 120px 120px auto;gap:8px;margin-top:7px">
+ <div class="panel" style="padding:10px;margin-top:10px"><b>Contract toevoegen / aanpassen</b><div style="display:grid;grid-template-columns:minmax(180px,1fr) 110px 110px 110px 110px auto;gap:8px;margin-top:7px">
  <input class="input" data-contract-product placeholder="Product">
  <input class="input" type="number" min="1" data-contract-qty placeholder="Contract st.">
+ <input class="input" type="number" min="0" data-contract-delivered placeholder="Reeds geleverd">
  <input class="input" type="number" min="0" data-contract-batch placeholder="Batch st.">
  <input class="input" type="number" min="0" data-contract-min-stock placeholder="Min. voorraad">
- <button class="btn primary" type="button" data-contract-add="${esc(id)}">Opslaan</button></div></div>
+ <button class="btn primary" type="button" data-contract-add="${esc(id)}">Opslaan</button></div>
+ <div class="muted" style="margin-top:6px">Reeds geleverd = handmatig 0-punt. Open orders/in productie en contractvoorraad worden daarna automatisch van het contractrestant afgetrokken.</div></div>
  <h3 style="margin-top:18px">Orders</h3><div style="overflow:auto"><table><thead><tr><th>Order</th><th>Product</th><th>Aantal</th><th>Status</th><th>Gepland gereed</th><th style="text-align:right">Waarde</th></tr></thead><tbody>${rows||'<tr><td colspan="6">Geen orders voor deze klant.</td></tr>'}</tbody></table></div>
  </div><div class="modalfoot"><button class="btn" type="button" data-customer-print="${esc(id)}">Print orderlijst</button><div class="spacer"></div><button class="btn" type="button" onclick="closeModal()">Sluiten</button></div></div></div>`;
  return true;
