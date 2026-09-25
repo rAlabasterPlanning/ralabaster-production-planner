@@ -22,6 +22,9 @@ function weekKey(date){
   const y=d.getFullYear(),w1=new Date(y,0,4);const w=1+Math.round(((d-w1)/86400000-3+((w1.getDay()+6)%7))/7);
   return y+'-W'+String(w).padStart(2,'0');
 }
+function weekMonday(key){const m=String(key||'').match(/^(\d{4})-W(\d{2})$/);if(!m)return'';const y=Number(m[1]),w=Number(m[2]),jan4=new Date(y,0,4,12),dow=(jan4.getDay()+6)%7;jan4.setDate(jan4.getDate()-dow+(w-1)*7);return iso(jan4)}
+function shiftWeekKey(key,n){const d=weekMonday(key);if(!d)return key;const x=parse(d);x.setDate(x.getDate()+7*n);return weekKey(iso(x))}
+function weekDistance(a,b){const da=weekMonday(a),db=weekMonday(b);if(!da||!db)return 0;return Math.round((parse(db)-parse(da))/(7*86400000))}
 function finishOf(t){
   const segs=Array.isArray(t?.planSegments)?t.planSegments.slice():[];
   if(segs.length){
@@ -60,6 +63,20 @@ function buildWeekOnly(preview){
       }
       taskWeeks.set(t.id,{week:assigned,simulatedWeek:firstWeek,early});
     }
+  }
+  for(const o of next.orders||[]){
+    const target=targetReadyDate(o),targetWeek=target?weekKey(target):'',entries=[];
+    for(const t of next.tasks||[]){if(t.orderId!==o.id)continue;const x=taskWeeks.get(t.id);if(x&&!x.early)entries.push([t,x])}
+    const latest=entries.map(x=>x[1].week).sort().at(-1)||'';
+    if(targetWeek&&latest&&targetWeek>latest){
+      const delta=weekDistance(latest,targetWeek);
+      for(const [t,x] of entries){x.week=shiftWeekKey(x.week,delta);taskWeeks.set(t.id,x)}
+    }
+  }
+  weekly.clear();
+  for(const t of next.tasks||[]){
+    const x=taskWeeks.get(t.id);if(!x)continue;
+    const key=t.orderId+'|'+x.week;weekly.set(key,(weekly.get(key)||0)+Math.max(0,Number(t.estimate)||0));
   }
   const byOrder=new Map();
   for(const [key,minutes] of weekly){const [orderId,week]=key.split('|');if(!byOrder.has(orderId))byOrder.set(orderId,[]);byOrder.get(orderId).push({week,minutes})}
