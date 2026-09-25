@@ -178,7 +178,7 @@ function planOrderStrict(o,opts={}){
    if(isExternalTask(t)){const send=dtDate(cursor),lead=Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14);t.employee=null;t.planSegments=[];t.date=send;t.start='';if(t.status==='external'&&t.externalSentDate)t.expectedReturnDate=addCal(t.externalSentDate,lead);else t.expectedReturnDate=addCal(send,lead);cursor=dtString(t.expectedReturnDate,'00:00');lastEmployee=flowEmployee;continue}
    const explicitTaskEmployee=!ralphOnlyTask(t)&&t.taskEmployeeOverride?t.taskEmployeeOverride:null;
    const taskCursor=parallelTaskStart(t,cursor);
-   const flowOpts={...opts,preferredEmployee:explicitTaskEmployee||lastEmployee||flowEmployee||opts.preferredEmployee||null,lockEmployee:true};
+   const flowOpts={...opts,preferredEmployee:explicitTaskEmployee||t.preferredEmployee||lastEmployee||flowEmployee||opts.preferredEmployee||null,lockEmployee:true};
    if(isSetup(t)&&next&&!isExternalTask(next)&&!isDryTask(next)&&!frozen(next)){
      const nextOverride=!ralphOnlyTask(next)&&next.taskEmployeeOverride?next.taskEmployeeOverride:null;
      cursor=pairSetupWithExecution(t,next,taskCursor,{...flowOpts,preferredEmployee:nextOverride||flowOpts.preferredEmployee});
