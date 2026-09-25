@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260924-10';
+const VERSION='20260925-1';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=30;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -107,7 +107,7 @@ function pairSetupWithExecution(setup,run,earliestAt,opts={}){
  return allocateInternal(run,finish,{...opts,preferredEmployee:preferredRun||employees[0]||'Kaan',lockEmployee:true});
 }
 function clearMovablePlanning(orderIds=null){const ids=orderIds?new Set(orderIds):null;for(const t of S()?.tasks||[]){if(isGeneral(t)||taskDone(t)||frozen(t)||(ids&&!ids.has(t.orderId)))continue;clearTaskPlanning(t);resetMachineAssignment(t);if(isExternalTask(t)&&t.status!=='external'){t.externalSentDate='';t.expectedReturnDate=''}}}
-function chainStartForOrder(o,opts={}){const ts=orderTasks(o.id).sort((a,b)=>a.seq-b.seq),fixed=ts.filter(frozen);let cursor=opts.planningStart?(String(opts.planningStart).includes('T')?String(opts.planningStart).slice(0,16):dtString(opts.planningStart,'08:15')):(typeof automaticPlanningStart==='function'?automaticPlanningStart(today()):dtString(today(),'08:15'));for(const t of fixed){const f=taskFinishAt(t);if(f&&f>cursor)cursor=f}return cursor}
+function chainStartForOrder(o,opts={}){const ts=orderTasks(o.id).sort((a,b)=>a.seq-b.seq),fixed=ts.filter(frozen);let cursor=opts.planningStart?(String(opts.planningStart).includes('T')?String(opts.planningStart).slice(0,16):dtString(opts.planningStart,'08:15')):(typeof automaticPlanningStart==='function'?automaticPlanningStart(today()):dtString(today(),'08:15'));if(o?.planningNotBefore){const hold=dtString(o.planningNotBefore,'08:15');if(hold>cursor)cursor=hold}for(const t of fixed){const f=taskFinishAt(t);if(f&&f>cursor)cursor=f}return cursor}
 function scheduleWaitStrict(t,startAt){
  const start=(startAt&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(startAt))?startAt.slice(0,16):dtString(today(),'00:00');
  const m=String(start).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
