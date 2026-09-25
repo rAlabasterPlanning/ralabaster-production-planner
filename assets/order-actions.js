@@ -6,9 +6,9 @@ function persist(){try{save()}catch(e){console.error(e)}}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function openOrders(){
   try{
-    if(typeof window.switchView==='function')window.switchView('orders');
-    else if(typeof window.renderOrders==='function'){try{currentView='orders'}catch(_){};window.renderOrders()}
-    else window.RALAB_ERP?.show?.('orders');
+    if(typeof window.switchView==='function')window.switchView('orderoverview');
+    else if(typeof window.renderOrders==='function'){try{currentView='orderoverview'}catch(_){};window.renderOrders()}
+    else window.RALAB_ERP?.show?.('orderoverview');
   }catch(e){console.error(e)}
   setTimeout(()=>{try{if(typeof window.renderOrders==='function')window.renderOrders()}catch(e){console.error(e)}},80);
 }
