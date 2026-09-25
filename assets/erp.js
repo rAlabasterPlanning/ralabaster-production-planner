@@ -133,24 +133,23 @@ function nextStepInfo(o){
 let earliestDeliveryRun=0;
 async function refreshEarliestDeliveryDates(){
  const run=++earliestDeliveryRun,root=document.getElementById('view-orderoverview');if(!root||root.classList.contains('hidden'))return;
- const controls=window.RALAB_ORDER_CONTROLS;
- const cells=[...root.querySelectorAll('[data-earliest-delivery]')];if(!cells.length)return;
+ const controls=window.RALAB_ORDER_CONTROLS,cells=[...root.querySelectorAll('[data-earliest-delivery]')];if(!cells.length)return;
  const fallback=new Map((S()?.orders||[]).map(o=>[o.id,plannedReadyDate(o)]));
- if(!controls?.simulate){for(const cell of cells){const d=fallback.get(cell.dataset.earliestDelivery)||'';cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Nog berekenen</span>'}return}
- const today=iso();
- for(const cell of cells){
+ if(!controls?.simulateSequentialRemaining){
+   for(const cell of cells){const d=fallback.get(cell.dataset.earliestDelivery)||'';cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Nog berekenen</span>'}
+   return;
+ }
+ try{
+   const preview=controls.simulateSequentialRemaining({planningStart:iso()});
    if(run!==earliestDeliveryRun)return;
-   const id=cell.dataset.earliestDelivery;
-   try{
-     const preview=controls.simulate(id,{planningStart:today,allowPeter:false,allowSaturday:false});
-     const d=String(preview?.health?.finish||'').slice(0,10)||fallback.get(id)||'';
-     cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Niet berekend</span>';
-   }catch(e){
-     console.error('Vroegst uitleveren berekenen mislukt voor order',id,e);
-     const d=fallback.get(id)||'';
+   const finish=new Map((preview?.orders||[]).map(x=>[x.id,String(x.health?.finish||'').slice(0,10)]));
+   for(const cell of cells){
+     const id=cell.dataset.earliestDelivery,d=finish.get(id)||fallback.get(id)||'';
      cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Niet berekend</span>';
    }
-   await new Promise(r=>setTimeout(r,0));
+ }catch(e){
+   console.error('Vroegst uitleveren volgens productievolgorde berekenen mislukt',e);
+   for(const cell of cells){const d=fallback.get(cell.dataset.earliestDelivery)||'';cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Niet berekend</span>'}
  }
 }
 function renderOrderOverview(){
