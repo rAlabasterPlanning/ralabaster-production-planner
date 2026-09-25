@@ -130,6 +130,30 @@ function nextStepInfo(o){
  const d=t.planningLatestStartDate||o.productionLatestStartDate||taskDueDate(t),days=daysFromToday(d);
  return{task:t,date:d,days,label:days===null?'Week nog niet toegewezen':days<=0?'DIRECT UITVOEREN':days===1?'Uiterlijk over 1 dag':'Uiterlijk over '+days+' dagen'};
 }
+let earliestDeliveryRun=0;
+async function refreshEarliestDeliveryDates(){
+ const run=++earliestDeliveryRun,root=document.getElementById('view-orderoverview');if(!root||root.classList.contains('hidden'))return;
+ const controls=window.RALAB_ORDER_CONTROLS;
+ const cells=[...root.querySelectorAll('[data-earliest-delivery]')];if(!cells.length)return;
+ const fallback=new Map((S()?.orders||[]).map(o=>[o.id,plannedReadyDate(o)]));
+ if(!controls?.simulateRemaining){for(const cell of cells){const d=fallback.get(cell.dataset.earliestDelivery)||'';cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Nog berekenen</span>'}return}
+ try{
+   const today=iso();
+   let preview=controls.simulateRemaining({planningStart:today});
+   const expected=controls.remainingOrders?.().length||0;
+   const covered=(preview?.orders?.length||0)+(preview?.invalid||[]).filter(x=>x.id!=='__planner__').length;
+   if(expected>covered)preview=controls.simulateSequentialRemaining?.({planningStart:today})||preview;
+   if(run!==earliestDeliveryRun)return;
+   const finish=new Map((preview?.orders||[]).map(x=>[x.id,String(x.health?.finish||'').slice(0,10)]));
+   for(const cell of cells){
+     const id=cell.dataset.earliestDelivery,d=finish.get(id)||fallback.get(id)||'';
+     cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Niet berekend</span>';
+   }
+ }catch(e){
+   console.error('Vroegst uitleveren berekenen mislukt',e);
+   for(const cell of cells){const d=fallback.get(cell.dataset.earliestDelivery)||'';cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Niet berekend</span>'}
+ }
+}
 function renderOrderOverview(){
  if(!init())return;
  const root=document.getElementById('view-orderoverview'),s=S();if(!root)return;
@@ -153,12 +177,13 @@ function renderOrderOverview(){
    <td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')"><b>${esc(o.orderNo||'')}</b></button></td>
    <td><b>${esc(o.product||'')}</b><div class="muted">${esc(o.customerName||'')} · ${Number(o.qty)||0} st.</div></td>
    <td><input class="input" type="date" data-overview-deadline="${esc(o.id)}" value="${esc(deadline)}"></td>
-   <td>${(()=>{const d=plannedReadyDate(o);return d?'<b>'+esc(d)+'</b>':'<span class="muted">Nog berekenen</span>'})()}</td>
+   <td data-earliest-delivery="${esc(o.id)}"><span class="muted">Berekenen…</span></td>
    <td>${(()=>{const today=iso(),late=o.productionLatestWorkDate&&o.productionLatestWorkDate<today,due=o.productionLatestStartDate&&o.productionLatestStartDate<=today;if(late)return '<b>TE LAAT</b>';if(due)return '<b>DIRECT STARTEN</b>';if(o.productionLatestStartWeek&&o.productionLatestStartDate)return '<b>Week '+esc(String(o.productionLatestStartWeek).slice(-2))+'</b><div class="muted">'+esc(o.productionLatestStartDate)+'</div>';return '<b>Nog berekenen</b>'})()}</td>
    <td><b>${esc(n.task?.name||'Gereed')}</b><div class="muted">${esc(n.task?.machine||'')}</div></td>
    <td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')">Open</button></td>
  </tr>`}).join('')||'<tr><td colspan="8">Geen actieve orders.</td></tr>'}
  </tbody></table></div>`;
+ setTimeout(refreshEarliestDeliveryDates,0);
 }
 function orderDeadlineValue(o){return o?.communicatedDeadline||o?.maximumReadyDate||o?.deadline||'9999-12-31'}
 function orderPriority(o){const n=Number(o?.planningPriority);return n>=1&&n<=3?n:3}
