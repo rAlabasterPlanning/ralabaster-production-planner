@@ -97,8 +97,18 @@ function buildWeekOnly(preview){
     const productionWeeks=(next.tasks||[]).filter(t=>realProductionTask(t)&&t.planningWeek).map(t=>t.planningWeek).sort();
     o.productionStartWeek=productionWeeks[0]||'';
     o.productionFinishWeek=productionWeeks.at(-1)||'';
-    const prodDates=(next.tasks||[]).filter(t=>realProductionTask(t)&&t.planningLatestStartDate).map(t=>t.planningLatestStartDate).sort();
-    o.productionLatestStartDate=prodDates[0]||'';
+    const actionableTask=t=>{const st=String(t?.status||'').toLowerCase(),type=String(t?.type||'').toLowerCase();return t?.orderId===o.id&&!t?.deleted&&!['done','completed','external'].includes(st)&&!['wait','external'].includes(type)};
+    const actionDates=(next.tasks||[]).filter(actionableTask).map(t=>{
+      if(t.planningLatestStartDate)return t.planningLatestStartDate;
+      if(preparationTask(t)){
+        const seg=(Array.isArray(t.planSegments)?t.planSegments:[]).filter(g=>g?.date).sort((a,b)=>String(a.date).localeCompare(String(b.date)))[0];
+        if(seg?.date)return String(seg.date).slice(0,10);
+        if(t.date)return String(t.date).slice(0,10);
+        if(t.planningWeek)return weekMonday(t.planningWeek);
+      }
+      return '';
+    }).filter(Boolean).sort();
+    o.productionLatestStartDate=actionDates[0]||'';
     o.productionLatestWorkDate=targetReadyDate(o)||'';
     o.productionLatestStartWeek=o.productionLatestStartDate?weekKey(o.productionLatestStartDate):o.productionStartWeek||'';
     const reservations=(byOrder.get(o.id)||[]).sort((a,b)=>a.week.localeCompare(b.week));
