@@ -93,18 +93,17 @@ function renderOrderOverview(){
  root.innerHTML=`<div class="toolbar"><h2>Orderoverzicht</h2><span class="pill">${all.length} actief</span><div class="spacer"></div><button class="btn" onclick="RALAB_ERP.show('calculation')">+ Nieuwe calculatie</button></div>
  <div class="notice"><b>Productievolgorde:</b> standaard op deadline. Vul alleen een volgordenummer in als je handmatig wilt overrulen. Deadline is direct in de lijst aanpasbaar.</div>
  <div class="panel" style="overflow:auto">
- <table class="order-overview-list" style="min-width:1000px"><thead><tr><th style="width:78px">Volgorde</th><th>Order</th><th>Klant / product</th><th style="width:155px">Deadline</th><th style="width:145px">Uiterlijk starten</th><th>Volgende stap</th><th style="width:170px">Wanneer</th><th style="width:110px">Prioriteit</th><th style="width:80px"></th></tr></thead><tbody>
+ <table class="order-overview-list" style="min-width:1000px"><thead><tr><th style="width:78px">Volgorde</th><th>Order</th><th>Klant / product</th><th style="width:155px">Deadline</th><th style="width:160px">Uiterlijk starten</th><th>Volgende stap</th><th style="width:110px">Prioriteit</th><th style="width:80px"></th></tr></thead><tbody>
  ${all.map(o=>{const n=nextStepInfo(o),seq=orderSequenceValue(o)||'',deadline=(o.communicatedDeadline||o.maximumReadyDate||o.deadline||'');return `<tr data-overview-order="${esc(o.id)}">
    <td><input class="input" style="width:68px;text-align:center" type="number" min="1" placeholder="auto" data-overview-sequence="${esc(o.id)}" value="${esc(seq)}"></td>
    <td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')"><b>${esc(o.orderNo||'')}</b></button></td>
    <td><b>${esc(o.product||'')}</b><div class="muted">${esc(o.customerName||'')} · ${Number(o.qty)||0} st.</div></td>
    <td><div style="display:grid;grid-template-columns:minmax(135px,1fr) 92px;gap:6px;align-items:center"><input class="input" type="date" data-overview-deadline="${esc(o.id)}" value="${esc(deadline)}"><label style="display:flex;align-items:center;gap:4px;white-space:nowrap"><input class="input" style="width:58px;text-align:center" type="number" min="0" step="1" placeholder="x" data-overview-deadline-weeks="${esc(o.id)}"><span class="muted">wk</span></label></div></td>
-   <td>${(()=>{const today=iso(),late=o.productionLatestWorkDate&&o.productionLatestWorkDate<today,due=o.productionLatestStartDate&&o.productionLatestStartDate<=today;return `<b>${late?'TE LAAT · DIRECT STARTEN':due?'DIRECT STARTEN':esc(o.productionLatestStartWeek?('Week '+String(o.productionLatestStartWeek).slice(-2)):'Nog berekenen')}</b><div class="muted">${o.productionLatestStartDate?'uiterlijk '+esc(o.productionLatestStartDate):''}${o.productionLatestWorkDate?('<br>laatste werkdag '+esc(o.productionLatestWorkDate)):''}</div>`})()}</td>
+   <td>${(()=>{const today=iso(),late=o.productionLatestWorkDate&&o.productionLatestWorkDate<today,due=o.productionLatestStartDate&&o.productionLatestStartDate<=today;if(late)return '<b>TE LAAT</b>';if(due)return '<b>DIRECT STARTEN</b>';if(o.productionLatestStartWeek&&o.productionLatestStartDate)return '<b>Week '+esc(String(o.productionLatestStartWeek).slice(-2))+'</b><div class="muted">'+esc(o.productionLatestStartDate)+'</div>';return '<b>Nog berekenen</b>'})()}</td>
    <td><b>${esc(n.task?.name||'Gereed')}</b><div class="muted">${esc(n.task?.machine||'')}</div></td>
-   <td><b>${esc(n.label)}</b>${n.date?`<div class="muted">${esc(n.date)}</div>`:''}</td>
    <td>${priorityStars(o)}</td>
    <td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')">Open</button></td>
- </tr>`}).join('')||'<tr><td colspan="9">Geen actieve orders.</td></tr>'}
+ </tr>`}).join('')||'<tr><td colspan="8">Geen actieve orders.</td></tr>'}
  </tbody></table></div>`;
 }
 function orderDeadlineValue(o){return o?.communicatedDeadline||o?.maximumReadyDate||o?.deadline||'9999-12-31'}
