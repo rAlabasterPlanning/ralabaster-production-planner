@@ -166,8 +166,9 @@ async function planCurrentSequence(button){
    try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
    try{save()}catch(_){}
    renderOrderOverview();
-   show('weeks');
-   try{window.renderWeeks?.()}catch(_){}
+   const proposals=window.RALAB_WEEK_PROPOSAL;
+   if(proposals?.startAll)proposals.startAll();
+   else{show('weeks');try{window.renderWeeks?.()}catch(_){}}
    return changed;
  }catch(e){
    console.error('Plannen volgens huidige volgorde mislukt',e);
