@@ -1,7 +1,7 @@
 // One explicit date/time editor, shared by all existing and future forms.
 // Original inputs remain the data source; no native picker or synthetic tap is used.
 (()=>{
- const VERSION='20260914-2',selector='input[type="date"],input[type="time"],input[type="datetime-local"]';
+ const VERSION='20260925-3',selector='input[type="date"],input[type="time"],input[type="datetime-local"]';
  const buttons=new WeakMap(),sources=new WeakMap();let active=null,queued=false;
  const pad=n=>String(n).padStart(2,'0');
  const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -49,8 +49,10 @@
   if(input.disabled||input.readOnly)return;close(false);
   const kind=input.type,[datePart,timePart]=kind==='time'?['',input.value]:input.value.split('T'),date=dateOf(datePart)||today(),time=timePart||'08:15';
   const overlay=document.createElement('div');overlay.dataset.temporalDialog='';overlay.className='temporal-overlay';
+  const isOrderDeadline=!!input.closest('#view-orderoverview')&&input.hasAttribute('data-overview-deadline');
+  const quickDeadline=isOrderDeadline?'<div class="deadline-modal-quick" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px"><button class="btn small" type="button" data-date-offset-weeks="0">Vandaag</button><button class="btn small" type="button" data-date-offset-weeks="1">+1 week</button><button class="btn small" type="button" data-date-offset-weeks="2">+2 weken</button><button class="btn small" type="button" data-date-offset-weeks="4">+4 weken</button><button class="btn small" type="button" data-date-offset-weeks="6">+6 weken</button><button class="btn small" type="button" data-date-offset-weeks="8">+8 weken</button><div style="display:flex;align-items:center;gap:5px;width:100%;margin-top:2px"><span>Over</span><input class="input" type="number" min="0" step="1" placeholder="x" data-date-custom-weeks style="width:66px;text-align:center"><span>weken</span><button class="btn small primary" type="button" data-date-custom-apply>Instellen</button></div></div>':'';
   overlay.innerHTML=`<div class="temporal-card" role="dialog" aria-modal="true" aria-labelledby="temporal-title"><h3 id="temporal-title"></h3>
-   ${kind!=='time'?'<label for="temporal-date">Datum (dd-mm-jjjj)</label><input id="temporal-date" type="text" inputmode="numeric" autocomplete="off" placeholder="dd-mm-jjjj"><div class="temporal-month"><button type="button" data-calendar-prev aria-label="Vorige maand">‹</button><b data-calendar-month></b><button type="button" data-calendar-next aria-label="Volgende maand">›</button></div><div class="temporal-week">'+['Ma','Di','Wo','Do','Vr','Za','Zo'].map(d=>'<span>'+d+'</span>').join('')+'</div><div class="temporal-days" data-calendar-days></div>':''}
+   ${kind!=='time'?quickDeadline+'<label for="temporal-date">Datum (dd-mm-jjjj)</label><input id="temporal-date" type="text" inputmode="numeric" autocomplete="off" placeholder="dd-mm-jjjj"><div class="temporal-month"><button type="button" data-calendar-prev aria-label="Vorige maand">‹</button><b data-calendar-month></b><button type="button" data-calendar-next aria-label="Volgende maand">›</button></div><div class="temporal-week">'+['Ma','Di','Wo','Do','Vr','Za','Zo'].map(d=>'<span>'+d+'</span>').join('')+'</div><div class="temporal-days" data-calendar-days></div>':''}
    ${kind!=='date'?'<div class="temporal-time"><label>Uur<input id="temporal-hour" type="text" inputmode="numeric" maxlength="2" autocomplete="off"></label><span>:</span><label>Minuut<input id="temporal-minute" type="text" inputmode="numeric" maxlength="2" autocomplete="off"></label></div><p class="muted">Je kunt ook tijden buiten de normale werkdag kiezen.</p>':''}
    <p class="temporal-error" role="alert" data-temporal-error></p><div class="temporal-actions"><button class="btn" type="button" data-temporal-cancel>Annuleren</button><button class="btn" type="button" data-temporal-clear>Leegmaken</button><button class="btn primary" type="button" data-temporal-apply>Toepassen</button></div></div>`;
   overlay.querySelector('h3').textContent=labelFor(input);
@@ -79,6 +81,18 @@
   if(e.target.closest('[data-temporal-cancel]'))return close();
   if(e.target.closest('[data-temporal-apply]'))return commit();
   if(e.target.closest('[data-temporal-clear]'))return commit(true);
+  const quick=e.target.closest('[data-date-offset-weeks]');
+  if(quick&&active?.dateInput){
+    const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+(Number(quick.dataset.dateOffsetWeeks)||0)*7);
+    active.dateInput.value=localDate(iso(d));active.month=new Date(iso(d).slice(0,7)+'-01T12:00:00');calendar();return commit();
+  }
+  const custom=e.target.closest('[data-date-custom-apply]');
+  if(custom&&active?.dateInput){
+    const raw=active.overlay.querySelector('[data-date-custom-weeks]')?.value,n=Number(raw);
+    if(!Number.isFinite(n)||n<0){active.overlay.querySelector('[data-temporal-error]').textContent='Vul een geldig aantal weken in.';return}
+    const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+Math.round(n)*7);
+    active.dateInput.value=localDate(iso(d));active.month=new Date(iso(d).slice(0,7)+'-01T12:00:00');calendar();return commit();
+  }
   const day=e.target.closest('[data-calendar-day]');if(day){active.dateInput.value=localDate(day.dataset.calendarDay);calendar();return}
   const direction=e.target.closest('[data-calendar-prev]')?-1:e.target.closest('[data-calendar-next]')?1:0;
   if(direction){active.month.setMonth(active.month.getMonth()+direction);calendar()}
