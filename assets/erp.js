@@ -154,8 +154,66 @@ function renderOrders(page=orderPage){
 }
 async function openOrder(id){
  let o=findOrder(id),ts=o?taskList(id):[];if(!o&&perf()?.loadOrderBundle){try{const b=await perf().loadOrderBundle(id);o=b?.order;ts=b?.tasks||[]}catch(e){console.error(e)}}if(!o)return;
- const html=`<div class="modalhead"><h3>${esc(o.orderNo)} · ${esc(o.customerName||'')} · ${esc(o.product)}</h3></div><div class="modalbody"><div class="grid3"><div><b>Status</b><br>${status({...o,id:o.id})}</div><div><b>Intern gereed</b><br>${esc(o.internalExpectedDate||'—')}</div><div><b>Klantdeadline</b><br>${esc(plannedReadyDate(o)||'—')}</div></div><h3>Proces</h3>${ts.map((t,i)=>`<div style="padding:9px;border-bottom:1px solid #eee"><b>${i+1}. ${esc(t.name)}</b> · ${esc(t.status||'open')} · ${esc(t.employee||'—')} · ${esc(t.date||'niet gepland')}</div>`).join('')}<h3>Commercieel</h3><div>Kostprijs/st: ${euro(o.costUnit)} · Verkoop/st: ${euro(o.saleUnit)} · Totaal: ${euro(o.totalSale)}</div></div><div class="modalfoot" style="flex-wrap:wrap"><button class="btn" onclick="RALAB_ERP.deleteOrder('${o.id}')">Verwijder order</button><button class="btn" type="button" data-unplan-order="${esc(o.id)}">Ontplannen</button><button class="btn" type="button" data-order-to-calc="${esc(o.id)}">Terug naar calculatie</button><div class="spacer"></div><button class="btn" onclick="closeModal()">Sluiten</button><button class="btn primary" onclick="RALAB_ERP.orderConfirmation('${o.id}')">Order confirmation</button></div>`;
+ ts=ts.filter(t=>!t.deleted).slice().sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));
+ const knownMachines=[...new Set((S()?.tasks||[]).map(t=>String(t.machine||'').trim()).filter(Boolean))].sort();
+ const machineList=knownMachines.map(x=>`<option value="${esc(x)}"></option>`).join('');
+ const rows=ts.map((t,i)=>{const done=['done','completed'].includes(String(t.status||'').toLowerCase());return `<div data-order-task-row="${esc(t.id)}" style="display:grid;grid-template-columns:34px minmax(220px,1fr) 105px 110px 92px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #eee">
+   <div><b>${i+1}.</b></div>
+   <div><b>${esc(t.name||'Taak')}</b><div class="muted">${esc(t.machine||'')}${t.employee?' · '+esc(t.employee):''}${t.date?' · '+esc(t.date):''}</div></div>
+   <label style="display:flex;align-items:center;gap:5px"><input class="input" style="width:72px" type="number" min="1" step="1" data-order-task-duration="${esc(t.id)}" value="${Math.max(1,Math.round(Number(t.estimate)||1))}"><span class="muted">min</span></label>
+   <button class="btn small ${done?'':'primary'}" type="button" data-order-task-toggle="${esc(t.id)}">${done?'Heropenen':'Klaar'}</button>
+   <button class="btn small" type="button" data-order-task-delete="${esc(t.id)}">Verwijderen</button>
+ </div>`}).join('');
+ const html=`<div class="modalhead"><h3>${esc(o.orderNo)} · ${esc(o.customerName||'')} · ${esc(o.product)}</h3></div><div class="modalbody"><div class="grid3"><div><b>Status</b><br>${status({...o,id:o.id})}</div><div><b>Intern gereed</b><br>${esc(o.internalExpectedDate||'—')}</div><div><b>Klantdeadline</b><br>${esc(o.communicatedDeadline||o.deadline||'—')}</div></div>
+ <div style="display:flex;align-items:center;gap:10px;margin-top:18px"><h3 style="margin:0">Proces</h3><span class="pill">${ts.length} taken</span></div>
+ <div style="margin-top:8px">${rows||'<div class="muted">Nog geen taken.</div>'}</div>
+ <div class="panel" style="padding:10px;margin-top:10px"><b>Taak toevoegen</b><div style="display:grid;grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) 110px auto;gap:8px;margin-top:7px">
+   <input class="input" data-new-order-task-name placeholder="Taaknaam">
+   <input class="input" list="orderTaskMachineList" data-new-order-task-machine placeholder="Werkplek / machine">
+   <label style="display:flex;align-items:center;gap:5px"><input class="input" type="number" min="1" step="1" value="30" data-new-order-task-duration style="width:76px"><span class="muted">min</span></label>
+   <button class="btn primary" type="button" data-add-order-task="${esc(o.id)}">+ Toevoegen</button>
+ </div><datalist id="orderTaskMachineList">${machineList}</datalist></div>
+ <h3>Commercieel</h3><div>Kostprijs/st: ${euro(o.costUnit)} · Verkoop/st: ${euro(o.saleUnit)} · Totaal: ${euro(o.totalSale)}</div></div><div class="modalfoot" style="flex-wrap:wrap"><button class="btn" onclick="RALAB_ERP.deleteOrder('${o.id}')">Verwijder order</button><button class="btn" type="button" data-unplan-order="${esc(o.id)}">Ontplannen</button><button class="btn" type="button" data-order-to-calc="${esc(o.id)}">Terug naar calculatie</button><div class="spacer"></div><button class="btn" onclick="closeModal()">Sluiten</button><button class="btn primary" onclick="RALAB_ERP.orderConfirmation('${o.id}')">Order confirmation</button></div>`;
  if(typeof showModal==='function')showModal(html);else alert(o.orderNo)
+}
+function mutableTask(id){return S()?.tasks?.find(t=>t.id===id&&!t.deleted)||null}
+function renumberOrderTasks(orderId){(S()?.tasks||[]).filter(t=>t.orderId===orderId&&!t.deleted).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0)).forEach((t,i)=>t.seq=i+1)}
+async function refreshOrderAfterTaskChange(orderId){
+ try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
+ try{save()}catch(e){console.error(e)}
+ try{await window.RALAB_HYBRID_PLANNER?.ensureWeekAssignments?.(true)}catch(e){console.error(e)}
+ try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
+ renderOrderOverview();openOrder(orderId);
+}
+function setOrderTaskDuration(id,value){
+ const t=mutableTask(id);if(!t)return false;const minutes=Math.max(1,Math.round(Number(value)||0));if(!minutes)return false;t.estimate=minutes;
+ const o=S()?.orders?.find(x=>x.id===t.orderId);if(o){o.weekPlanningUpdatedAt='';o.productionLatestStartDate='';o.productionLatestStartWeek=''}
+ refreshOrderAfterTaskChange(t.orderId);return true;
+}
+function toggleOrderTaskDone(id){
+ const t=mutableTask(id);if(!t)return false;const done=['done','completed'].includes(String(t.status||'').toLowerCase());
+ if(done){t.status='open';delete t.completedAt;delete t.completedAtDT}
+ else{t.status='done';t.completedAt=iso();t.completedAtDT=new Date().toISOString();t.planSegments=[];t.date=null;t.start='';t.employee=null;t.doneQty=t.doneQty||Number(S()?.orders?.find(o=>o.id===t.orderId)?.qty)||0}
+ const o=S()?.orders?.find(x=>x.id===t.orderId);if(o){o.weekPlanningUpdatedAt='';o.productionLatestStartDate='';o.productionLatestStartWeek=''}
+ refreshOrderAfterTaskChange(t.orderId);return true;
+}
+function removeOrderTask(id){
+ const t=mutableTask(id);if(!t)return false;if(!confirm('Taak "'+(t.name||'')+'" verwijderen?'))return false;
+ t.deleted=true;t.deletedAt=new Date().toISOString();t.planSegments=[];t.date=null;t.start='';t.employee=null;
+ renumberOrderTasks(t.orderId);
+ const o=S()?.orders?.find(x=>x.id===t.orderId);if(o){o.weekPlanningUpdatedAt='';o.productionLatestStartDate='';o.productionLatestStartWeek=''}
+ refreshOrderAfterTaskChange(t.orderId);return true;
+}
+function addOrderTask(orderId,name,machine,minutes){
+ const s=S(),o=s?.orders?.find(x=>x.id===orderId&&!x.deleted);if(!s||!o)return false;
+ name=String(name||'').trim();machine=String(machine||'').trim();
+ if(!name)return alert('Vul een taaknaam in.');
+ if(!machine)return alert('Kies of vul een werkplek / machine in.');
+ const list=(s.tasks||[]).filter(t=>t.orderId===orderId&&!t.deleted),seq=list.reduce((m,t)=>Math.max(m,Number(t.seq)||0),0)+1;
+ const id='t_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+ s.tasks.push({id,orderId,seq,name,machine,estimate:Math.max(1,Math.round(Number(minutes)||30)),dependsPrev:seq>1,type:'internal',employee:null,date:null,start:'',planSegments:[],status:'open',actual:0,doneQty:0,note:''});
+ o.weekPlanningUpdatedAt='';o.productionLatestStartDate='';o.productionLatestStartWeek='';
+ refreshOrderAfterTaskChange(orderId);return true;
 }
 function deleteOrder(id){
  const o=findOrder(id);if(!o)return false;
@@ -183,9 +241,13 @@ function renderProducts(page=productPage){if(!init())return;productPage=Math.max
 function searchOrders(e){const el=e.target.closest?.('#view-orders [data-order-search]');if(!el)return;const root=el.closest('section');root.dataset.q=el.value;renderOrders(0)}
 document.addEventListener('input',searchOrders);
 document.addEventListener('search',searchOrders);
-document.addEventListener('change',e=>{const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(dl){setOverviewDeadline(dl.dataset.overviewDeadline,dl.value);return}const sq=e.target.closest?.('#view-orderoverview [data-overview-sequence]');if(sq){setOverviewSequence(sq.dataset.overviewSequence,sq.value);return}if(e.target.matches?.('#view-orders [data-order-search]'))return searchOrders(e);const root=e.target.closest?.('#view-orders');if(!root)return;if(e.target.matches('[data-order-sort]'))root.dataset.orderSort=e.target.value;else if(e.target.matches('[data-only-unplanned]'))root.dataset.onlyUnplanned=e.target.checked?'1':'0';else return;renderOrders(0)});
-document.addEventListener('click',e=>{const star=e.target.closest?.('#view-orders [data-priority-order], #view-orderoverview [data-priority-order]');if(!star||star.disabled)return;e.preventDefault();e.stopPropagation();setOrderPriority(star.dataset.priorityOrder,star.dataset.priorityValue)},true);
-window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence};
+document.addEventListener('change',e=>{const td=e.target.closest?.('[data-order-task-duration]');if(td){setOrderTaskDuration(td.dataset.orderTaskDuration,td.value);return}const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(dl){setOverviewDeadline(dl.dataset.overviewDeadline,dl.value);return}const sq=e.target.closest?.('#view-orderoverview [data-overview-sequence]');if(sq){setOverviewSequence(sq.dataset.overviewSequence,sq.value);return}if(e.target.matches?.('#view-orders [data-order-search]'))return searchOrders(e);const root=e.target.closest?.('#view-orders');if(!root)return;if(e.target.matches('[data-order-sort]'))root.dataset.orderSort=e.target.value;else if(e.target.matches('[data-only-unplanned]'))root.dataset.onlyUnplanned=e.target.checked?'1':'0';else return;renderOrders(0)});
+document.addEventListener('click',e=>{
+ const add=e.target.closest?.('[data-add-order-task]');if(add){e.preventDefault();const root=add.closest('.modalbody')||document;const name=root.querySelector('[data-new-order-task-name]')?.value||'',machine=root.querySelector('[data-new-order-task-machine]')?.value||'',minutes=root.querySelector('[data-new-order-task-duration]')?.value||30;addOrderTask(add.dataset.addOrderTask,name,machine,minutes);return}
+ const toggle=e.target.closest?.('[data-order-task-toggle]');if(toggle){e.preventDefault();toggleOrderTaskDone(toggle.dataset.orderTaskToggle);return}
+ const del=e.target.closest?.('[data-order-task-delete]');if(del){e.preventDefault();removeOrderTask(del.dataset.orderTaskDelete);return}
+ const star=e.target.closest?.('#view-orders [data-priority-order], #view-orderoverview [data-priority-order]');if(!star||star.disabled)return;e.preventDefault();e.stopPropagation();setOrderPriority(star.dataset.priorityOrder,star.dataset.priorityValue)},true);
+window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,toggleOrderTaskDone,removeOrderTask,addOrderTask};
 const priorityStyle=document.createElement('style');priorityStyle.textContent='.order-priority{display:inline-flex;gap:1px;white-space:nowrap}.priority-star{appearance:none;border:0;background:transparent;color:#b8bfbb;font-size:25px;line-height:1;padding:2px;cursor:pointer;touch-action:manipulation}.priority-star.active{color:#d99a00}.priority-star:focus-visible{outline:2px solid #176b55;border-radius:4px}@media(max-width:700px){.priority-star{font-size:29px;padding:4px}}';document.head.appendChild(priorityStyle);
 setTimeout(()=>{if(!init())return;document.querySelectorAll('.erp-nav').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();show(b.dataset.view)}));},1200);
 })();
