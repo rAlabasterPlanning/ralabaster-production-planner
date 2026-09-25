@@ -133,7 +133,25 @@ function undoDeleteTask(){const x=state.deletedTasks?.pop();if(!x)return alert('
 
 function showModal(html){document.getElementById('modalRoot').innerHTML=`<div class="modalback" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`}
 function closeModal(){document.getElementById('modalRoot').innerHTML=''}
-function rollOpenTasks(){const uniq=[...new Set(scheduledEntries(selectedDate).map(x=>x.task))].filter(t=>t.status!=='done'&&t.status!=='external');if(!uniq.length)return alert('Geen open werk op deze dag.');const rows=uniq.sort((a,b)=>{const aa=firstSegment(a)?.start||'99:99',bb=firstSegment(b)?.start||'99:99';return aa.localeCompare(bb)}).map(t=>{const o=order(t.orderId),partial=t.status==='partial'||t.status==='in_progress',def=partial?'next_first':'next_free';const rem=partial&&t.actual>0?Math.max(15,(Number(t.estimate)||0)-(Number(t.actual)||0)):Number(t.estimate)||0;return `<tr data-id="${t.id}" data-rem="${rem}"><td><b>${esc(o.orderNo)} – ${esc(o.product)}</b><br>${esc(t.name)}<br><span class="muted">${esc(t.machine)}</span></td><td>${statusLabel(t)}</td><td>${fmtMin(rem)}</td><td><select class="rollStrategy"><option value="next_first" ${def==='next_first'?'selected':''}>Morgen / volgende werkdag als eerste werk</option><option value="next_free" ${def==='next_free'?'selected':''}>Eerstvolgende beschikbare tijd</option><option value="manual">Zelf datum kiezen</option></select><input class="rollDate input" type="date" value="${nextWorkingDateFor(t.employee||'Ralph',selectedDate,false,false)}" style="margin-top:5px;width:100%"></td><td><select class="rollScope"><option value="chain" selected>Deze taak + afhankelijke rest van deze order</option><option value="only">Alleen deze taak</option></select></td></tr>`}).join('');showModal(`<div class="modalhead"><h3>Open werk doorschuiven – ${fmtDate(selectedDate)}</h3></div><div class="modalbody"><div class="notice">De standaardkeuze staat al ingevuld: <b>deels/bezig → volgende werkdag als eerste werk</b>; <b>niet gestart → eerstvolgende vrije plek</b>. Per taak kun je dit aanpassen. Taken die niet in één werkdag passen worden automatisch over meerdere werkdagen gesplitst. Bij ‘als eerste werk’ maakt het systeem aan het begin van die dag ruimte en schuift het andere werk van die medewerker door.</div><div class="panel"><table><thead><tr><th>Order / taak</th><th>Status</th><th>Resterend</th><th>Waarheen?</th><th>Gevolg</th></tr></thead><tbody id="rollRows">${rows}</tbody></table></div></div><div class="modalfoot"><button class="btn" onclick="closeModal()">Annuleren</button><button class="btn primary" onclick="processRollOpenTasks()">Alles verwerken</button></div>`)}
+function rollOpenTasks(){
+ const source=[...new Set(scheduledEntries(selectedDate).map(x=>x.task))].filter(t=>!['done','completed','external'].includes(String(t.status||'').toLowerCase())&&!isExternalTask(t)&&!isDryTask(t));
+ if(!source.length)return alert('Geen open werk op deze dag.');
+ if(!confirm('Al het open werk van '+fmtDate(selectedDate)+' doorschuiven naar de eerstvolgende werkmorgen en daarna aansluitend doorplannen?\n\nBij een dubbele machinebezetting wordt niets gewijzigd.'))return;
+ const backup=JSON.parse(JSON.stringify(state)),byEmp=new Map();
+ for(const t of source){const emp=t.employee||firstSegment(t)?.employee;if(!emp)continue;if(!byEmp.has(emp))byEmp.set(emp,[]);byEmp.get(emp).push(t)}
+ for(const arr of byEmp.values())arr.sort((a,b)=>(firstSegment(a)?.start||'99:99').localeCompare(firstSegment(b)?.start||'99:99')||(Number(a.seq)||0)-(Number(b.seq)||0));
+ for(const t of source)clearTaskPlanning(t);
+ for(const [emp,arr] of byEmp){
+   let date=nextWorkingDateFor(emp,selectedDate,false,false),start='';try{start=dayStartTime(date,emp)||'08:15'}catch(_){start='08:15'}
+   for(const t of arr){
+     const proposal=window.RALAB_MANUAL_START?.strictProposal?.(t,emp,date,start,Number(t.estimate)||0);
+     if(!proposal||proposal.error){state=backup;render();return alert('Doorschuiven afgebroken. '+(proposal?.error||'De planning kon niet veilig worden geplaatst.'))}
+     t.planSegments=proposal.segments;t.employee=emp;t.date=proposal.segments[0]?.date||null;t.start=proposal.segments[0]?.start||'';t.planningOrigin='manual';t.lockedPlanning=true;t.manualPlanning=true;
+     const finish=taskFinishAt(t);if(finish){date=finish.slice(0,10);start=finish.slice(11,16)}
+   }
+ }
+ save();render();alert('Open werk is doorgeschoven en aansluitend ingepland.');
+}
 function readRollChoices(){return [...document.querySelectorAll('#rollRows tr')].map(r=>({id:r.dataset.id,remaining:+r.dataset.rem,strategy:r.querySelector('.rollStrategy').value,date:r.querySelector('.rollDate').value,scope:r.querySelector('.rollScope').value}))}
 function applyRollChoices(choices){for(const c of choices){const t=state.tasks.find(x=>x.id===c.id);if(!t)continue;const emp=t.employee||firstSegment(t)?.employee;if(!emp){clearTaskPlanning(t);continue}t.estimate=c.remaining;t.actual=0;t.doneQty=t.status==='partial'?t.doneQty||0:0;t.status='open';let startDate;if(c.strategy==='manual')startDate=c.date;else startDate=nextWorkingDateFor(emp,selectedDate,false,false);
   let displaced=[];

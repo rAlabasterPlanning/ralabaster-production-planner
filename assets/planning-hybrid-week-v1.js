@@ -1,6 +1,6 @@
 // Week-only planner: automatically allocate work to weeks; exact day/time planning stays manual.
 (()=>{
-const VERSION='20260925-6';
+const VERSION='20260925-7';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -22,6 +22,9 @@ function weekKey(date){
   const y=d.getFullYear(),w1=new Date(y,0,4);const w=1+Math.round(((d-w1)/86400000-3+((w1.getDay()+6)%7))/7);
   return y+'-W'+String(w).padStart(2,'0');
 }
+function weekMonday(key){const m=String(key||'').match(/^(\d{4})-W(\d{2})$/);if(!m)return'';const y=Number(m[1]),w=Number(m[2]),jan4=new Date(y,0,4,12),dow=(jan4.getDay()+6)%7;jan4.setDate(jan4.getDate()-dow+(w-1)*7);return iso(jan4)}
+function shiftWeekKey(key,n){const d=weekMonday(key);if(!d)return key;const x=parse(d);x.setDate(x.getDate()+7*n);return weekKey(iso(x))}
+function weekDistance(a,b){const da=weekMonday(a),db=weekMonday(b);if(!da||!db)return 0;return Math.round((parse(db)-parse(da))/(7*86400000))}
 function finishOf(t){
   const segs=Array.isArray(t?.planSegments)?t.planSegments.slice():[];
   if(segs.length){
@@ -61,6 +64,20 @@ function buildWeekOnly(preview){
       taskWeeks.set(t.id,{week:assigned,simulatedWeek:firstWeek,early});
     }
   }
+  for(const o of next.orders||[]){
+    const target=targetReadyDate(o),targetWeek=target?weekKey(target):'',entries=[];
+    for(const t of next.tasks||[]){if(t.orderId!==o.id)continue;const x=taskWeeks.get(t.id);if(x&&!x.early)entries.push([t,x])}
+    const latest=entries.map(x=>x[1].week).sort().at(-1)||'';
+    if(targetWeek&&latest&&targetWeek>latest){
+      const delta=weekDistance(latest,targetWeek);
+      for(const [t,x] of entries){x.week=shiftWeekKey(x.week,delta);taskWeeks.set(t.id,x)}
+    }
+  }
+  weekly.clear();
+  for(const t of next.tasks||[]){
+    const x=taskWeeks.get(t.id);if(!x)continue;
+    const key=t.orderId+'|'+x.week;weekly.set(key,(weekly.get(key)||0)+Math.max(0,Number(t.estimate)||0));
+  }
   const byOrder=new Map();
   for(const [key,minutes] of weekly){const [orderId,week]=key.split('|');if(!byOrder.has(orderId))byOrder.set(orderId,[]);byOrder.get(orderId).push({week,minutes})}
   for(const t of next.tasks||[]){const x=taskWeeks.get(t.id);if(x){t.planningWeek=x.week;t.planningSimulatedWeek=x.simulatedWeek;t.planningWeekEarly=!!x.early}else if(!((t.planSegments||[]).length||t.date)){delete t.planningWeek;delete t.planningSimulatedWeek;delete t.planningWeekEarly}}
@@ -79,6 +96,25 @@ function buildWeekOnly(preview){
   next.weekPlanningUpdatedAt=new Date().toISOString();
   return {state:next,weekly:[...byOrder.entries()].map(([orderId,weeks])=>({orderId,weeks})),orders:preview.orders||[],late:preview.late||[],autoDeadlines:preview.autoDeadlines||[],invalid:preview.invalid||[]};
 }
+function preparationTask(t){return /stenen?\s+bestellen|steen\s+bestellen|materiaal\s+bestellen|technisch\s+uitwerken|verpakking\s+bestellen|alabaster\s+klaarzetten|klaarzetten.*waterjet|waterjet.*klaarzetten/i.test((t?.name||'')+' '+(t?.machine||''))}
+function autoPlanPreparation(next){
+ const todayDate=iso(new Date()),tasks=(next.tasks||[]).filter(t=>!t.deleted&&!exactExisting(t)&&preparationTask(t)).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));
+ const used={};
+ for(const t of next.tasks||[])for(const g of Array.isArray(t.planSegments)?t.planSegments:[])if(g?.employee==='Ralph'&&g?.date)used[g.date]=(used[g.date]||0)+(Number(g.minutes)||0);
+ for(const t of tasks){
+   let need=Math.max(1,Number(t.estimate)||30),d=todayDate,guard=0,segs=[];
+   while(need>0&&guard++<45){
+     let cap=0;try{cap=Math.max(0,Number(employeeCapacity(d,'Ralph',false))||0)}catch(_){cap=390}
+     const limit=Math.floor(cap*0.5),left=Math.max(0,limit-(used[d]||0));
+     if(left>0){const take=Math.min(need,left);let start='08:15';try{const existing=(next.tasks||[]).flatMap(x=>(x.planSegments||[]).filter(g=>g.employee==='Ralph'&&g.date===d)).sort((a,b)=>(a.start||'').localeCompare(b.start||''));if(existing.length){const z=existing.at(-1),m=(String(z.start||'08:15').split(':').map(Number));const end=(m[0]||8)*60+(m[1]||15)+(Number(z.minutes)||0);start=String(Math.floor(end/60)).padStart(2,'0')+':'+String(end%60).padStart(2,'0')}}catch(_){}
+       segs.push({date:d,employee:'Ralph',start,minutes:take});used[d]=(used[d]||0)+take;need-=take;
+     }
+     if(need>0){const x=parse(d);x.setDate(x.getDate()+1);while([0,6].includes(x.getDay()))x.setDate(x.getDate()+1);d=iso(x)}
+   }
+   if(segs.length){t.planSegments=segs;t.employee='Ralph';t.date=segs[0].date;t.start=segs[0].start;t.planningOrigin='auto-preparation';t.lockedPlanning=true;t.manualPlanning=false;t.planningWeek=weekKey(segs[0].date)}
+ }
+}
+function targetReadyDate(o){const d=o?.communicatedDeadline||o?.deadline||o?.maximumReadyDate||'';if(!d)return'';const x=parse(d);x.setDate(x.getDate()-14);return iso(x)}
 function ready(){
   return !!(window.RALAB_ORDER_CONTROLS?.simulateRemaining&&window.RALAB_DEADLINE_PLANNER?.planOrderStrict);
 }
@@ -151,7 +187,7 @@ function resetGeneratedPlanning(){
  const s=S();if(!s)return;
  for(const t of s.tasks||[]){
   if(t.deleted||['done','completed','in_progress','started','partial','partly','external'].includes(String(t.status||'').toLowerCase())||Number(t.actual)>0||Number(t.doneQty)>0)continue;
-  if(!['automatic','hybrid-week','week-auto'].includes(String(t.planningOrigin||'')))continue;
+  if(!['automatic','hybrid-week','week-auto','auto-preparation'].includes(String(t.planningOrigin||'')))continue;
   t.planSegments=[];t.date=null;t.start='';t.employee=null;t.waitStartAt='';t.waitEndAt='';t.externalSentDate='';t.expectedReturnDate='';t.lockedPlanning=false;delete t.assignedMachine;delete t.planningOrigin;
  }
  for(const o of s.orders||[]){
