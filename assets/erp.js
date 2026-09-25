@@ -120,6 +120,18 @@ function setOverviewDeadline(id,value){
  o.communicatedDeadline=value||'';o.deadline=value||'';o.maximumReadyDate=value||'';o.internalTargetDate=value?(()=>{const d=new Date(value+'T12:00:00');d.setDate(d.getDate()-7);return d.toISOString().slice(0,10)})():'';
  o.planningCheckedAt='';o.weekPlanningUpdatedAt='';try{window.RALAB_PERFORMANCE?.invalidate?.();save()}catch(e){console.error(e);return false}const p=window.RALAB_HYBRID_PLANNER?.ensureWeekAssignments?.(true);if(p?.then)p.then(()=>renderOrderOverview());else renderOrderOverview();return true;
 }
+function closeDeadlineQuickPick(){document.querySelector('.deadline-quick-pick')?.remove()}
+function deadlineFromWeeks(weeks){const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+Math.round(Number(weeks)||0)*7);const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
+function openDeadlineQuickPick(input){
+ if(!input)return;closeDeadlineQuickPick();
+ const box=document.createElement('div'),r=input.getBoundingClientRect(),id=input.dataset.overviewDeadline;
+ box.className='deadline-quick-pick';box.dataset.orderId=id||'';
+ box.style.cssText='position:fixed;z-index:7000;width:290px;padding:10px;background:var(--card,#fff);border:1px solid var(--line,#d9dfdc);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.2)';
+ box.innerHTML='<div style="font-weight:800;margin-bottom:8px">Snel kiezen</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small" type="button" data-deadline-quick="0">Vandaag</button><button class="btn small" type="button" data-deadline-quick="1">+1 week</button><button class="btn small" type="button" data-deadline-quick="2">+2 weken</button><button class="btn small" type="button" data-deadline-quick="4">+4 weken</button><button class="btn small" type="button" data-deadline-quick="6">+6 weken</button><button class="btn small" type="button" data-deadline-quick="8">+8 weken</button></div><div style="display:flex;align-items:center;gap:7px;margin-top:9px"><span>Over</span><input class="input" type="number" min="0" step="1" placeholder="x" data-deadline-custom-weeks style="width:70px;text-align:center"><span>weken</span><button class="btn small primary" type="button" data-deadline-custom-apply>Instellen</button></div>';
+ document.body.appendChild(box);
+ const left=Math.min(window.innerWidth-box.offsetWidth-8,Math.max(8,r.left)),top=Math.min(window.innerHeight-box.offsetHeight-8,r.bottom+6);
+ box.style.left=left+'px';box.style.top=top+'px';
+}
 function setOverviewDeadlineWeeks(id,weeks){
  const n=Number(weeks);if(!Number.isFinite(n)||n<0)return false;
  const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+Math.round(n)*7);const z=new Date(d.getTime()-d.getTimezoneOffset()*60000),value=z.toISOString().slice(0,10);
@@ -251,7 +263,12 @@ function searchOrders(e){const el=e.target.closest?.('#view-orders [data-order-s
 document.addEventListener('input',searchOrders);
 document.addEventListener('search',searchOrders);
 document.addEventListener('change',e=>{const td=e.target.closest?.('[data-order-task-duration]');if(td){setOrderTaskDuration(td.dataset.orderTaskDuration,td.value);return}const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(dl){setOverviewDeadline(dl.dataset.overviewDeadline,dl.value);return}const sq=e.target.closest?.('#view-orderoverview [data-overview-sequence]');if(sq){setOverviewSequence(sq.dataset.overviewSequence,sq.value);return}if(e.target.matches?.('#view-orders [data-order-search]'))return searchOrders(e);const root=e.target.closest?.('#view-orders');if(!root)return;if(e.target.matches('[data-order-sort]'))root.dataset.orderSort=e.target.value;else if(e.target.matches('[data-only-unplanned]'))root.dataset.onlyUnplanned=e.target.checked?'1':'0';else return;renderOrders(0)});
+document.addEventListener('focusin',e=>{const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(dl)setTimeout(()=>openDeadlineQuickPick(dl),0)});
 document.addEventListener('click',e=>{
+ const quick=e.target.closest?.('[data-deadline-quick]');if(quick){e.preventDefault();const box=quick.closest('.deadline-quick-pick'),id=box?.dataset.orderId||'';if(id){setOverviewDeadline(id,deadlineFromWeeks(quick.dataset.deadlineQuick));closeDeadlineQuickPick()}return}
+ const custom=e.target.closest?.('[data-deadline-custom-apply]');if(custom){e.preventDefault();const box=custom.closest('.deadline-quick-pick'),id=box?.dataset.orderId||'',weeks=box?.querySelector('[data-deadline-custom-weeks]')?.value;if(id&&weeks!==''){setOverviewDeadline(id,deadlineFromWeeks(weeks));closeDeadlineQuickPick()}return}
+ if(!e.target.closest?.('.deadline-quick-pick')&&!e.target.closest?.('#view-orderoverview [data-overview-deadline]'))closeDeadlineQuickPick();
+
  const move=e.target.closest?.('[data-order-task-move]');if(move){e.preventDefault();moveOrderTask(move.dataset.orderTaskMove,move.dataset.moveDir);return}
  const add=e.target.closest?.('[data-add-order-task]');if(add){e.preventDefault();const root=add.closest('.modalbody')||document;const name=root.querySelector('[data-new-order-task-name]')?.value||'',machine=root.querySelector('[data-new-order-task-machine]')?.value||'',minutes=root.querySelector('[data-new-order-task-duration]')?.value||30;addOrderTask(add.dataset.addOrderTask,name,machine,minutes);return}
  const toggle=e.target.closest?.('[data-order-task-toggle]');if(toggle){e.preventDefault();toggleOrderTaskDone(toggle.dataset.orderTaskToggle);return}
