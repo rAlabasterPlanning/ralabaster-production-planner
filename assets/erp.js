@@ -96,7 +96,7 @@ function renderOrderOverview(){
    <td><input class="input" style="width:68px;text-align:center" type="number" min="1" placeholder="auto" data-overview-sequence="${esc(o.id)}" value="${esc(seq)}"></td>
    <td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')"><b>${esc(o.orderNo||'')}</b></button></td>
    <td><b>${esc(o.product||'')}</b><div class="muted">${esc(o.customerName||'')} · ${Number(o.qty)||0} st.</div></td>
-   <td><input class="input" type="date" data-overview-deadline="${esc(o.id)}" value="${esc(deadline)}"></td>
+   <td><div style="display:grid;grid-template-columns:minmax(135px,1fr) 92px;gap:6px;align-items:center"><input class="input" type="date" data-overview-deadline="${esc(o.id)}" value="${esc(deadline)}"><label style="display:flex;align-items:center;gap:4px;white-space:nowrap"><input class="input" style="width:58px;text-align:center" type="number" min="0" step="1" placeholder="x" data-overview-deadline-weeks="${esc(o.id)}"><span class="muted">wk</span></label></div></td>
    <td><b>${esc(n.task?.name||'Gereed')}</b><div class="muted">${esc(n.task?.machine||'')}</div></td>
    <td><b>${esc(n.label)}</b>${n.date?`<div class="muted">${esc(n.date)}</div>`:''}</td>
    <td>${priorityStars(o)}</td>
@@ -118,6 +118,11 @@ function setOverviewDeadline(id,value){
  const o=S()?.orders?.find(x=>x.id===id&&!x.deleted);if(!o)return false;
  o.communicatedDeadline=value||'';o.deadline=value||'';o.maximumReadyDate=value||'';o.internalTargetDate=value?(()=>{const d=new Date(value+'T12:00:00');d.setDate(d.getDate()-14);return d.toISOString().slice(0,10)})():'';
  o.planningCheckedAt='';o.weekPlanningUpdatedAt='';try{window.RALAB_PERFORMANCE?.invalidate?.();save()}catch(e){console.error(e);return false}renderOrderOverview();return true;
+}
+function setOverviewDeadlineWeeks(id,weeks){
+ const n=Number(weeks);if(!Number.isFinite(n)||n<0)return false;
+ const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+Math.round(n)*7);const z=new Date(d.getTime()-d.getTimezoneOffset()*60000),value=z.toISOString().slice(0,10);
+ return setOverviewDeadline(id,value);
 }
 function setOverviewSequence(id,value){
  const o=S()?.orders?.find(x=>x.id===id&&!x.deleted);if(!o)return false;const raw=String(value??'').trim();
@@ -177,9 +182,9 @@ function renderProducts(page=productPage){if(!init())return;productPage=Math.max
 function searchOrders(e){const el=e.target.closest?.('#view-orders [data-order-search]');if(!el)return;const root=el.closest('section');root.dataset.q=el.value;renderOrders(0)}
 document.addEventListener('input',searchOrders);
 document.addEventListener('search',searchOrders);
-document.addEventListener('change',e=>{const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(dl){setOverviewDeadline(dl.dataset.overviewDeadline,dl.value);return}const sq=e.target.closest?.('#view-orderoverview [data-overview-sequence]');if(sq){setOverviewSequence(sq.dataset.overviewSequence,sq.value);return}if(e.target.matches?.('#view-orders [data-order-search]'))return searchOrders(e);const root=e.target.closest?.('#view-orders');if(!root)return;if(e.target.matches('[data-order-sort]'))root.dataset.orderSort=e.target.value;else if(e.target.matches('[data-only-unplanned]'))root.dataset.onlyUnplanned=e.target.checked?'1':'0';else return;renderOrders(0)});
+document.addEventListener('change',e=>{const w=e.target.closest?.('#view-orderoverview [data-overview-deadline-weeks]');if(w){setOverviewDeadlineWeeks(w.dataset.overviewDeadlineWeeks,w.value);return}const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(dl){setOverviewDeadline(dl.dataset.overviewDeadline,dl.value);return}const sq=e.target.closest?.('#view-orderoverview [data-overview-sequence]');if(sq){setOverviewSequence(sq.dataset.overviewSequence,sq.value);return}if(e.target.matches?.('#view-orders [data-order-search]'))return searchOrders(e);const root=e.target.closest?.('#view-orders');if(!root)return;if(e.target.matches('[data-order-sort]'))root.dataset.orderSort=e.target.value;else if(e.target.matches('[data-only-unplanned]'))root.dataset.onlyUnplanned=e.target.checked?'1':'0';else return;renderOrders(0)});
 document.addEventListener('click',e=>{const star=e.target.closest?.('#view-orders [data-priority-order], #view-orderoverview [data-priority-order]');if(!star||star.disabled)return;e.preventDefault();e.stopPropagation();setOrderPriority(star.dataset.priorityOrder,star.dataset.priorityValue)},true);
-window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewSequence};
+window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence};
 const priorityStyle=document.createElement('style');priorityStyle.textContent='.order-priority{display:inline-flex;gap:1px;white-space:nowrap}.priority-star{appearance:none;border:0;background:transparent;color:#b8bfbb;font-size:25px;line-height:1;padding:2px;cursor:pointer;touch-action:manipulation}.priority-star.active{color:#d99a00}.priority-star:focus-visible{outline:2px solid #176b55;border-radius:4px}@media(max-width:700px){.priority-star{font-size:29px;padding:4px}}';document.head.appendChild(priorityStyle);
 setTimeout(()=>{if(!init())return;document.querySelectorAll('.erp-nav').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();show(b.dataset.view)}));},1200);
 })();
