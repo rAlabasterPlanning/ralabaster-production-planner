@@ -14,6 +14,11 @@
 <link rel="stylesheet" href="assets/date-time-fields-v1.css?v=20260914-2">
 <link rel="stylesheet" href="assets/ai-planner-v1.css?v=20260922-1">
 <link rel="stylesheet" href="assets/ai-planner-v2.css?v=20260922-3">
+<style>
+.nav-more-menu[hidden]{display:none!important}
+.nav-more-menu:not([hidden]){display:grid!important}
+.nav-more-menu .navbtn{width:100%;text-align:left;white-space:nowrap}
+</style>
 </head>
 <body>
 <header><a class="brand" href="#" aria-label="rAlabaster" style="display:flex;align-items:center;flex:0 0 auto"><img id="brandLogo" class="brand-logo" alt="rAlabaster" style="height:42px;width:auto;display:block"></a><nav>
@@ -24,7 +29,7 @@
 <button class="navbtn" data-view="weeks">Overzichtplanner</button>
 <div class="nav-more" style="position:relative;flex:0 0 auto">
   <button class="navbtn nav-more-trigger" type="button" aria-expanded="false" style="min-width:82px">Meer ▾</button>
-  <div class="nav-more-menu" hidden style="position:absolute;right:0;top:calc(100% + 6px);z-index:1000;min-width:190px;padding:8px;background:var(--card,#fff);border:1px solid var(--line,#d9dfdc);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);display:grid;gap:4px">
+  <div class="nav-more-menu" hidden style="position:fixed;z-index:5000;min-width:210px;padding:8px;background:var(--card,#fff);border:1px solid var(--line,#d9dfdc);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);gap:4px">
     <button class="navbtn" data-view="external">Extern / binnenmelden</button>
     <button class="navbtn erp-nav" data-view="completed">Afgeronde orders</button>
     <button class="navbtn erp-nav" data-view="products">Producten</button>
@@ -123,27 +128,45 @@ document.getElementById('refreshAppBtn')?.addEventListener('click',function(e){
   url.searchParams.set('_refresh',Date.now().toString());
   location.replace(url.toString());
 });
+function closeMoreMenu(){
+  const menu=document.querySelector('.nav-more-menu'),trigger=document.querySelector('.nav-more-trigger');
+  menu?.setAttribute('hidden','');trigger?.setAttribute('aria-expanded','false');
+}
+function positionMoreMenu(){
+  const trigger=document.querySelector('.nav-more-trigger'),menu=document.querySelector('.nav-more-menu');
+  if(!trigger||!menu||menu.hasAttribute('hidden'))return;
+  const r=trigger.getBoundingClientRect(),margin=8,width=Math.max(210,menu.offsetWidth||210);
+  let left=Math.min(window.innerWidth-width-margin,Math.max(margin,r.left));
+  let top=r.bottom+6;
+  if(top+(menu.offsetHeight||320)>window.innerHeight-margin)top=Math.max(margin,r.top-(menu.offsetHeight||320)-6);
+  menu.style.left=Math.round(left)+'px';menu.style.top=Math.round(top)+'px';menu.style.right='auto';
+}
 document.addEventListener('click',function(e){
   const trigger=e.target.closest('.nav-more-trigger');
   if(trigger){
     e.preventDefault();e.stopImmediatePropagation();
-    const wrap=trigger.closest('.nav-more'),menu=wrap?.querySelector('.nav-more-menu');
-    if(menu){const open=menu.hasAttribute('hidden');if(open)menu.removeAttribute('hidden');else menu.setAttribute('hidden','');trigger.setAttribute('aria-expanded',open?'true':'false')}
+    const menu=document.querySelector('.nav-more-menu'),opening=menu?.hasAttribute('hidden');
+    closeMoreMenu();
+    if(opening&&menu){menu.removeAttribute('hidden');trigger.setAttribute('aria-expanded','true');requestAnimationFrame(positionMoreMenu)}
     return;
   }
   const moreItem=e.target.closest('.nav-more [data-view]');
-  if(moreItem){const wrap=moreItem.closest('.nav-more'),menu=wrap?.querySelector('.nav-more-menu'),trigger=wrap?.querySelector('.nav-more-trigger');menu?.setAttribute('hidden','');trigger?.setAttribute('aria-expanded','false')}
+  if(moreItem)closeMoreMenu();
+  else if(!e.target.closest('.nav-more'))closeMoreMenu();
+
   const b=e.target.closest('.erp-nav');
   if(!b)return;
-  e.preventDefault();
-  e.stopImmediatePropagation();
+  e.preventDefault();e.stopImmediatePropagation();
   const v=b.dataset.view;
   requestAnimationFrame(()=>{
     if(window.RALAB_ERP)window.RALAB_ERP.show(v);
     if(v==='dashboard'&&window.RALAB_COMMERCIAL)window.RALAB_COMMERCIAL.renderDashboard();
-    const wrap=b.closest('.nav-more');wrap?.querySelector('.nav-more-menu')?.setAttribute('hidden','');wrap?.querySelector('.nav-more-trigger')?.setAttribute('aria-expanded','false');
+    closeMoreMenu();
   });
 },true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMoreMenu()});
+window.addEventListener('resize',()=>{if(!document.querySelector('.nav-more-menu')?.hasAttribute('hidden'))positionMoreMenu()});
+window.addEventListener('scroll',()=>{if(!document.querySelector('.nav-more-menu')?.hasAttribute('hidden'))positionMoreMenu()},{passive:true});
 </script>
 </body>
 </html>
