@@ -48,7 +48,18 @@ function buildWeekOnly(preview){
       const wk=weekKey(g.date);if(!firstWeek||wk<firstWeek)firstWeek=wk;
       const key=t.orderId+'|'+wk;weekly.set(key,(weekly.get(key)||0)+(Number(g.minutes)||0));
     }
-    if(firstWeek){const assigned=earlyPrep(before)&&firstWeek>comingWeek?comingWeek:firstWeek;taskWeeks.set(t.id,{week:assigned,simulatedWeek:firstWeek,early:assigned!==firstWeek})}
+    if(firstWeek){
+      const early=earlyPrep(before)&&firstWeek>comingWeek,assigned=early?comingWeek:firstWeek;
+      if(early){
+        let moved=0;
+        for(const g of Array.isArray(t.planSegments)?t.planSegments:[]){
+          if(!g?.date)continue;const wk=weekKey(g.date),key=t.orderId+'|'+wk,m=Number(g.minutes)||0;
+          weekly.set(key,Math.max(0,(weekly.get(key)||0)-m));moved+=m;
+        }
+        const target=t.orderId+'|'+comingWeek;weekly.set(target,(weekly.get(target)||0)+moved);
+      }
+      taskWeeks.set(t.id,{week:assigned,simulatedWeek:firstWeek,early});
+    }
   }
   const byOrder=new Map();
   for(const [key,minutes] of weekly){const [orderId,week]=key.split('|');if(!byOrder.has(orderId))byOrder.set(orderId,[]);byOrder.get(orderId).push({week,minutes})}
