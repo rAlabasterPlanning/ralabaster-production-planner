@@ -152,6 +152,32 @@ async function refreshEarliestDeliveryDates(){
    for(const cell of cells){const d=fallback.get(cell.dataset.earliestDelivery)||'';cell.innerHTML=d?'<b>'+esc(d)+'</b>':'<span class="muted">Niet berekend</span>'}
  }
 }
+let planCurrentSequenceBusy=false;
+async function planCurrentSequence(button){
+ if(planCurrentSequenceBusy)return false;
+ const planner=window.RALAB_HYBRID_PLANNER;
+ if(!planner?.ensureWeekAssignments)return alert('Weekplanner is nog niet geladen.');
+ planCurrentSequenceBusy=true;
+ const old=button?.textContent||'Plan volgens huidige volgorde';
+ if(button){button.disabled=true;button.textContent='Weekplanning berekenen…'}
+ try{
+   try{window.RALAB_PRODUCTION_SEQUENCE?.normalize?.()}catch(_){}
+   const changed=await planner.ensureWeekAssignments(true);
+   try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
+   try{save()}catch(_){}
+   renderOrderOverview();
+   show('weeks');
+   try{window.renderWeeks?.()}catch(_){}
+   return changed;
+ }catch(e){
+   console.error('Plannen volgens huidige volgorde mislukt',e);
+   alert('Weekplanning kon niet worden berekend.');
+   return false;
+ }finally{
+   planCurrentSequenceBusy=false;
+   if(button?.isConnected){button.disabled=false;button.textContent=old}
+ }
+}
 function renderOrderOverview(){
  if(!init())return;
  const root=document.getElementById('view-orderoverview'),s=S();if(!root)return;
@@ -165,7 +191,7 @@ function renderOrderOverview(){
  const stockRows=(s.contractStockWork||[]).filter(x=>!x.deleted&&x.status!=='done').filter(x=>!q||[x.customerName,x.product].join(' ').toLowerCase().includes(q));
  const hintsHtml=batchHints.map(h=>`<div class="notice" style="margin-bottom:8px"><b>🔗 ${esc(h.first.product)}</b> · ${h.rows.length} open order(s) · ${h.rows.reduce((n,o)=>n+(Number(o.qty)||0),0)} st.${h.contract?' · contract '+Number(h.contract.contractQty||0)+' st. · nog verwacht '+h.st.remaining+' st.':''}<span style="float:right">${h.contract?'<button class="btn small" type="button" data-contract-produce="'+esc(h.cust.id)+'" data-product="'+esc(h.first.product)+'">Vooruit produceren?</button>':''}</span></div>`).join('');
  const stockHtml=stockRows.length?`<div class="panel" style="padding:10px;margin-bottom:10px"><b>Contractvoorraad / vooruitwerk</b>${stockRows.map(x=>`<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid #eee"><span style="flex:1"><b>${esc(x.product)}</b><span class="muted"> · ${esc(x.customerName)} · geen harde deadline</span></span><b>${Number(x.qty)||0} st.</b><span class="pill">mag vooruit</span></div>`).join('')}</div>`:''; 
- root.innerHTML=`<div class="toolbar"><h2>Orderoverzicht</h2><span class="pill">${all.length} actief</span><div class="spacer"></div><button class="btn" onclick="RALAB_ERP.show('calculation')">+ Nieuwe calculatie</button></div>
+ root.innerHTML=`<div class="toolbar"><h2>Orderoverzicht</h2><span class="pill">${all.length} actief</span><div class="spacer"></div><button class="btn primary" type="button" data-plan-current-sequence>Plan volgens huidige volgorde</button><button class="btn" onclick="RALAB_ERP.show('calculation')">+ Nieuwe calculatie</button></div>
  ${hintsHtml}${stockHtml}<div class="panel" style="padding:10px;margin-bottom:10px"><input class="input" type="search" data-orderoverview-search placeholder="Zoek ordernummer, klant, product of project" value="${esc(root.dataset.q||'')}" style="width:min(560px,100%)"></div>
  <div class="notice"><b>Productievolgorde:</b> standaard op deadline. Vul alleen een volgordenummer in als je handmatig wilt overrulen. Deadline is direct in de lijst aanpasbaar.</div>
  <div class="panel" style="overflow:auto">
@@ -420,6 +446,7 @@ document.addEventListener('search',e=>{searchOrders(e);searchOrderOverview(e)});
 document.addEventListener('change',e=>{const pref=e.target.closest?.('[data-order-task-preferred]');if(pref){setOrderTaskPreferred(pref.dataset.orderTaskPreferred,pref.value);return}const par=e.target.closest?.('[data-order-task-parallel]');if(par){setOrderTaskParallel(par.dataset.orderTaskParallel,par.value);return}const td=e.target.closest?.('[data-order-task-duration]');if(td){setOrderTaskDuration(td.dataset.orderTaskDuration,td.value);return}const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(dl){setOverviewDeadline(dl.dataset.overviewDeadline,dl.value);return}const sq=e.target.closest?.('#view-orderoverview [data-overview-sequence]');if(sq){setOverviewSequence(sq.dataset.overviewSequence,sq.value);return}if(e.target.matches?.('#view-orders [data-order-search]'))return searchOrders(e);const root=e.target.closest?.('#view-orders');if(!root)return;if(e.target.matches('[data-order-sort]'))root.dataset.orderSort=e.target.value;else if(e.target.matches('[data-only-unplanned]'))root.dataset.onlyUnplanned=e.target.checked?'1':'0';else return;renderOrders(0)});
 document.addEventListener('pointerdown',e=>{const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(!dl)return;e.preventDefault();e.stopPropagation();openDeadlineQuickPick(dl)},true);
 document.addEventListener('click',e=>{
+ const seqPlan=e.target.closest?.('[data-plan-current-sequence]');if(seqPlan){e.preventDefault();planCurrentSequence(seqPlan);return}
  const saveClose=e.target.closest?.('[data-order-save-close]');if(saveClose){e.preventDefault();saveAndCloseOrder(saveClose.dataset.orderSaveClose);return}
  const contractAdd=e.target.closest?.('[data-contract-add]');if(contractAdd){e.preventDefault();addCustomerProductContract(contractAdd.dataset.contractAdd);return}
  const contractRemove=e.target.closest?.('[data-contract-remove]');if(contractRemove){e.preventDefault();removeCustomerProductContract(contractRemove.dataset.customerId,contractRemove.dataset.contractRemove);return}
