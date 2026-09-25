@@ -3,7 +3,7 @@
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),euro=n=>new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(+n||0),iso=()=>{const d=new Date(),z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)};
 const PAGE=60;let orderPage=0,completedPage=0,quotePage=0,productPage=0,archiveCache=[];
 function S(){try{return state}catch(_){return null}} function persist(){try{save()}catch(_){}}
-function init(){const s=S();if(!s)return false;s.customers=s.customers||[];s.quotes=s.quotes||[];s.productTemplates=s.productTemplates||[];s.orderConfirmations=s.orderConfirmations||[];return true}
+function init(){const s=S();if(!s)return false;s.customers=s.customers||[];s.quotes=s.quotes||[];s.productTemplates=s.productTemplates||[];s.orderConfirmations=s.orderConfirmations||[];s.contractStockWork=s.contractStockWork||[];for(const cust of s.customers)cust.productContracts=cust.productContracts||[];return true}
 function perf(){return window.RALAB_PERFORMANCE||null}
 function taskList(id){const p=perf();return p?.getOrderTasks?p.getOrderTasks(id):((S().tasks||[]).filter(t=>t.orderId===id).sort((a,b)=>(+a.seq||0)-(+b.seq||0)))}
 function findOrder(id){const p=perf();return p?.getOrder?p.getOrder(id):(S().orders||[]).find(x=>x.id===id)}
@@ -27,16 +27,70 @@ function plannedReadyDate(o){
  }
  return last||'';
 }
+function productContractKey(v){return String(v||'').trim().toLowerCase().replace(/\s+/g,' ')}
+function contractStats(cust,contract){
+ const s=S(),key=productContractKey(contract.product),orders=(s?.orders||[]).filter(o=>!o.deleted&&o.customerId===cust.id&&productContractKey(o.product)===key);
+ const delivered=orders.filter(o=>o.active===false||o.status==='completed').reduce((n,o)=>n+(Number(o.qty)||0),0);
+ const open=orders.filter(o=>o.active!==false&&o.status!=='completed').reduce((n,o)=>n+(Number(o.qty)||0),0);
+ const stock=(s?.contractStockWork||[]).filter(x=>!x.deleted&&x.customerId===cust.id&&productContractKey(x.product)===key).reduce((n,x)=>n+(Number(x.qty)||0),0);
+ const remaining=Math.max(0,(Number(contract.contractQty)||0)-delivered-open-stock);
+ return {delivered,open,stock,remaining,orders};
+}
+function addCustomerProductContract(customerId){
+ const s=S(),cust=s?.customers?.find(c=>c.id===customerId);if(!cust)return false;
+ const root=document.getElementById('modalRoot'),product=String(root?.querySelector('[data-contract-product]')?.value||'').trim();
+ const contractQty=Math.max(0,Math.round(Number(root?.querySelector('[data-contract-qty]')?.value)||0));
+ const batchSize=Math.max(0,Math.round(Number(root?.querySelector('[data-contract-batch]')?.value)||0));
+ const minStock=Math.max(0,Math.round(Number(root?.querySelector('[data-contract-min-stock]')?.value)||0));
+ if(!product||!contractQty)return alert('Vul product en contractaantal in.');
+ cust.productContracts=cust.productContracts||[];
+ const existing=cust.productContracts.find(x=>productContractKey(x.product)===productContractKey(product));
+ if(existing)Object.assign(existing,{product,contractQty,batchSize,minStock});else cust.productContracts.push({id:'pc_'+Date.now(),product,contractQty,batchSize,minStock});
+ persist();openCustomer(customerId);return true;
+}
+function removeCustomerProductContract(customerId,contractId){
+ const cust=S()?.customers?.find(c=>c.id===customerId);if(!cust)return false;
+ cust.productContracts=(cust.productContracts||[]).filter(x=>x.id!==contractId);persist();openCustomer(customerId);return true;
+}
+function createContractStockWork(customerId,product,qty){
+ const s=S(),cust=s?.customers?.find(c=>c.id===customerId);if(!s||!cust)return false;
+ qty=Math.max(1,Math.round(Number(qty)||0));if(!qty)return false;
+ s.contractStockWork=s.contractStockWork||[];
+ s.contractStockWork.push({id:'csw_'+Date.now(),customerId,customerName:cust.name||'',product,qty,status:'open',created:iso(),source:'contract'});
+ persist();renderOrderOverview();return true;
+}
+function openContractProductionPrompt(customerId,product){
+ const s=S(),cust=s?.customers?.find(c=>c.id===customerId);if(!cust)return false;
+ const contract=(cust.productContracts||[]).find(x=>productContractKey(x.product)===productContractKey(product));if(!contract)return false;
+ const st=contractStats(cust,contract),root=document.getElementById('modalRoot');if(!root)return false;
+ const suggested=contract.batchSize>0?Math.min(st.remaining,Math.max(0,contract.batchSize-st.open)):st.remaining;
+ root.innerHTML=`<div class="modalback"><div class="modal" style="width:min(600px,94vw)"><div class="modalhead"><h3>Vooruit produceren · ${esc(product)}</h3></div><div class="modalbody">
+ <div class="grid3"><div><b>Contract</b><br>${Number(contract.contractQty)||0} st.</div><div><b>Open orders</b><br>${st.open} st.</div><div><b>Nog verwacht</b><br>${st.remaining} st.</div></div>
+ <div class="grid3" style="margin-top:10px"><div><b>Geleverd</b><br>${st.delivered} st.</div><div><b>Voorraadwerk</b><br>${st.stock} st.</div><div><b>Gewenste batch</b><br>${Number(contract.batchSize)||'—'} st.</div></div>
+ <label style="display:block;margin-top:16px"><b>Extra vooruit produceren</b><input class="input" type="number" min="1" step="1" data-contract-stock-qty value="${suggested>0?suggested:''}" style="width:130px;margin-left:10px"> st.</label>
+ </div><div class="modalfoot"><button class="btn" type="button" onclick="closeModal()">Annuleren</button><div class="spacer"></div><button class="btn primary" type="button" data-contract-stock-confirm data-customer-id="${esc(customerId)}" data-product="${esc(product)}">Voorraadwerk toevoegen</button></div></div></div>`;
+ return true;
+}
 function openCustomer(id){
  const s=S(),cust=s?.customers?.find(c=>c.id===id);if(!cust)return false;
  const orders=customerOrders(id),open=orders.filter(o=>o.active!==false&&o.status!=='completed'),done=orders.filter(o=>o.active===false||o.status==='completed');
  const totalOpen=open.reduce((n,o)=>n+(Number(o.totalSale)||((Number(o.saleUnit)||0)*(Number(o.qty)||0))),0);
  const totalAll=orders.reduce((n,o)=>n+(Number(o.totalSale)||((Number(o.saleUnit)||0)*(Number(o.qty)||0))),0);
+ const contracts=cust.productContracts||[];
+ const contractRows=contracts.map(x=>{const st=contractStats(cust,x);return `<tr><td><b>${esc(x.product)}</b></td><td>${Number(x.contractQty)||0}</td><td>${st.delivered}</td><td>${st.open}</td><td>${st.stock}</td><td>${st.remaining}</td><td>${Number(x.batchSize)||'—'}</td><td><button class="btn small" type="button" data-contract-remove="${esc(x.id)}" data-customer-id="${esc(id)}">Verwijder</button></td></tr>`}).join('');
  const rows=orders.map(o=>`<tr><td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')">${esc(o.orderNo||'')}</button></td><td>${esc(o.product||'')}</td><td>${Number(o.qty)||0}</td><td>${esc(status(o))}</td><td>${esc(plannedReadyDate(o)||'—')}</td><td style="text-align:right">${euro(Number(o.totalSale)||((Number(o.saleUnit)||0)*(Number(o.qty)||0)))}</td></tr>`).join('');
  const root=document.getElementById('modalRoot');if(!root)return false;
  root.innerHTML=`<div class="modalback"><div class="modal"><div class="modalhead"><h3>${esc(cust.name)}</h3></div><div class="modalbody">
  <div class="grid3"><div><b>Contact</b><br>${esc(cust.contact||'—')}</div><div><b>E-mail</b><br>${esc(cust.email||'—')}</div><div><b>Orders</b><br>${orders.length} totaal · ${open.length} lopend · ${done.length} afgerond</div></div>
  <div class="grid3" style="margin-top:12px"><div><b>Lopende orderwaarde</b><br>${euro(totalOpen)}</div><div><b>Totale orderwaarde</b><br>${euro(totalAll)}</div><div><b>Adres</b><br>${esc([cust.address,cust.country].filter(Boolean).join(', ')||'—')}</div></div>
+ <h3 style="margin-top:18px">Productcontracten</h3>
+ <div style="overflow:auto"><table><thead><tr><th>Product</th><th>Contract</th><th>Geleverd</th><th>Open</th><th>Voorraadwerk</th><th>Restant</th><th>Batch</th><th></th></tr></thead><tbody>${contractRows||'<tr><td colspan="8">Nog geen productcontracten.</td></tr>'}</tbody></table></div>
+ <div class="panel" style="padding:10px;margin-top:10px"><b>Contract toevoegen / aanpassen</b><div style="display:grid;grid-template-columns:minmax(180px,1fr) 120px 120px 120px auto;gap:8px;margin-top:7px">
+ <input class="input" data-contract-product placeholder="Product">
+ <input class="input" type="number" min="1" data-contract-qty placeholder="Contract st.">
+ <input class="input" type="number" min="0" data-contract-batch placeholder="Batch st.">
+ <input class="input" type="number" min="0" data-contract-min-stock placeholder="Min. voorraad">
+ <button class="btn primary" type="button" data-contract-add="${esc(id)}">Opslaan</button></div></div>
  <h3 style="margin-top:18px">Orders</h3><div style="overflow:auto"><table><thead><tr><th>Order</th><th>Product</th><th>Aantal</th><th>Status</th><th>Gepland gereed</th><th style="text-align:right">Waarde</th></tr></thead><tbody>${rows||'<tr><td colspan="6">Geen orders voor deze klant.</td></tr>'}</tbody></table></div>
  </div><div class="modalfoot"><button class="btn" type="button" data-customer-print="${esc(id)}">Print orderlijst</button><div class="spacer"></div><button class="btn" type="button" onclick="closeModal()">Sluiten</button></div></div></div>`;
  return true;
@@ -93,8 +147,13 @@ function renderOrderOverview(){
    .filter(o=>!o.isGeneralWork&&!o.isManualTasks&&!o.deleted)
    .filter(o=>!q||[o.orderNo,o.customerName,o.product,o.project].join(' ').toLowerCase().includes(q))
    .slice().sort(orderSortForProduction);
+ const groups=new Map();for(const o of all){const k=(o.customerId||o.customerName||'')+'|'+productContractKey(o.product);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(o)}
+ const batchHints=[];for(const rows of groups.values()){const first=rows[0],cust=(s.customers||[]).find(x=>x.id===first.customerId),contract=(cust?.productContracts||[]).find(x=>productContractKey(x.product)===productContractKey(first.product));if(rows.length>1||contract){const st=contract?contractStats(cust,contract):null;batchHints.push({rows,first,cust,contract,st})}}
+ const stockRows=(s.contractStockWork||[]).filter(x=>!x.deleted&&x.status!=='done').filter(x=>!q||[x.customerName,x.product].join(' ').toLowerCase().includes(q));
+ const hintsHtml=batchHints.map(h=>`<div class="notice" style="margin-bottom:8px"><b>🔗 ${esc(h.first.product)}</b> · ${h.rows.length} open order(s) · ${h.rows.reduce((n,o)=>n+(Number(o.qty)||0),0)} st.${h.contract?' · contract '+Number(h.contract.contractQty||0)+' st. · nog verwacht '+h.st.remaining+' st.':''}<span style="float:right">${h.contract?'<button class="btn small" type="button" data-contract-produce="'+esc(h.cust.id)+'" data-product="'+esc(h.first.product)+'">Vooruit produceren?</button>':''}</span></div>`).join('');
+ const stockHtml=stockRows.length?`<div class="panel" style="padding:10px;margin-bottom:10px"><b>Contractvoorraad / vooruitwerk</b>${stockRows.map(x=>`<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid #eee"><span style="flex:1"><b>${esc(x.product)}</b><span class="muted"> · ${esc(x.customerName)} · geen harde deadline</span></span><b>${Number(x.qty)||0} st.</b><span class="pill">mag vooruit</span></div>`).join('')}</div>`:''; 
  root.innerHTML=`<div class="toolbar"><h2>Orderoverzicht</h2><span class="pill">${all.length} actief</span><div class="spacer"></div><button class="btn" onclick="RALAB_ERP.show('calculation')">+ Nieuwe calculatie</button></div>
- <div class="panel" style="padding:10px;margin-bottom:10px"><input class="input" type="search" data-orderoverview-search placeholder="Zoek ordernummer, klant, product of project" value="${esc(root.dataset.q||'')}" style="width:min(560px,100%)"></div>
+ ${hintsHtml}${stockHtml}<div class="panel" style="padding:10px;margin-bottom:10px"><input class="input" type="search" data-orderoverview-search placeholder="Zoek ordernummer, klant, product of project" value="${esc(root.dataset.q||'')}" style="width:min(560px,100%)"></div>
  <div class="notice"><b>Productievolgorde:</b> standaard op deadline. Vul alleen een volgordenummer in als je handmatig wilt overrulen. Deadline is direct in de lijst aanpasbaar.</div>
  <div class="panel" style="overflow:auto">
  <table class="order-overview-list" style="min-width:1000px"><thead><tr><th style="width:78px">Volgorde</th><th>Order</th><th>Klant / product</th><th style="width:155px">Deadline</th><th style="width:160px">Uiterlijk starten</th><th>Volgende stap</th><th style="width:80px"></th></tr></thead><tbody>
@@ -324,6 +383,10 @@ document.addEventListener('search',e=>{searchOrders(e);searchOrderOverview(e)});
 document.addEventListener('change',e=>{const td=e.target.closest?.('[data-order-task-duration]');if(td){setOrderTaskDuration(td.dataset.orderTaskDuration,td.value);return}const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(dl){setOverviewDeadline(dl.dataset.overviewDeadline,dl.value);return}const sq=e.target.closest?.('#view-orderoverview [data-overview-sequence]');if(sq){setOverviewSequence(sq.dataset.overviewSequence,sq.value);return}if(e.target.matches?.('#view-orders [data-order-search]'))return searchOrders(e);const root=e.target.closest?.('#view-orders');if(!root)return;if(e.target.matches('[data-order-sort]'))root.dataset.orderSort=e.target.value;else if(e.target.matches('[data-only-unplanned]'))root.dataset.onlyUnplanned=e.target.checked?'1':'0';else return;renderOrders(0)});
 document.addEventListener('pointerdown',e=>{const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(!dl)return;e.preventDefault();e.stopPropagation();openDeadlineQuickPick(dl)},true);
 document.addEventListener('click',e=>{
+ const contractAdd=e.target.closest?.('[data-contract-add]');if(contractAdd){e.preventDefault();addCustomerProductContract(contractAdd.dataset.contractAdd);return}
+ const contractRemove=e.target.closest?.('[data-contract-remove]');if(contractRemove){e.preventDefault();removeCustomerProductContract(contractRemove.dataset.customerId,contractRemove.dataset.contractRemove);return}
+ const produce=e.target.closest?.('[data-contract-produce]');if(produce){e.preventDefault();openContractProductionPrompt(produce.dataset.contractProduce,produce.dataset.product);return}
+ const stockConfirm=e.target.closest?.('[data-contract-stock-confirm]');if(stockConfirm){e.preventDefault();const qty=document.querySelector('[data-contract-stock-qty]')?.value;if(createContractStockWork(stockConfirm.dataset.customerId,stockConfirm.dataset.product,qty))document.getElementById('modalRoot').innerHTML='';return}
  const cal=e.target.closest?.('[data-deadline-calendar]');if(cal){e.preventDefault();const box=cal.closest('.deadline-quick-pick'),id=box?.dataset.orderId||'',input=document.querySelector('#view-orderoverview [data-overview-deadline="'+CSS.escape(id)+'"]');closeDeadlineQuickPick();if(input){input.focus();try{input.showPicker?.()}catch(_){input.click()}}return}
  const quick=e.target.closest?.('[data-deadline-quick]');if(quick){e.preventDefault();const box=quick.closest('.deadline-quick-pick'),id=box?.dataset.orderId||'';if(id){setOverviewDeadline(id,deadlineFromWeeks(quick.dataset.deadlineQuick));closeDeadlineQuickPick()}return}
  const custom=e.target.closest?.('[data-deadline-custom-apply]');if(custom){e.preventDefault();const box=custom.closest('.deadline-quick-pick'),id=box?.dataset.orderId||'',weeks=box?.querySelector('[data-deadline-custom-weeks]')?.value;if(id&&weeks!==''){setOverviewDeadline(id,deadlineFromWeeks(weeks));closeDeadlineQuickPick()}return}
@@ -337,7 +400,7 @@ document.addEventListener('click',e=>{
  const toggle=e.target.closest?.('[data-order-task-toggle]');if(toggle){e.preventDefault();toggleOrderTaskDone(toggle.dataset.orderTaskToggle);return}
  const del=e.target.closest?.('[data-order-task-delete]');if(del){e.preventDefault();removeOrderTask(del.dataset.orderTaskDelete);return}
  const star=e.target.closest?.('#view-orders [data-priority-order], #view-orderoverview [data-priority-order]');if(!star||star.disabled)return;e.preventDefault();e.stopPropagation();setOrderPriority(star.dataset.priorityOrder,star.dataset.priorityValue)},true);
-window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask,copyOrder,confirmCopyOrder,nextStandardOrderNo};
+window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask,copyOrder,confirmCopyOrder,nextStandardOrderNo,addCustomerProductContract,removeCustomerProductContract,openContractProductionPrompt,createContractStockWork};
 const priorityStyle=document.createElement('style');priorityStyle.textContent='.order-priority{display:inline-flex;gap:1px;white-space:nowrap}.priority-star{appearance:none;border:0;background:transparent;color:#b8bfbb;font-size:25px;line-height:1;padding:2px;cursor:pointer;touch-action:manipulation}.priority-star.active{color:#d99a00}.priority-star:focus-visible{outline:2px solid #176b55;border-radius:4px}@media(max-width:700px){.priority-star{font-size:29px;padding:4px}}';document.head.appendChild(priorityStyle);
 setTimeout(()=>{if(!init())return;document.querySelectorAll('.erp-nav').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();show(b.dataset.view)}));},1200);
 })();
