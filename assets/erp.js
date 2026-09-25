@@ -185,7 +185,7 @@ async function openOrder(id){
    <label style="display:flex;align-items:center;gap:5px"><input class="input" type="number" min="1" step="1" value="30" data-new-order-task-duration style="width:76px"><span class="muted">min</span></label>
    <button class="btn primary" type="button" data-add-order-task="${esc(o.id)}">+ Toevoegen</button>
  </div><datalist id="orderTaskMachineList">${machineList}</datalist></div>
- <h3>Commercieel</h3><div>Kostprijs/st: ${euro(o.costUnit)} · Verkoop/st: ${euro(o.saleUnit)} · Totaal: ${euro(o.totalSale)}</div></div><div class="modalfoot" style="flex-wrap:wrap"><button class="btn" onclick="RALAB_ERP.deleteOrder('${o.id}')">Verwijder order</button><button class="btn" type="button" data-unplan-order="${esc(o.id)}">Ontplannen</button><button class="btn" type="button" data-order-to-calc="${esc(o.id)}">Terug naar calculatie</button><div class="spacer"></div><button class="btn" onclick="closeModal()">Sluiten</button><button class="btn primary" onclick="RALAB_ERP.orderConfirmation('${o.id}')">Order confirmation</button></div>`;
+ <h3>Commercieel</h3><div>Kostprijs/st: ${euro(o.costUnit)} · Verkoop/st: ${euro(o.saleUnit)} · Totaal: ${euro(o.totalSale)}</div></div><div class="modalfoot" style="flex-wrap:wrap"><button class="btn" onclick="RALAB_ERP.deleteOrder('${o.id}')">Verwijder order</button><button class="btn" type="button" data-copy-order="${esc(o.id)}">Order kopiëren</button><button class="btn" type="button" data-unplan-order="${esc(o.id)}">Ontplannen</button><button class="btn" type="button" data-order-to-calc="${esc(o.id)}">Terug naar calculatie</button><div class="spacer"></div><button class="btn" onclick="closeModal()">Sluiten</button><button class="btn primary" onclick="RALAB_ERP.orderConfirmation('${o.id}')">Order confirmation</button></div>`;
  if(typeof showModal==='function')showModal(html);else alert(o.orderNo)
 }
 function mutableTask(id){return S()?.tasks?.find(t=>t.id===id&&!t.deleted)||null}
@@ -236,6 +236,38 @@ function addOrderTask(orderId,name,machine,minutes){
  o.weekPlanningUpdatedAt='';o.productionLatestStartDate='';o.productionLatestStartWeek='';
  refreshOrderAfterTaskChange(orderId);return true;
 }
+function copyOrder(id){
+ const s=S(),src=s?.orders?.find(o=>o.id===id&&!o.deleted);if(!s||!src)return false;
+ if(!confirm('Order '+(src.orderNo||'')+' kopiëren als nieuwe order?'))return false;
+ const now=Date.now(),newId='o_copy_'+now,newNo='COPY-'+String(now).slice(-6);
+ const cloned=structuredClone(src);
+ Object.assign(cloned,{
+   id:newId,orderNo:newNo,created:iso(),active:true,status:'confirmed',deleted:false,
+   communicatedDeadline:'',deadline:'',maximumReadyDate:'',internalExpectedDate:'',
+   expectedReadyDate:'',expectedReadyWeek:'',weekCapacityReservations:[],
+   productionStartWeek:'',productionFinishWeek:'',productionLatestStartDate:'',
+   productionLatestStartWeek:'',productionLatestWorkDate:'',weekPlanningUpdatedAt:'',
+   planningDecision:'',planningDecisionAt:''
+ });
+ delete cloned.completedAt;delete cloned.deletedAt;delete cloned.productionSequence;
+ s.orders.push(cloned);
+ const srcTasks=(s.tasks||[]).filter(t=>t.orderId===id&&!t.deleted).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));
+ srcTasks.forEach((t,i)=>{
+   const nt=structuredClone(t);
+   Object.assign(nt,{
+     id:'t_copy_'+now+'_'+i,orderId:newId,seq:i+1,status:'open',
+     employee:null,date:null,start:'',planSegments:[],actual:0,doneQty:0,note:t.note||''
+   });
+   delete nt.completedAt;delete nt.completedAtDT;delete nt.deleted;delete nt.deletedAt;
+   delete nt.waitStartAt;delete nt.waitEndAt;delete nt.externalSentDate;delete nt.expectedReturnDate;
+   delete nt.planningWeek;delete nt.planningSimulatedWeek;delete nt.planningWeekEarly;delete nt.planningLatestStartDate;
+   delete nt.planningOrigin;delete nt.lockedPlanning;delete nt.manualPlanning;delete nt.assignedMachine;
+   s.tasks.push(nt);
+ });
+ try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
+ try{save()}catch(e){console.error(e);alert('Kopiëren opslaan mislukt.');return false}
+ renderOrderOverview();openOrder(newId);return true;
+}
 function deleteOrder(id){
  const o=findOrder(id);if(!o)return false;
  const root=document.getElementById('modalRoot');if(!root)return false;
@@ -270,12 +302,13 @@ document.addEventListener('click',e=>{
  const custom=e.target.closest?.('[data-deadline-custom-apply]');if(custom){e.preventDefault();const box=custom.closest('.deadline-quick-pick'),id=box?.dataset.orderId||'',weeks=box?.querySelector('[data-deadline-custom-weeks]')?.value;if(id&&weeks!==''){setOverviewDeadline(id,deadlineFromWeeks(weeks));closeDeadlineQuickPick()}return}
  if(!e.target.closest?.('.deadline-quick-pick')&&!e.target.closest?.('#view-orderoverview [data-overview-deadline]'))closeDeadlineQuickPick();
 
+ const copy=e.target.closest?.('[data-copy-order]');if(copy){e.preventDefault();copyOrder(copy.dataset.copyOrder);return}
  const move=e.target.closest?.('[data-order-task-move]');if(move){e.preventDefault();moveOrderTask(move.dataset.orderTaskMove,move.dataset.moveDir);return}
  const add=e.target.closest?.('[data-add-order-task]');if(add){e.preventDefault();const root=add.closest('.modalbody')||document;const name=root.querySelector('[data-new-order-task-name]')?.value||'',machine=root.querySelector('[data-new-order-task-machine]')?.value||'',minutes=root.querySelector('[data-new-order-task-duration]')?.value||30;addOrderTask(add.dataset.addOrderTask,name,machine,minutes);return}
  const toggle=e.target.closest?.('[data-order-task-toggle]');if(toggle){e.preventDefault();toggleOrderTaskDone(toggle.dataset.orderTaskToggle);return}
  const del=e.target.closest?.('[data-order-task-delete]');if(del){e.preventDefault();removeOrderTask(del.dataset.orderTaskDelete);return}
  const star=e.target.closest?.('#view-orders [data-priority-order], #view-orderoverview [data-priority-order]');if(!star||star.disabled)return;e.preventDefault();e.stopPropagation();setOrderPriority(star.dataset.priorityOrder,star.dataset.priorityValue)},true);
-window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask};
+window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask,copyOrder};
 const priorityStyle=document.createElement('style');priorityStyle.textContent='.order-priority{display:inline-flex;gap:1px;white-space:nowrap}.priority-star{appearance:none;border:0;background:transparent;color:#b8bfbb;font-size:25px;line-height:1;padding:2px;cursor:pointer;touch-action:manipulation}.priority-star.active{color:#d99a00}.priority-star:focus-visible{outline:2px solid #176b55;border-radius:4px}@media(max-width:700px){.priority-star{font-size:29px;padding:4px}}';document.head.appendChild(priorityStyle);
 setTimeout(()=>{if(!init())return;document.querySelectorAll('.erp-nav').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();show(b.dataset.view)}));},1200);
 })();
