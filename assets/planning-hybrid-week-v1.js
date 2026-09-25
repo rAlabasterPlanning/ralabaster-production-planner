@@ -1,6 +1,6 @@
 // Week-only planner: automatically allocate work to weeks; exact day/time planning stays manual.
 (()=>{
-const VERSION='20260925-8';
+const VERSION='20260925-9';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -82,6 +82,9 @@ function buildWeekOnly(preview){
   for(const [key,minutes] of weekly){const [orderId,week]=key.split('|');if(!byOrder.has(orderId))byOrder.set(orderId,[]);byOrder.get(orderId).push({week,minutes})}
   for(const t of next.tasks||[]){const x=taskWeeks.get(t.id);if(x){t.planningWeek=x.week;t.planningSimulatedWeek=x.simulatedWeek;t.planningWeekEarly=!!x.early}else if(!((t.planSegments||[]).length||t.date)){delete t.planningWeek;delete t.planningSimulatedWeek;delete t.planningWeekEarly}}
   for(const o of next.orders||[]){
+    const productionWeeks=(next.tasks||[]).filter(t=>t.orderId===o.id&&!preparationTask(t)&&t.planningWeek).map(t=>t.planningWeek).sort();
+    o.productionStartWeek=productionWeeks[0]||'';
+    o.productionFinishWeek=productionWeeks.at(-1)||'';
     const reservations=(byOrder.get(o.id)||[]).sort((a,b)=>a.week.localeCompare(b.week));
     if(reservations.length||futureFinish.has(o.id)){
       o.weekCapacityReservations=reservations;
@@ -114,7 +117,7 @@ function autoPlanPreparation(next){
    if(segs.length){t.planSegments=segs;t.employee='Ralph';t.date=segs[0].date;t.start=segs[0].start;t.planningOrigin='auto-preparation';t.lockedPlanning=true;t.manualPlanning=false;t.planningWeek=weekKey(segs[0].date)}
  }
 }
-function targetReadyDate(o){const d=o?.communicatedDeadline||o?.deadline||o?.maximumReadyDate||'';if(!d)return'';const x=parse(d);x.setDate(x.getDate()-14);return iso(x)}
+function targetReadyDate(o){const d=o?.communicatedDeadline||o?.deadline||o?.maximumReadyDate||'';if(!d)return'';const x=parse(d);x.setDate(x.getDate()-7);return iso(x)}
 function ready(){
   return !!(window.RALAB_ORDER_CONTROLS?.simulateRemaining&&window.RALAB_DEADLINE_PLANNER?.planOrderStrict);
 }
