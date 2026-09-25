@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260925-1';
+const VERSION='20260925-2';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -178,7 +178,7 @@ function simulateSequentialRemaining(opts={}){
   for(const original of ordered){
    const o=findOrder(original.id);if(!o)continue;
    try{
-    const baseStart=opts.planningStart||'',emp=balancedEmployee(o,employeeCursor,assignmentCount,baseStart),parallelStart=parallelOrderStart(o,baseStart),lockedStart=o.parallelWithOrderId?parallelStart:(emp&&employeeCursor[emp]&&employeeCursor[emp]>baseStart?employeeCursor[emp]:baseStart);
+    const baseStart=opts.planningStart||'',emp=balancedEmployee(o,employeeCursor,assignmentCount,baseStart),parallelStart=parallelOrderStart(o,baseStart),lockedStart=o.parallelWithOrderId?parallelStart:baseStart;
     p.planOrderStrict(o,{allowPeter:emp==='Peter',allowSaturday:false,planningStart:lockedStart,preferredEmployee:emp||undefined});
     const phaseEnd=emp?p.primaryPhaseFinish?.(o,emp):'';if(emp){assignmentCount[emp]=(assignmentCount[emp]||0)+1;if(phaseEnd&&phaseEnd>(employeeCursor[emp]||''))employeeCursor[emp]=phaseEnd;else if(!employeeCursor[emp])employeeCursor[emp]=lockedStart||baseStart||'';}
     for(const t of tasksFor(o.id)){if(movable(t)&&hasPlanning(t)&&!t.planningOrigin){t.planningOrigin='automatic';t.lockedPlanning=true}}
@@ -216,7 +216,7 @@ function simulateRemaining(opts={}){
 	  const candidates=[{name:'speling',orders:byUrgency},{name:'deadline',orders:byDeadline},{name:'productbatch',orders:grouped},{name:'prioriteit',orders:byPriority}],seen=new Set(),results=[];
 	  for(const candidate of candidates){const signature=candidate.orders.map(o=>o.id).join('|');if(seen.has(signature))continue;seen.add(signature);setState(protectedBase);const rows=[],employeeCursor={},assignmentCount={};for(const original of candidate.orders){const o=findOrder(original.id);if(!o)continue;
 try{
- const baseStart=opts.planningStart||'',emp=balancedEmployee(o,employeeCursor,assignmentCount,baseStart),parallelStart=parallelOrderStart(o,baseStart),lockedStart=o.parallelWithOrderId?parallelStart:(emp&&employeeCursor[emp]&&employeeCursor[emp]>baseStart?employeeCursor[emp]:baseStart);
+ const baseStart=opts.planningStart||'',emp=balancedEmployee(o,employeeCursor,assignmentCount,baseStart),parallelStart=parallelOrderStart(o,baseStart),lockedStart=o.parallelWithOrderId?parallelStart:baseStart;
  p.planOrderStrict(o,{allowPeter:emp==='Peter',allowSaturday:false,planningStart:lockedStart,preferredEmployee:emp||undefined});
  const phaseEnd=emp?p.primaryPhaseFinish?.(o,emp):'';if(emp){assignmentCount[emp]=(assignmentCount[emp]||0)+1;if(phaseEnd&&phaseEnd>(employeeCursor[emp]||''))employeeCursor[emp]=phaseEnd;else if(!employeeCursor[emp])employeeCursor[emp]=lockedStart||baseStart||'';}
 }
