@@ -212,16 +212,17 @@ function renderWeekCapacitySummaries(root){
 }
 function renderFutureWeekBuckets(root){
  root.querySelectorAll('.future-week-inline').forEach(x=>x.remove());
- const groups=futureWeekGroups();if(!groups.size)return;
+ const s=S(),groups=futureWeekGroups();if(!groups.size)return;
  for(const block of root.querySelectorAll('.week-block')){
    const h3=block.querySelector(':scope > h3');if(!h3)continue;
    const m=h3.textContent.match(/Week\s+(\d+)/i);if(!m)continue;
    const weekNo=String(Number(m[1])).padStart(2,'0');
    const match=[...groups.entries()].find(([key])=>key.endsWith('-W'+weekNo));if(!match)continue;
    const [week,rows]=match,total=rows.reduce((n,x)=>n+x.minutes,0);
+   const prep=(s?.tasks||[]).filter(t=>t.planningWeek===week&&t.planningWeekEarly&&!t.deleted&&!['done','completed'].includes(String(t.status||'').toLowerCase())).map(t=>({t,o:(s.orders||[]).find(o=>o.id===t.orderId)}));
    const html=`<div class="future-week-inline" style="margin:8px 10px 10px;padding:10px 12px;border:1px solid rgba(0,0,0,.12);border-radius:9px;background:rgba(127,127,127,.05)">
      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>Werk voor week ${esc(weekNo)}</b><span class="muted">${(total/60).toLocaleString('nl-NL',{maximumFractionDigits:1})} uur gereserveerd · nog niet op dag/tijd</span></div>
-     <div style="display:grid;gap:4px;margin-top:7px">${rows.sort((a,b)=>(Number(a.order.productionSequence)||9999)-(Number(b.order.productionSequence)||9999)).map(x=>`<div style="display:flex;gap:10px;align-items:center;min-width:0"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(x.order.orderNo||'')}</b> · ${esc(x.order.product||'')}</span><span class="muted" style="white-space:nowrap">${(x.minutes/60).toLocaleString('nl-NL',{maximumFractionDigits:1})} uur</span></div>`).join('')}</div>
+     <div style="display:grid;gap:4px;margin-top:7px">${prep.map(x=>`<div style="display:flex;gap:10px;align-items:center"><span style="flex:1"><b>Voorbereiding</b> · ${esc(x.o?.orderNo||'')} · ${esc(x.t.name||'')}</span><span class="muted">deze week uitvoeren</span></div>`).join('')}${rows.sort((a,b)=>(Number(a.order.productionSequence)||9999)-(Number(b.order.productionSequence)||9999)).map(x=>`<div style="display:flex;gap:10px;align-items:center;min-width:0"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>${esc(x.order.orderNo||'')}</b> · ${esc(x.order.product||'')}</span><span class="muted" style="white-space:nowrap">${(x.minutes/60).toLocaleString('nl-NL',{maximumFractionDigits:1})} uur</span></div>`).join('')}</div>
    </div>`;
    h3.insertAdjacentHTML('afterend',html);
  }
