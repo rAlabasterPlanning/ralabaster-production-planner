@@ -1,6 +1,6 @@
 // Week-only planner: automatically allocate work to weeks; exact day/time planning stays manual.
 (()=>{
-const VERSION='20260925-10';
+const VERSION='20260925-11';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -42,14 +42,19 @@ function buildWeekOnly(preview){
   const earlyPrep=t=>/materiaal\s+bestellen|verpakking\s+bestellen|alabaster\s+klaarzetten|klaarzetten.*waterjet|waterjet.*klaarzetten/i.test((t?.name||'')+' '+(t?.machine||''));
   for(const t of sim.tasks||[]){
     const before=baseline.get(t.id);if(!before)continue;
-    const hadExact=!!((before.planSegments||[]).length||before.date||before.waitStartAt||before.externalSentDate);
-    if(hadExact||exactExisting(before))continue;
+    const terminal=['done','completed','in_progress','started','partial','partly','external'].includes(String(before.status||'').toLowerCase())||Number(before.actual)>0||Number(before.doneQty)>0;
+    if(terminal)continue;
     const finish=finishOf(t);if(finish&&finish>(futureFinish.get(t.orderId)||''))futureFinish.set(t.orderId,finish);
     let firstWeek='',firstDate='',lastDate='';
     for(const g of Array.isArray(t.planSegments)?t.planSegments:[]){
       if(!g?.date)continue;
       const wk=weekKey(g.date);if(!firstWeek||wk<firstWeek)firstWeek=wk;if(!firstDate||g.date<firstDate)firstDate=g.date;if(!lastDate||g.date>lastDate)lastDate=g.date;
       const key=t.orderId+'|'+wk;weekly.set(key,(weekly.get(key)||0)+(Number(g.minutes)||0));
+    }
+    if(!firstDate){
+      const fallbackStart=String(t.waitStartAt||'').slice(0,10)||t.date||'';
+      const fallbackFinish=finishOf(t)||fallbackStart;
+      if(fallbackStart){firstDate=fallbackStart;lastDate=fallbackFinish||fallbackStart;firstWeek=weekKey(firstDate)}
     }
     if(firstWeek){
       const early=earlyPrep(before)&&firstWeek>comingWeek,assigned=early?comingWeek:firstWeek;
@@ -208,8 +213,14 @@ function resetGeneratedPlanning(){
 }
 function needsWeekAssignment(){
  const s=S();if(!s)return false;
- const active=new Set((s.orders||[]).filter(o=>o&&!o.deleted&&o.active!==false&&!o.isGeneralWork&&o.status!=='completed').map(o=>o.id));
- return (s.tasks||[]).some(t=>active.has(t.orderId)&&!t.deleted&&!['done','completed','external','in_progress','partial','partly'].includes(String(t.status||'').toLowerCase())&&!t.planningWeek&&!((t.planSegments||[]).length||t.date||t.waitStartAt||t.externalSentDate));
+ const active=(s.orders||[]).filter(o=>o&&!o.deleted&&o.active!==false&&!o.isGeneralWork&&o.status!=='completed');
+ for(const o of active){
+   const deadline=o.communicatedDeadline||o.deadline||o.maximumReadyDate||'';
+   const open=(s.tasks||[]).some(t=>t.orderId===o.id&&!t.deleted&&!['done','completed'].includes(String(t.status||'').toLowerCase()));
+   if(deadline&&open&&(!o.productionLatestStartDate||!o.productionLatestWorkDate))return true;
+ }
+ const ids=new Set(active.map(o=>o.id));
+ return (s.tasks||[]).some(t=>ids.has(t.orderId)&&!t.deleted&&!['done','completed','external','in_progress','partial','partly'].includes(String(t.status||'').toLowerCase())&&!t.planningWeek);
 }
 let autoAssignBusy=false;
 async function ensureWeekAssignments(force=false){
