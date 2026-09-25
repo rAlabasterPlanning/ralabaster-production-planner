@@ -163,7 +163,7 @@ function parallelTaskStart(t,fallback){
  if(!t?.parallelGroupId)return fallback;
  let first='';
  for(const x of S()?.tasks||[]){
-   if(x.id===t.id||x.parallelGroupId!==t.parallelGroupId)continue;
+   if(x.id===t.id||x.orderId!==t.orderId||x.parallelGroupId!==t.parallelGroupId)continue;
    const seg=(taskSegments(x)||[]).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.start||'').localeCompare(b.start||''))[0];
    const at=seg?.date?dtString(seg.date,seg.start||'08:15'):'';
    if(at&&(!first||at<first))first=at;
