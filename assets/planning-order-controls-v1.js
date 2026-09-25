@@ -1,6 +1,6 @@
 // Order-by-order planning controls: unplan safely, sort by deadline and check feasibility before saving.
 (()=>{
-const VERSION='20260925-2';
+const VERSION='20260925-3';
 const S=()=>{try{return state}catch(_){return null}};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -26,9 +26,11 @@ function invalidate(){try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}}
 function setState(next){state=clone(next);invalidate()}
 function clearOneTask(t){
  if(!movable(t))return false;
- if(typeof clearTaskPlanning==='function')clearTaskPlanning(t);else{t.planSegments=[];t.date=null;t.start='';t.waitStartAt='';t.waitEndAt=''}
- t.employee=null;t.preferredEmployee=null;t.lockedPlanning=false;delete t.assignedMachine;
- delete t.planningOrigin;
+ try{if(typeof clearTaskPlanning==='function')clearTaskPlanning(t)}catch(_){}
+ t.planSegments=[];t.date=null;t.start='';t.waitStartAt='';t.waitEndAt='';t.plannedReleaseAt='';
+ t.employee=null;t.lockedPlanning=false;t.manualPlanning=false;
+ delete t.assignedMachine;delete t.planningOrigin;delete t.planningConfirmedAt;
+ delete t.planningWeek;delete t.planningSimulatedWeek;delete t.planningWeekEarly;delete t.planningLatestStartDate;
  if(t.type==='external'||/extern/i.test((t.name||'')+' '+(t.machine||''))){t.externalSentDate='';t.expectedReturnDate=''}
  return true;
 }
@@ -112,7 +114,12 @@ function confirmUnplanAll(){
  unplanAllArmed=true;showConfirm('Alle orders ontplannen',`<p><b>Weet je het zeker?</b></p><p>Je verwijdert de planning van <b>${movableCount} nog niet gestarte stappen</b> verdeeld over <b>${orders.length} actieve orders</b>.</p><p>Dit kan niet automatisch ongedaan worden gemaakt. Daarna kun je bij de eerste deadline beginnen en de orders één voor één opnieuw inplannen.</p>${protectedCount?`<p class="muted">${protectedCount} afgeronde, gestarte of extern lopende stap(pen) blijven behouden.</p>`:''}`,'Ja, alles ontplannen','confirm-unplan-all');
 }
 function executeUnplanOrder(id){const r=unplanOrderInternal(id);persistAndRender();alert(`${r.cleared} stap(pen) van deze order zijn ontpland.${r.protected?` ${r.protected} gestarte/afgeronde stappen zijn behouden.`:''}`)}
-function executeUnplanAll(){if(!unplanAllArmed)return confirmUnplanAll();unplanAllArmed=false;let cleared=0,protectedCount=0;for(const o of activeOrders()){const r=unplanOrderInternal(o.id);cleared+=r.cleared;protectedCount+=r.protected}persistAndRender();alert(`${cleared} nog niet gestarte stappen zijn ontpland.${protectedCount?` ${protectedCount} gestarte/afgeronde stappen zijn behouden.`:''}`)}
+function executeUnplanAll(){if(!unplanAllArmed)return confirmUnplanAll();unplanAllArmed=false;
+ try{window.RALAB_WEEK_PROPOSAL?.discardSilently?.()}catch(_){}
+ let cleared=0,protectedCount=0;for(const o of activeOrders()){const r=unplanOrderInternal(o.id);cleared+=r.cleared;protectedCount+=r.protected}
+ const s=S();if(s){s.weekPlanningUpdatedAt='';s.weekPlanningMode='';for(const o of s.orders||[]){if(o.deleted)continue;o.weekCapacityReservations=[];o.weekPlanningUpdatedAt='';o.planningDecision='';o.planningDecisionAt='';}}
+ persistAndRender();try{window.renderWeeks?.()}catch(_){}
+ alert(`${cleared} nog niet gestarte stappen zijn ontpland.${protectedCount?` ${protectedCount} gestarte/afgeronde stappen zijn behouden.`:''}`)}
 function countMinutes(orderId,pred){let n=0;for(const t of tasksFor(orderId))for(const g of segments(t))if(pred(g,t))n+=Number(g.minutes)||0;return n}
 function simulate(id,opts){
  const backup=clone(S());setState(backup);unplanOrderInternal(id);const o=findOrder(id),p=planner();
