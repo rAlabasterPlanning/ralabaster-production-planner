@@ -1,7 +1,7 @@
 // rAlabaster deadline-driven planner v2
 // Hard task sequence, Ralph setup pairing, deadline buffers, scenario planning and controlled re-optimization.
 (()=>{
-const VERSION='20260925-1';
+const VERSION='20260925-2';
 const FREEZE_DAYS=1;
 const MIN_USEFUL_BLOCK=30;
 const MORI_FLEX=['Mori ZL15 #1','Mori ZL15 #2','Mori SL25'];
@@ -40,8 +40,12 @@ function setDerivedDates(o){if(!o)return;o.maximumReadyDate=o.maximumReadyDate||
 function migrateOrderBuffers(){const s=S();if(!s)return false;let changed=false;for(const o of s.orders||[]){if(o.isGeneralWork||o.bufferModelVersion)continue;if(o.sourceQuoteNo&&o.communicatedDeadline&&(!o.deadline||o.deadline===o.communicatedDeadline)){o.quotedEstimatedReadyDate=o.communicatedDeadline;o.maximumReadyDate=addCal(o.communicatedDeadline,14);o.internalTargetDate=addCal(o.maximumReadyDate,-3);o.deadline=o.maximumReadyDate;o.bufferModelVersion=2;changed=true}else if(o.deadline){setDerivedDates(o);o.bufferModelVersion=2;changed=true}}return changed}
 function normalizeSequences(){const s=S();if(!s)return;for(const o of s.orders||[]){if(isGeneral({orderId:o.id,isGeneralWork:o.isGeneralWork}))continue;const ts=(s.tasks||[]).filter(t=>t.orderId===o.id&&!isGeneral(t)).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));ts.forEach((t,i)=>{t.seq=i+1;t.dependsPrev=i>0;t.sequenceLocked=true;rememberMachinePreference(t)})}}
 function frozen(t){if(taskDone(t)||taskStarted(t)||t.lockedPlanning)return true;const f=addCal(today(),FREEZE_DAYS);return (taskSegments(t)||[]).some(g=>g.date&&g.date<=f)}
-function intervalsForEmployee(date,emp,excludeIds=new Set()){
- const out=[];for(const t of S()?.tasks||[]){if(excludeIds.has(t.id)||taskDone(t))continue;for(const g of taskSegments(t)||[]){if(g.date!==date||g.employee!==emp||!g.start)continue;out.push([min(g.start),min(g.start)+(typeof segmentElapsedMinutes==='function'?segmentElapsedMinutes(g):Number(g.minutes||0)),t.id])}}
+function intervalsForEmployee(date,emp,excludeIds=new Set(),currentTask=null){
+ const out=[];for(const t of S()?.tasks||[]){
+   if(excludeIds.has(t.id)||taskDone(t))continue;
+   if(currentTask?.parallelGroupId&&t.parallelGroupId===currentTask.parallelGroupId)continue;
+   for(const g of taskSegments(t)||[]){if(g.date!==date||g.employee!==emp||!g.start)continue;out.push([min(g.start),min(g.start)+(typeof segmentElapsedMinutes==='function'?segmentElapsedMinutes(g):Number(g.minutes||0)),t.id])}
+ }
  return out.sort((a,b)=>a[0]-b[0]);
 }
 function intervalsForMachine(date,key,excludeIds=new Set()){
@@ -55,8 +59,8 @@ function workBounds(date,emp,allowSaturday=false,allowPeter=false){
  if(dow===5){if(emp!=='Ralph')return null;return [8*60+15,15*60]}
  if(dow>=1&&dow<=4)return [8*60+15,16*60+30];return null;
 }
-function freeWindows(date,emp,key,excludeIds,allowSaturday,allowPeter){
- const b=workBounds(date,emp,allowSaturday,allowPeter);if(!b)return[];let busy=[...intervalsForEmployee(date,emp,excludeIds),...intervalsForMachine(date,key,excludeIds),...(typeof planningBreaks==='function'?planningBreaks(date,emp).map(x=>[x[0],x[1]]):[])].sort((a,b)=>a[0]-b[0]);
+function freeWindows(date,emp,key,excludeIds,allowSaturday,allowPeter,currentTask=null){
+ const b=workBounds(date,emp,allowSaturday,allowPeter);if(!b)return[];let busy=[...intervalsForEmployee(date,emp,excludeIds,currentTask),...intervalsForMachine(date,key,excludeIds),...(typeof planningBreaks==='function'?planningBreaks(date,emp).map(x=>[x[0],x[1]]):[])].sort((a,b)=>a[0]-b[0]);
  const merged=[];for(const x of busy){const a=Math.max(b[0],x[0]),z=Math.min(b[1],x[1]);if(z<=a)continue;const last=merged.at(-1);if(last&&a<=last[1])last[1]=Math.max(last[1],z);else merged.push([a,z])}
  const out=[];let p=b[0];for(const x of merged){if(x[0]>p)out.push([p,x[0]]);p=Math.max(p,x[1])}if(p<b[1])out.push([p,b[1]]);return out;
 }
@@ -72,7 +76,7 @@ function allocateInternal(t,earliestAt,opts={}){
  if(!employees.length)employees=ralphOnly?['Ralph']:['Kaan','Lance','Shaffi'];
  let need=Math.max(0,Number(t.estimate)||0);if(need===0){t.planSegments=[];t.date=dtDate(earliestAt);return earliestAt}
  let d=dtDate(earliestAt),firstDay=true,segs=[],guard=0,selectedMachine=t.assignedMachine||null;
- while(need>0&&guard++<240){let best=null;const machines=selectedMachine?[selectedMachine]:machineOptions(t);for(const machine of machines){const key=cleanMachine(machine).toLowerCase();for(const [rank,emp] of employees.entries()){for(const w of freeWindows(d,emp,key,excludeIds,allowSaturday,allowPeter)){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));const free=z-a;if(free<=0||(free<MIN_USEFUL_BLOCK&&need>free))continue;if(!best||a<best.a||(a===best.a&&(rank<best.rank||(rank===best.rank&&free>best.free))))best={emp,a,z,free,machine,rank}}}}
+ while(need>0&&guard++<240){let best=null;const machines=selectedMachine?[selectedMachine]:machineOptions(t);for(const machine of machines){const key=cleanMachine(machine).toLowerCase();for(const [rank,emp] of employees.entries()){for(const w of freeWindows(d,emp,key,excludeIds,allowSaturday,allowPeter,t)){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));const free=z-a;if(free<=0||(free<MIN_USEFUL_BLOCK&&need>free))continue;if(!best||a<best.a||(a===best.a&&(rank<best.rank||(rank===best.rank&&free>best.free))))best={emp,a,z,free,machine,rank}}}}
    if(best){if(!selectedMachine){selectedMachine=best.machine;setAssignedMachine(t,selectedMachine)}const key=cleanMachine(selectedMachine).toLowerCase(),windows=freeWindows(d,best.emp,key,excludeIds,allowSaturday,allowPeter);for(const w of windows){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));if(a>=z||((z-a)<MIN_USEFUL_BLOCK&&need>(z-a)))continue;const take=Math.min(need,z-a);if(take>0){segs.push({date:d,employee:best.emp,start:tm(a),minutes:take});need-=take;if(!need)break}}firstDay=false;if(need>0)d=addCal(d,1)}else{d=addCal(d,1);firstDay=false}
  }
  segs=typeof mergePauseSegments==='function'?mergePauseSegments(segs):segs;t.planSegments=segs;t.employee=segs[0]?.employee||preferred||null;t.date=segs[0]?.date||dtDate(earliestAt);t.start=segs[0]?.start||'';return taskFinishAt(t)||earliestAt;
@@ -80,7 +84,7 @@ function allocateInternal(t,earliestAt,opts={}){
 function pairSetupWithExecution(setup,run,earliestAt,opts={}){
  const sd=Math.max(1,Number(setup.estimate)||30),exclude=new Set([setup.id,run.id]);let d=dtDate(earliestAt),guard=0;
  const runRalphOnly=ralphOnlyTask(run),setupRalphOnly=ralphOnlyTask(setup);
- let preferredRun=runRalphOnly?'Ralph':((opts.preferredEmployee&&opts.preferredEmployee!=='Ralph')?opts.preferredEmployee:(run.employee&&run.employee!=='Ralph'?run.employee:null));
+ let preferredRun=runRalphOnly?'Ralph':(run.taskEmployeeOverride||((opts.preferredEmployee&&opts.preferredEmployee!=='Ralph')?opts.preferredEmployee:(run.employee&&run.employee!=='Ralph'?run.employee:null)));
  let base=runRalphOnly?['Ralph']:['Kaan','Lance','Shaffi'];if(opts.allowPeter&&!runRalphOnly)base.push('Peter');
  base=window.RALAB_WORKPLACES?.candidateEmployees?.(run,base)||base;if(!runRalphOnly)base=base.filter(x=>x!=='Ralph');
  let employees=preferredRun&&base.includes(preferredRun)?[preferredRun,...base.filter(x=>x!==preferredRun)]:base;
@@ -89,7 +93,7 @@ function pairSetupWithExecution(setup,run,earliestAt,opts={}){
   for(const machine of machines){
    const key=cleanMachine(machine).toLowerCase();
    for(const emp of employees){
-    const setupEmp=setupRalphOnly?'Ralph':emp,sw=freeWindows(d,setupEmp,key,exclude,!!opts.allowSaturday,!!opts.allowPeter),ew=freeWindows(d,emp,key,exclude,!!opts.allowSaturday,!!opts.allowPeter);
+    const setupEmp=setupRalphOnly?'Ralph':emp,sw=freeWindows(d,setupEmp,key,exclude,!!opts.allowSaturday,!!opts.allowPeter,setup),ew=freeWindows(d,emp,key,exclude,!!opts.allowSaturday,!!opts.allowPeter,run);
     for(const e of ew){let runStart=Math.max(e[0],min(dtTime(earliestAt))*(d===dtDate(earliestAt)?1:0));if(d!==dtDate(earliestAt))runStart=e[0];
      for(const s of sw){const candidate=Math.max(runStart,s[0]+sd),runRoom=e[1]-candidate;if(runRoom>=Math.min(Math.max(1,Number(run.estimate)||0),MIN_USEFUL_BLOCK)&&candidate<e[1]&&candidate<=s[1]&&candidate-sd>=s[0]){
        setAssignedMachine(run,machine);setAssignedMachine(setup,machine);setup.setupForTaskId=run.id;run.setupTaskId=setup.id;setup.machineLockedForRun=true;run.machineLockedBySetup=true;
@@ -155,23 +159,37 @@ function primaryEmployeeForOrder(o,opts={}){
  const ts=orderTasks(o.id).filter(t=>!taskDone(t)&&!isGeneral(t)).sort((a,b)=>a.seq-b.seq);
  return chooseFlowEmployee(o,ts,opts);
 }
+function parallelTaskStart(t,fallback){
+ if(!t?.parallelGroupId)return fallback;
+ let first='';
+ for(const x of S()?.tasks||[]){
+   if(x.id===t.id||x.parallelGroupId!==t.parallelGroupId)continue;
+   const seg=(taskSegments(x)||[]).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.start||'').localeCompare(b.start||''))[0];
+   const at=seg?.date?dtString(seg.date,seg.start||'08:15'):'';
+   if(at&&(!first||at<first))first=at;
+ }
+ return first||fallback;
+}
 function planOrderStrict(o,opts={}){
  setDerivedDates(o);const ts=orderTasks(o.id).filter(t=>!taskDone(t)&&!isGeneral(t)).sort((a,b)=>a.seq-b.seq);let cursor=chainStartForOrder(o,opts),flowEmployee=chooseFlowEmployee(o,ts,opts),lastEmployee=flowEmployee;if(flowEmployee)o.productionEmployee=flowEmployee;
  for(let i=0;i<ts.length;i++){const t=ts[i];if(frozen(t)){const f=taskFinishAt(t);if(f&&f>cursor)cursor=f;lastEmployee=t.employee||lastEmployee;continue}
    const next=ts[i+1];
    if(isDryTask(t)){cursor=scheduleWaitStrict(t,cursor);lastEmployee=flowEmployee;continue}
    if(isExternalTask(t)){const send=dtDate(cursor),lead=Number(t.externalLeadDays)||(CFG.rules?.externalLeadDays||14);t.employee=null;t.planSegments=[];t.date=send;t.start='';if(t.status==='external'&&t.externalSentDate)t.expectedReturnDate=addCal(t.externalSentDate,lead);else t.expectedReturnDate=addCal(send,lead);cursor=dtString(t.expectedReturnDate,'00:00');lastEmployee=flowEmployee;continue}
-   const flowOpts={...opts,preferredEmployee:lastEmployee||flowEmployee||opts.preferredEmployee||null,lockEmployee:true};
+   const explicitTaskEmployee=!ralphOnlyTask(t)&&t.taskEmployeeOverride?t.taskEmployeeOverride:null;
+   const taskCursor=parallelTaskStart(t,cursor);
+   const flowOpts={...opts,preferredEmployee:explicitTaskEmployee||lastEmployee||flowEmployee||opts.preferredEmployee||null,lockEmployee:true};
    if(isSetup(t)&&next&&!isExternalTask(next)&&!isDryTask(next)&&!frozen(next)){
-     cursor=pairSetupWithExecution(t,next,cursor,flowOpts);
+     const nextOverride=!ralphOnlyTask(next)&&next.taskEmployeeOverride?next.taskEmployeeOverride:null;
+     cursor=pairSetupWithExecution(t,next,taskCursor,{...flowOpts,preferredEmployee:nextOverride||flowOpts.preferredEmployee});
      const nextPlanned=taskDone(next)||taskStarted(next)||(Array.isArray(next.planSegments)&&next.planSegments.length>0)||!!next.date;
      if(nextPlanned){lastEmployee=next.employee||lastEmployee;i++;continue}
-     cursor=allocateInternal(t,cursor,flowOpts);
-     cursor=allocateInternal(next,cursor,{...flowOpts,preferredEmployee:lastEmployee||next.employee||null});
+     cursor=allocateInternal(t,taskCursor,flowOpts);
+     cursor=allocateInternal(next,cursor,{...flowOpts,preferredEmployee:(!ralphOnlyTask(next)&&next.taskEmployeeOverride)||lastEmployee||next.employee||null});
      lastEmployee=next.employee||lastEmployee;i++;continue
    }
-   cursor=allocateInternal(t,cursor,flowOpts);
-   lastEmployee=ralphOnlyTask(t)?flowEmployee:(t.employee||lastEmployee);
+   cursor=allocateInternal(t,taskCursor,flowOpts);
+   lastEmployee=ralphOnlyTask(t)||explicitTaskEmployee?flowEmployee:(t.employee||lastEmployee);
  }
  return cursor;
 }
