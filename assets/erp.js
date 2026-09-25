@@ -80,8 +80,10 @@ function daysFromToday(date){if(!date)return null;const a=new Date(iso()+'T12:00
 function nextStepInfo(o){
  const t=taskList(o.id).find(x=>!x.deleted&&!['done','completed'].includes(String(x.status||'').toLowerCase()));
  if(!t)return{task:null,label:'Gereed',days:null,date:''};
- const d=taskDueDate(t),days=daysFromToday(d);
- return{task:t,date:d,days,label:days===null?'Week nog niet toegewezen':days<=0?'Nu uitvoeren':days===1?'Over minimaal 1 dag':'Over minimaal '+days+' dagen'};
+ const today=iso(),deadline=o.communicatedDeadline||o.maximumReadyDate||o.deadline||'',lastWork=o.productionLatestWorkDate||(deadline?(()=>{const x=new Date(deadline+'T12:00:00');x.setDate(x.getDate()-7);return x.toISOString().slice(0,10)})():'');
+ if(lastWork&&lastWork<today)return{task:t,date:lastWork,days:0,label:'TE LAAT · DIRECT UITVOEREN'};
+ const d=t.planningLatestStartDate||o.productionLatestStartDate||taskDueDate(t),days=daysFromToday(d);
+ return{task:t,date:d,days,label:days===null?'Week nog niet toegewezen':days<=0?'DIRECT UITVOEREN':days===1?'Uiterlijk over 1 dag':'Uiterlijk over '+days+' dagen'};
 }
 function renderOrderOverview(){
  if(!init())return;
@@ -97,7 +99,7 @@ function renderOrderOverview(){
    <td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')"><b>${esc(o.orderNo||'')}</b></button></td>
    <td><b>${esc(o.product||'')}</b><div class="muted">${esc(o.customerName||'')} · ${Number(o.qty)||0} st.</div></td>
    <td><div style="display:grid;grid-template-columns:minmax(135px,1fr) 92px;gap:6px;align-items:center"><input class="input" type="date" data-overview-deadline="${esc(o.id)}" value="${esc(deadline)}"><label style="display:flex;align-items:center;gap:4px;white-space:nowrap"><input class="input" style="width:58px;text-align:center" type="number" min="0" step="1" placeholder="x" data-overview-deadline-weeks="${esc(o.id)}"><span class="muted">wk</span></label></div></td>
-   <td><b>${esc(o.productionLatestStartWeek?('Week '+String(o.productionLatestStartWeek).slice(-2)):'Nog berekenen')}</b><div class="muted">${esc(o.productionLatestStartDate?('start '+o.productionLatestStartDate):'')}${o.productionLatestWorkDate?('<br>laatste werkdag '+esc(o.productionLatestWorkDate)):''}</div></td>
+   <td>${(()=>{const today=iso(),late=o.productionLatestWorkDate&&o.productionLatestWorkDate<today,due=o.productionLatestStartDate&&o.productionLatestStartDate<=today;return `<b>${late?'TE LAAT · DIRECT STARTEN':due?'DIRECT STARTEN':esc(o.productionLatestStartWeek?('Week '+String(o.productionLatestStartWeek).slice(-2)):'Nog berekenen')}</b><div class="muted">${o.productionLatestStartDate?'uiterlijk '+esc(o.productionLatestStartDate):''}${o.productionLatestWorkDate?('<br>laatste werkdag '+esc(o.productionLatestWorkDate)):''}</div>`})()}</td>
    <td><b>${esc(n.task?.name||'Gereed')}</b><div class="muted">${esc(n.task?.machine||'')}</div></td>
    <td><b>${esc(n.label)}</b>${n.date?`<div class="muted">${esc(n.date)}</div>`:''}</td>
    <td>${priorityStars(o)}</td>
