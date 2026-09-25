@@ -79,10 +79,11 @@ function install(){
  if(typeof window.saveTask!=='function'||typeof window.openTask!=='function'||typeof window.render!=='function')return setTimeout(install,150);
  const originalSave=window.saveTask;
  window.saveTask=function(id){
-  const t=S()?.tasks?.find(x=>x.id===id),emp=document.getElementById('mEmp')?.value||'',date=document.getElementById('mDate')?.value||'',start=document.getElementById('mStart')?.value||'',status=document.getElementById('mStatus')?.value||'',estimate=Number(document.getElementById('mEst')?.value)||0;
+  const t=S()?.tasks?.find(x=>x.id===id),emp=document.getElementById('mEmp')?.value||'',date=document.getElementById('mDate')?.value||'',start=document.getElementById('mStart')?.value||'',status=document.getElementById('mStatus')?.value||'',estimate=Number(document.getElementById('mEst')?.value)||0,machineValue=document.getElementById('mMachine')?.value||'';
   if(t&&status==='open'&&emp&&date){
    if(!start)return alert('Kies ook een starttijd.');
-   const proposal=strictProposal(t,emp,date,start,estimate);if(proposal.error)return alert(proposal.error);
+   const oldMachine=t.machine,oldAssigned=t.assignedMachine;if(machineValue){t.machine=machineValue;if(/mori|zl\s*[-–]?\s*15|sl\s*[-–]?\s*25/i.test(machineValue))t.assignedMachine=machineValue}
+   const proposal=strictProposal(t,emp,date,start,estimate);if(proposal.error){t.machine=oldMachine;if(oldAssigned)t.assignedMachine=oldAssigned;else delete t.assignedMachine;return alert(proposal.error);}
    const old=window.scheduleTaskAcrossCapacity;
    window.scheduleTaskAcrossCapacity=function(task){applyStrict(task,proposal,emp);return taskFinishAt(task)};
    try{originalSave.apply(this,arguments)}finally{window.scheduleTaskAcrossCapacity=old}
@@ -95,7 +96,7 @@ function install(){
  window.dropWeek=function(e,emp,date){e.preventDefault();e.currentTarget?.classList?.remove('dropover');const id=e.dataTransfer?.getData('text/plain');if(!id)return;prefillDrop(id,emp,date)};
  const oldDropToday=window.dropToday;
  window.dropToday=function(e,emp){e.preventDefault();const id=e.dataTransfer?.getData('text/plain');if(!id)return;if(!emp)return oldDropToday?.apply(this,arguments);prefillDrop(id,emp,typeof selectedDate!=='undefined'?selectedDate:new Date().toISOString().slice(0,10))};
- window.RALAB_MANUAL_START={version:VERSION,strictProposal,prefillDrop};
+ window.RALAB_MANUAL_START={version:VERSION,strictProposal,prefillDrop,manualOnly:true};
 }
 install();
 })();
