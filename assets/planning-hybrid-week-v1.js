@@ -42,7 +42,9 @@ function buildWeekOnly(preview){
   const earlyPrep=t=>/materiaal\s+bestellen|verpakking\s+bestellen|alabaster\s+klaarzetten|klaarzetten.*waterjet|waterjet.*klaarzetten/i.test((t?.name||'')+' '+(t?.machine||''));
   for(const t of sim.tasks||[]){
     const before=baseline.get(t.id);if(!before)continue;
-    const terminal=['done','completed','in_progress','started','partial','partly','external'].includes(String(before.status||'').toLowerCase())||Number(before.actual)>0||Number(before.doneQty)>0;
+    const beforeType=String(before.type||'').toLowerCase(),beforeStatus=String(before.status||'').toLowerCase();
+    const quantityCompletion=Number(before.doneQty)>0&&!['wait','external'].includes(beforeType);
+    const terminal=['done','completed','in_progress','started','partial','partly'].includes(beforeStatus)||Number(before.actual)>0||quantityCompletion;
     if(terminal)continue;
     const finish=finishOf(t);if(finish&&finish>(futureFinish.get(t.orderId)||''))futureFinish.set(t.orderId,finish);
     let firstWeek='',firstDate='',lastDate='';
