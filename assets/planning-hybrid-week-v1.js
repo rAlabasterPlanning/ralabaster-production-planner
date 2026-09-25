@@ -1,6 +1,6 @@
 // Week-only planner: automatically allocate work to weeks; exact day/time planning stays manual.
 (()=>{
-const VERSION='20260925-9';
+const VERSION='20260925-10';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -45,10 +45,10 @@ function buildWeekOnly(preview){
     const hadExact=!!((before.planSegments||[]).length||before.date||before.waitStartAt||before.externalSentDate);
     if(hadExact||exactExisting(before))continue;
     const finish=finishOf(t);if(finish&&finish>(futureFinish.get(t.orderId)||''))futureFinish.set(t.orderId,finish);
-    let firstWeek='';
+    let firstWeek='',firstDate='',lastDate='';
     for(const g of Array.isArray(t.planSegments)?t.planSegments:[]){
       if(!g?.date)continue;
-      const wk=weekKey(g.date);if(!firstWeek||wk<firstWeek)firstWeek=wk;
+      const wk=weekKey(g.date);if(!firstWeek||wk<firstWeek)firstWeek=wk;if(!firstDate||g.date<firstDate)firstDate=g.date;if(!lastDate||g.date>lastDate)lastDate=g.date;
       const key=t.orderId+'|'+wk;weekly.set(key,(weekly.get(key)||0)+(Number(g.minutes)||0));
     }
     if(firstWeek){
@@ -61,16 +61,20 @@ function buildWeekOnly(preview){
         }
         const target=t.orderId+'|'+comingWeek;weekly.set(target,(weekly.get(target)||0)+moved);
       }
-      taskWeeks.set(t.id,{week:assigned,simulatedWeek:firstWeek,early});
+      taskWeeks.set(t.id,{week:assigned,simulatedWeek:firstWeek,simulatedFirstDate:firstDate,simulatedLastDate:lastDate||firstDate,early});
     }
   }
   for(const o of next.orders||[]){
-    const target=targetReadyDate(o),targetWeek=target?weekKey(target):'',entries=[];
+    const target=targetReadyDate(o),entries=[];
     for(const t of next.tasks||[]){if(t.orderId!==o.id)continue;const x=taskWeeks.get(t.id);if(x&&!x.early)entries.push([t,x])}
-    const latest=entries.map(x=>x[1].week).sort().at(-1)||'';
-    if(targetWeek&&latest&&targetWeek>latest){
-      const delta=weekDistance(latest,targetWeek);
-      for(const [t,x] of entries){x.week=shiftWeekKey(x.week,delta);taskWeeks.set(t.id,x)}
+    const latestDate=entries.map(x=>x[1].simulatedLastDate||'').filter(Boolean).sort().at(-1)||'';
+    if(target&&latestDate){
+      const deltaDays=Math.round((parse(target)-parse(latestDate))/86400000);
+      for(const [t,x] of entries){
+        const base=x.simulatedFirstDate||weekMonday(x.simulatedWeek||x.week);
+        if(base){const d=parse(base);d.setDate(d.getDate()+deltaDays);x.week=weekKey(iso(d));x.latestStartDate=iso(d)}
+        taskWeeks.set(t.id,x);
+      }
     }
   }
   weekly.clear();
@@ -80,11 +84,15 @@ function buildWeekOnly(preview){
   }
   const byOrder=new Map();
   for(const [key,minutes] of weekly){const [orderId,week]=key.split('|');if(!byOrder.has(orderId))byOrder.set(orderId,[]);byOrder.get(orderId).push({week,minutes})}
-  for(const t of next.tasks||[]){const x=taskWeeks.get(t.id);if(x){t.planningWeek=x.week;t.planningSimulatedWeek=x.simulatedWeek;t.planningWeekEarly=!!x.early}else if(!((t.planSegments||[]).length||t.date)){delete t.planningWeek;delete t.planningSimulatedWeek;delete t.planningWeekEarly}}
+  for(const t of next.tasks||[]){const x=taskWeeks.get(t.id);if(x){t.planningWeek=x.week;t.planningSimulatedWeek=x.simulatedWeek;t.planningWeekEarly=!!x.early;if(x.latestStartDate)t.planningLatestStartDate=x.latestStartDate;else delete t.planningLatestStartDate}else if(!((t.planSegments||[]).length||t.date)){delete t.planningWeek;delete t.planningSimulatedWeek;delete t.planningWeekEarly}}
   for(const o of next.orders||[]){
     const productionWeeks=(next.tasks||[]).filter(t=>t.orderId===o.id&&!preparationTask(t)&&t.planningWeek).map(t=>t.planningWeek).sort();
     o.productionStartWeek=productionWeeks[0]||'';
     o.productionFinishWeek=productionWeeks.at(-1)||'';
+    const prodDates=(next.tasks||[]).filter(t=>t.orderId===o.id&&!preparationTask(t)&&t.planningLatestStartDate).map(t=>t.planningLatestStartDate).sort();
+    o.productionLatestStartDate=prodDates[0]||'';
+    o.productionLatestWorkDate=targetReadyDate(o)||'';
+    o.productionLatestStartWeek=o.productionLatestStartDate?weekKey(o.productionLatestStartDate):o.productionStartWeek||'';
     const reservations=(byOrder.get(o.id)||[]).sort((a,b)=>a.week.localeCompare(b.week));
     if(reservations.length||futureFinish.has(o.id)){
       o.weekCapacityReservations=reservations;
