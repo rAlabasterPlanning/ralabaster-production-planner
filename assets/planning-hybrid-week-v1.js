@@ -1,6 +1,6 @@
 // Week-only planner: automatically allocate work to weeks; exact day/time planning stays manual.
 (()=>{
-const VERSION='20260925-5';
+const VERSION='20260925-6';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -34,21 +34,25 @@ function exactExisting(t){
   return !!(t?.status==='done'||t?.status==='completed'||t?.status==='in_progress'||t?.status==='started'||t?.actual>0||t?.doneQty>0||t?.lockedPlanning);
 }
 function buildWeekOnly(preview){
-  const live=clone(S()),sim=clone(preview.state),next=clone(live),weekly=new Map(),futureFinish=new Map();
-  const baseline=new Map((live.tasks||[]).map(t=>[t.id,t]));
+  const live=clone(S()),sim=clone(preview.state),next=clone(live),weekly=new Map(),futureFinish=new Map(),taskWeeks=new Map();
+  const baseline=new Map((live.tasks||[]).map(t=>[t.id,t])),comingWeek=nextDetailedWeeks().week;
+  const earlyPrep=t=>/materiaal\s+bestellen|verpakking\s+bestellen|alabaster\s+klaarzetten|klaarzetten.*waterjet|waterjet.*klaarzetten/i.test((t?.name||'')+' '+(t?.machine||''));
   for(const t of sim.tasks||[]){
     const before=baseline.get(t.id);if(!before)continue;
     const hadExact=!!((before.planSegments||[]).length||before.date||before.waitStartAt||before.externalSentDate);
     if(hadExact||exactExisting(before))continue;
     const finish=finishOf(t);if(finish&&finish>(futureFinish.get(t.orderId)||''))futureFinish.set(t.orderId,finish);
+    let firstWeek='';
     for(const g of Array.isArray(t.planSegments)?t.planSegments:[]){
       if(!g?.date)continue;
-      const key=t.orderId+'|'+weekKey(g.date);
-      weekly.set(key,(weekly.get(key)||0)+(Number(g.minutes)||0));
+      const wk=weekKey(g.date);if(!firstWeek||wk<firstWeek)firstWeek=wk;
+      const key=t.orderId+'|'+wk;weekly.set(key,(weekly.get(key)||0)+(Number(g.minutes)||0));
     }
+    if(firstWeek){const assigned=earlyPrep(before)&&firstWeek>comingWeek?comingWeek:firstWeek;taskWeeks.set(t.id,{week:assigned,simulatedWeek:firstWeek,early:assigned!==firstWeek})}
   }
   const byOrder=new Map();
   for(const [key,minutes] of weekly){const [orderId,week]=key.split('|');if(!byOrder.has(orderId))byOrder.set(orderId,[]);byOrder.get(orderId).push({week,minutes})}
+  for(const t of next.tasks||[]){const x=taskWeeks.get(t.id);if(x){t.planningWeek=x.week;t.planningSimulatedWeek=x.simulatedWeek;t.planningWeekEarly=!!x.early}else if(!((t.planSegments||[]).length||t.date)){delete t.planningWeek;delete t.planningSimulatedWeek;delete t.planningWeekEarly}}
   for(const o of next.orders||[]){
     const reservations=(byOrder.get(o.id)||[]).sort((a,b)=>a.week.localeCompare(b.week));
     if(reservations.length||futureFinish.has(o.id)){
@@ -230,7 +234,7 @@ async function install(){
     const cancel=e.target.closest?.('[data-missing-cancel]');if(cancel){e.preventDefault();document.getElementById('modalRoot').innerHTML='';return}
     const b=e.target.closest?.('[data-hybrid-plan]');if(!b)return;e.preventDefault();plan()
   },true);
-  window.RALAB_HYBRID_PLANNER={version:VERSION,plan,buildHybrid,openMissingData};
+  window.RALAB_HYBRID_PLANNER={version:VERSION,plan,buildWeekOnly,openMissingData};
   setTimeout(decorate,0);
 }
 install();
