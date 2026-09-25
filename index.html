@@ -23,7 +23,7 @@
 <button class="navbtn erp-nav" data-view="orderoverview">Orderoverzicht</button>
 <button class="navbtn" data-view="weeks">Overzichtplanner</button>
 <details class="nav-more" style="position:relative">
-  <summary class="navbtn" style="list-style:none;cursor:pointer">Meer ▾</summary>
+  <summary class="btn nav-more-trigger" style="list-style:none;cursor:pointer;user-select:none">Meer ▾</summary>
   <div style="position:absolute;right:0;top:calc(100% + 6px);z-index:1000;min-width:190px;padding:8px;background:var(--card,#fff);border:1px solid var(--line,#d9dfdc);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);display:grid;gap:4px">
     <button class="navbtn" data-view="external">Extern / binnenmelden</button>
     <button class="navbtn erp-nav" data-view="completed">Afgeronde orders</button>
@@ -124,6 +124,8 @@ document.getElementById('refreshAppBtn')?.addEventListener('click',function(e){
   location.replace(url.toString());
 });
 document.addEventListener('click',function(e){
+  const moreItem=e.target.closest('.nav-more [data-view]');
+  if(moreItem)setTimeout(()=>moreItem.closest('details.nav-more')?.removeAttribute('open'),0);
   const b=e.target.closest('.erp-nav');
   if(!b)return;
   e.preventDefault();
