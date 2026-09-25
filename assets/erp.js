@@ -88,9 +88,13 @@ function nextStepInfo(o){
 function renderOrderOverview(){
  if(!init())return;
  const root=document.getElementById('view-orderoverview'),s=S();if(!root)return;
+ const q=String(root.dataset.q||'').trim().toLowerCase();
  const all=(perf()?.getActiveOrders?perf().getActiveOrders():s.orders.filter(o=>o.active!==false&&o.status!=='completed'&&!o.deleted))
-   .filter(o=>!o.isGeneralWork&&!o.isManualTasks&&!o.deleted).slice().sort(orderSortForProduction);
+   .filter(o=>!o.isGeneralWork&&!o.isManualTasks&&!o.deleted)
+   .filter(o=>!q||[o.orderNo,o.customerName,o.product,o.project].join(' ').toLowerCase().includes(q))
+   .slice().sort(orderSortForProduction);
  root.innerHTML=`<div class="toolbar"><h2>Orderoverzicht</h2><span class="pill">${all.length} actief</span><div class="spacer"></div><button class="btn" onclick="RALAB_ERP.show('calculation')">+ Nieuwe calculatie</button></div>
+ <div class="panel" style="padding:10px;margin-bottom:10px"><input class="input" type="search" data-orderoverview-search placeholder="Zoek ordernummer, klant, product of project" value="${esc(root.dataset.q||'')}" style="width:min(560px,100%)"></div>
  <div class="notice"><b>Productievolgorde:</b> standaard op deadline. Vul alleen een volgordenummer in als je handmatig wilt overrulen. Deadline is direct in de lijst aanpasbaar.</div>
  <div class="panel" style="overflow:auto">
  <table class="order-overview-list" style="min-width:1000px"><thead><tr><th style="width:78px">Volgorde</th><th>Order</th><th>Klant / product</th><th style="width:155px">Deadline</th><th style="width:160px">Uiterlijk starten</th><th>Volgende stap</th><th style="width:80px"></th></tr></thead><tbody>
@@ -185,7 +189,7 @@ async function openOrder(id){
    <label style="display:flex;align-items:center;gap:5px"><input class="input" type="number" min="1" step="1" value="30" data-new-order-task-duration style="width:76px"><span class="muted">min</span></label>
    <button class="btn primary" type="button" data-add-order-task="${esc(o.id)}">+ Toevoegen</button>
  </div><datalist id="orderTaskMachineList">${machineList}</datalist></div>
- <h3>Commercieel</h3><div>Kostprijs/st: ${euro(o.costUnit)} · Verkoop/st: ${euro(o.saleUnit)} · Totaal: ${euro(o.totalSale)}</div></div><div class="modalfoot" style="flex-wrap:wrap"><button class="btn" onclick="RALAB_ERP.deleteOrder('${o.id}')">Verwijder order</button><button class="btn" type="button" data-unplan-order="${esc(o.id)}">Ontplannen</button><button class="btn" type="button" data-order-to-calc="${esc(o.id)}">Terug naar calculatie</button><div class="spacer"></div><button class="btn" onclick="closeModal()">Sluiten</button><button class="btn primary" onclick="RALAB_ERP.orderConfirmation('${o.id}')">Order confirmation</button></div>`;
+ <h3>Commercieel</h3><div>Kostprijs/st: ${euro(o.costUnit)} · Verkoop/st: ${euro(o.saleUnit)} · Totaal: ${euro(o.totalSale)}</div></div><div class="modalfoot" style="flex-wrap:wrap"><button class="btn" onclick="RALAB_ERP.deleteOrder('${o.id}')">Verwijder order</button><button class="btn" type="button" data-copy-order="${esc(o.id)}">Order kopiëren</button><button class="btn" type="button" data-unplan-order="${esc(o.id)}">Ontplannen</button><button class="btn" type="button" data-order-to-calc="${esc(o.id)}">Terug naar calculatie</button><div class="spacer"></div><button class="btn" onclick="closeModal()">Sluiten</button><button class="btn primary" onclick="RALAB_ERP.orderConfirmation('${o.id}')">Order confirmation</button></div>`;
  if(typeof showModal==='function')showModal(html);else alert(o.orderNo)
 }
 function mutableTask(id){return S()?.tasks?.find(t=>t.id===id&&!t.deleted)||null}
@@ -236,6 +240,38 @@ function addOrderTask(orderId,name,machine,minutes){
  o.weekPlanningUpdatedAt='';o.productionLatestStartDate='';o.productionLatestStartWeek='';
  refreshOrderAfterTaskChange(orderId);return true;
 }
+function copyOrder(id){
+ const s=S(),src=s?.orders?.find(o=>o.id===id&&!o.deleted);if(!s||!src)return false;
+ if(!confirm('Order '+(src.orderNo||'')+' kopiëren als nieuwe order?'))return false;
+ const now=Date.now(),newId='o_copy_'+now,newNo='COPY-'+String(now).slice(-6);
+ const cloned=structuredClone(src);
+ Object.assign(cloned,{
+   id:newId,orderNo:newNo,created:iso(),active:true,status:'confirmed',deleted:false,
+   communicatedDeadline:'',deadline:'',maximumReadyDate:'',internalExpectedDate:'',
+   expectedReadyDate:'',expectedReadyWeek:'',weekCapacityReservations:[],
+   productionStartWeek:'',productionFinishWeek:'',productionLatestStartDate:'',
+   productionLatestStartWeek:'',productionLatestWorkDate:'',weekPlanningUpdatedAt:'',
+   planningDecision:'',planningDecisionAt:''
+ });
+ delete cloned.completedAt;delete cloned.deletedAt;delete cloned.productionSequence;
+ s.orders.push(cloned);
+ const srcTasks=(s.tasks||[]).filter(t=>t.orderId===id&&!t.deleted).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));
+ srcTasks.forEach((t,i)=>{
+   const nt=structuredClone(t);
+   Object.assign(nt,{
+     id:'t_copy_'+now+'_'+i,orderId:newId,seq:i+1,status:'open',
+     employee:null,date:null,start:'',planSegments:[],actual:0,doneQty:0,note:t.note||''
+   });
+   delete nt.completedAt;delete nt.completedAtDT;delete nt.deleted;delete nt.deletedAt;
+   delete nt.waitStartAt;delete nt.waitEndAt;delete nt.externalSentDate;delete nt.expectedReturnDate;
+   delete nt.planningWeek;delete nt.planningSimulatedWeek;delete nt.planningWeekEarly;delete nt.planningLatestStartDate;
+   delete nt.planningOrigin;delete nt.lockedPlanning;delete nt.manualPlanning;delete nt.assignedMachine;
+   s.tasks.push(nt);
+ });
+ try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
+ try{save()}catch(e){console.error(e);alert('Kopiëren opslaan mislukt.');return false}
+ renderOrderOverview();openOrder(newId);return true;
+}
 function deleteOrder(id){
  const o=findOrder(id);if(!o)return false;
  const root=document.getElementById('modalRoot');if(!root)return false;
@@ -259,9 +295,10 @@ function orderConfirmation(id){const s=S(),o=findOrder(id),c=s.customers.find(x=
 async function renderCompleted(page=completedPage){if(!init())return;completedPage=Math.max(0,+page||0);const root=document.getElementById('view-completed');root.innerHTML='<div class="toolbar"><h2>6. Afgeronde orders</h2></div><div class="panel" style="padding:16px">Laden…</div>';let arr,total=0;if(perf()?.loadArchivedOrders&&perf().isNormalized?.()){try{arr=await perf().loadArchivedOrders(completedPage,PAGE,'');total=arr.total||arr.length;archiveCache=arr}catch(e){console.error(e);arr=[]}}else{const all=(S().orders||[]).filter(o=>!o.deleted&&(o.active===false||o.status==='completed'));total=all.length;const p=pageInfo(total,completedPage);completedPage=p.page;arr=all.slice(p.start,p.end)}root.innerHTML=`<div class="toolbar"><h2>6. Afgeronde orders</h2></div><div class="panel"><table><thead><tr><th>Order</th><th>Klant</th><th>Product</th><th>Aantal</th><th>Gereed</th><th>Rendement</th><th></th></tr></thead><tbody>${(arr||[]).map(o=>`<tr><td>${esc(o.orderNo)}</td><td>${esc(o.customerName||'')}</td><td>${esc(o.product)}</td><td>${o.qty}</td><td>${esc(o.completedAt||'')}</td><td>${o.yieldPct!=null?Number(o.yieldPct).toFixed(1)+'%':'—'}</td><td><button class="btn small" onclick="RALAB_ERP.openOrder('${o.id}')">Order bekijken</button> <button class="btn small primary" type="button" data-completed-actions="${esc(o.id)}">Pakbon / nacalculatie</button></td></tr>`).join('')||'<tr><td colspan=7>Nog geen afgeronde orders.</td></tr>'}</tbody></table>${pager(total,completedPage,'RALAB_ERP.renderCompleted')}</div>`}
 function renderProducts(page=productPage){if(!init())return;productPage=Math.max(0,+page||0);const root=document.getElementById('view-products'),s=S(),all=s.productTemplates.slice().sort((a,b)=>a.name.localeCompare(b.name)||(+b.version||1)-(+a.version||1)),p=pageInfo(all.length,productPage);productPage=p.page;const arr=all.slice(p.start,p.end);root.innerHTML=`<div class="toolbar"><h2>7. Producten / templates</h2></div><div class="panel"><table><thead><tr><th>Product</th><th>Versie</th><th>Processtappen</th><th>Materiaal</th><th>Marge</th><th>Aangemaakt</th></tr></thead><tbody>${arr.map(t=>`<tr><td><b>${esc(t.name)}</b></td><td>v${t.version||1}</td><td>${(t.ops||[]).length}</td><td>${euro(t.materialCost)} ${t.materialMode==='batch'?'per batch':'per stuk'}</td><td>${t.marginMode==='factor'?'×':t.marginMode==='percent'?'%':'€'} ${t.marginValue}</td><td>${esc(t.created||'')}</td></tr>`).join('')||'<tr><td colspan=6>Nog geen producttemplates.</td></tr>'}</tbody></table>${pager(all.length,productPage,'RALAB_ERP.renderProducts')}</div>`}
 // Delegated listeners survive result replacement and handle touch, typing and the search clear button.
+function searchOrderOverview(e){const el=e.target.closest?.('#view-orderoverview [data-orderoverview-search]');if(!el)return;const root=el.closest('section');root.dataset.q=el.value;renderOrderOverview()}
 function searchOrders(e){const el=e.target.closest?.('#view-orders [data-order-search]');if(!el)return;const root=el.closest('section');root.dataset.q=el.value;renderOrders(0)}
-document.addEventListener('input',searchOrders);
-document.addEventListener('search',searchOrders);
+document.addEventListener('input',e=>{searchOrders(e);searchOrderOverview(e)});
+document.addEventListener('search',e=>{searchOrders(e);searchOrderOverview(e)});
 document.addEventListener('change',e=>{const td=e.target.closest?.('[data-order-task-duration]');if(td){setOrderTaskDuration(td.dataset.orderTaskDuration,td.value);return}const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(dl){setOverviewDeadline(dl.dataset.overviewDeadline,dl.value);return}const sq=e.target.closest?.('#view-orderoverview [data-overview-sequence]');if(sq){setOverviewSequence(sq.dataset.overviewSequence,sq.value);return}if(e.target.matches?.('#view-orders [data-order-search]'))return searchOrders(e);const root=e.target.closest?.('#view-orders');if(!root)return;if(e.target.matches('[data-order-sort]'))root.dataset.orderSort=e.target.value;else if(e.target.matches('[data-only-unplanned]'))root.dataset.onlyUnplanned=e.target.checked?'1':'0';else return;renderOrders(0)});
 document.addEventListener('pointerdown',e=>{const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(!dl)return;e.preventDefault();e.stopPropagation();openDeadlineQuickPick(dl)},true);
 document.addEventListener('click',e=>{
@@ -270,12 +307,13 @@ document.addEventListener('click',e=>{
  const custom=e.target.closest?.('[data-deadline-custom-apply]');if(custom){e.preventDefault();const box=custom.closest('.deadline-quick-pick'),id=box?.dataset.orderId||'',weeks=box?.querySelector('[data-deadline-custom-weeks]')?.value;if(id&&weeks!==''){setOverviewDeadline(id,deadlineFromWeeks(weeks));closeDeadlineQuickPick()}return}
  if(!e.target.closest?.('.deadline-quick-pick')&&!e.target.closest?.('#view-orderoverview [data-overview-deadline]'))closeDeadlineQuickPick();
 
+ const copy=e.target.closest?.('[data-copy-order]');if(copy){e.preventDefault();copyOrder(copy.dataset.copyOrder);return}
  const move=e.target.closest?.('[data-order-task-move]');if(move){e.preventDefault();moveOrderTask(move.dataset.orderTaskMove,move.dataset.moveDir);return}
  const add=e.target.closest?.('[data-add-order-task]');if(add){e.preventDefault();const root=add.closest('.modalbody')||document;const name=root.querySelector('[data-new-order-task-name]')?.value||'',machine=root.querySelector('[data-new-order-task-machine]')?.value||'',minutes=root.querySelector('[data-new-order-task-duration]')?.value||30;addOrderTask(add.dataset.addOrderTask,name,machine,minutes);return}
  const toggle=e.target.closest?.('[data-order-task-toggle]');if(toggle){e.preventDefault();toggleOrderTaskDone(toggle.dataset.orderTaskToggle);return}
  const del=e.target.closest?.('[data-order-task-delete]');if(del){e.preventDefault();removeOrderTask(del.dataset.orderTaskDelete);return}
  const star=e.target.closest?.('#view-orders [data-priority-order], #view-orderoverview [data-priority-order]');if(!star||star.disabled)return;e.preventDefault();e.stopPropagation();setOrderPriority(star.dataset.priorityOrder,star.dataset.priorityValue)},true);
-window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask};
+window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask,copyOrder};
 const priorityStyle=document.createElement('style');priorityStyle.textContent='.order-priority{display:inline-flex;gap:1px;white-space:nowrap}.priority-star{appearance:none;border:0;background:transparent;color:#b8bfbb;font-size:25px;line-height:1;padding:2px;cursor:pointer;touch-action:manipulation}.priority-star.active{color:#d99a00}.priority-star:focus-visible{outline:2px solid #176b55;border-radius:4px}@media(max-width:700px){.priority-star{font-size:29px;padding:4px}}';document.head.appendChild(priorityStyle);
 setTimeout(()=>{if(!init())return;document.querySelectorAll('.erp-nav').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();show(b.dataset.view)}));},1200);
 })();
