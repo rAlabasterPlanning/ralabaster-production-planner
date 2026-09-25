@@ -125,7 +125,7 @@ function renderOrders(page=orderPage){
 }
 async function openOrder(id){
  let o=findOrder(id),ts=o?taskList(id):[];if(!o&&perf()?.loadOrderBundle){try{const b=await perf().loadOrderBundle(id);o=b?.order;ts=b?.tasks||[]}catch(e){console.error(e)}}if(!o)return;
- const html=`<div class="modalhead"><h3>${esc(o.orderNo)} · ${esc(o.customerName||'')} · ${esc(o.product)}</h3></div><div class="modalbody"><div class="grid3"><div><b>Status</b><br>${status({...o,id:o.id})}</div><div><b>Intern gereed</b><br>${esc(o.internalExpectedDate||'—')}</div><div><b>Klantdeadline</b><br>${esc(plannedReadyDate(o)||'—')}</div></div><h3>Proces</h3>${ts.map((t,i)=>`<div style="padding:9px;border-bottom:1px solid #eee"><b>${i+1}. ${esc(t.name)}</b> · ${esc(t.status||'open')} · ${esc(t.employee||'—')} · ${esc(t.date||'niet gepland')}</div>`).join('')}<h3>Commercieel</h3><div>Kostprijs/st: ${euro(o.costUnit)} · Verkoop/st: ${euro(o.saleUnit)} · Totaal: ${euro(o.totalSale)}</div></div><div class="modalfoot"><button class="btn" onclick="RALAB_ERP.deleteOrder('${o.id}')">Verwijder order</button><button class="btn" type="button" data-unplan-order="${esc(o.id)}">Ontplannen</button><div class="spacer"></div><button class="btn" onclick="closeModal()">Sluiten</button><button class="btn primary" type="button" data-plan-order="${esc(o.id)}">Inplannen en controleren</button><button class="btn" onclick="RALAB_ERP.orderConfirmation('${o.id}')">Order confirmation</button></div>`;
+ const html=`<div class="modalhead"><h3>${esc(o.orderNo)} · ${esc(o.customerName||'')} · ${esc(o.product)}</h3></div><div class="modalbody"><div class="grid3"><div><b>Status</b><br>${status({...o,id:o.id})}</div><div><b>Intern gereed</b><br>${esc(o.internalExpectedDate||'—')}</div><div><b>Klantdeadline</b><br>${esc(plannedReadyDate(o)||'—')}</div></div><h3>Proces</h3>${ts.map((t,i)=>`<div style="padding:9px;border-bottom:1px solid #eee"><b>${i+1}. ${esc(t.name)}</b> · ${esc(t.status||'open')} · ${esc(t.employee||'—')} · ${esc(t.date||'niet gepland')}</div>`).join('')}<h3>Commercieel</h3><div>Kostprijs/st: ${euro(o.costUnit)} · Verkoop/st: ${euro(o.saleUnit)} · Totaal: ${euro(o.totalSale)}</div></div><div class="modalfoot" style="flex-wrap:wrap"><button class="btn" onclick="RALAB_ERP.deleteOrder('${o.id}')">Verwijder order</button><button class="btn" type="button" data-unplan-order="${esc(o.id)}">Ontplannen</button><button class="btn" type="button" data-order-to-calc="${esc(o.id)}">Terug naar calculatie</button><div class="spacer"></div><button class="btn" onclick="closeModal()">Sluiten</button><button class="btn primary" onclick="RALAB_ERP.orderConfirmation('${o.id}')">Order confirmation</button></div>`;
  if(typeof showModal==='function')showModal(html);else alert(o.orderNo)
 }
 function deleteOrder(id){
@@ -143,7 +143,7 @@ function confirmDeleteOrder(id){
  }
  try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
  const root=document.getElementById('modalRoot');if(root)root.innerHTML='';
- renderOrders();
+ renderOrderOverview();
  persist();
  return true;
 }
