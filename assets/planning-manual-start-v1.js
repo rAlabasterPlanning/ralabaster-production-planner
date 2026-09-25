@@ -1,48 +1,101 @@
-// Keep a manually entered start time and repack the employee's remaining work around it.
+// Strict manual planning: drag chooses employee/day, task modal chooses exact start/machine.
+// Nothing else is moved automatically; employee/machine/dependency conflicts are rejected.
 (()=>{
-const VERSION='20260923-4';
+const VERSION='20260925-6';
 const S=()=>{try{return state}catch(_){return null}};
-const clone=x=>JSON.parse(JSON.stringify(x));
 const min=t=>{const[a,b]=String(t||'00:00').split(':').map(Number);return(a||0)*60+(b||0)};
-const time=n=>String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
+const tm=n=>String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
 const at=(d,t)=>d+'T'+t;
 const addDay=d=>{try{return addDays(d,1)}catch(_){const x=new Date(d+'T12:00');x.setDate(x.getDate()+1);return x.toISOString().slice(0,10)}};
 const segments=t=>Array.isArray(t?.planSegments)&&t.planSegments.length?t.planSegments:(t?.date&&t?.employee?[{date:t.date,employee:t.employee,start:t.start||'',minutes:Number(t.estimate)||0}]:[]);
-const first=t=>segments(t).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.start||'').localeCompare(b.start||''))[0]||null;
-const complete=t=>['done','completed'].includes(String(t?.status||'').toLowerCase());
-const started=t=>['in_progress','partial','partly','external'].includes(String(t?.status||'').toLowerCase())||Number(t?.actual)>0||Number(t?.doneQty)>0;
-const movable=t=>!!t&&!t.deleted&&!t.isGeneralWork&&!complete(t)&&!started(t)&&!t.lockedPlanning&&!isExternalTask(t)&&!isDryTask(t);
-const reorderable=t=>!!t&&!t.deleted&&!t.isGeneralWork&&!complete(t)&&!started(t)&&!isExternalTask(t)&&!isDryTask(t);
-const machine=t=>String(t?.assignedMachine||t?.machinePreference||t?.machine||'').replace(/\s*[-–]?\s*instellen\b/ig,'').replace(/\s+/g,' ').trim().toLowerCase();
-function startMin(date,emp){try{return min(dayStartTime(date,emp))}catch(_){return 495}}
-function endMin(date,emp){try{return workdayEndMinutes(date,emp)}catch(_){return 990}}
-function capacity(date,emp){try{return employeeCapacity(date,emp,date&&new Date(date+'T12:00').getDay()===6)}catch(_){return Math.max(0,endMin(date,emp)-startMin(date,emp))}}
-function clear(t){t.planSegments=[];t.date=null;t.start='';}
+const done=t=>['done','completed'].includes(String(t?.status||'').toLowerCase());
+const machineKey=t=>String(t?.assignedMachine||t?.machinePreference||t?.machine||t?.name||'').replace(/\s*[-–]?\s*instellen\b/ig,'').replace(/\s+/g,' ').trim().toLowerCase();
+const ralphOnly=t=>{const label=((t?.name||'')+' '+(t?.machine||'')).toLowerCase();return t?.ralphOnly===true||t?.onlyRalph===true||String(t?.requiredEmployee||t?.onlyEmployee||t?.fixedEmployee||t?.employeeRequired||'')==='Ralph'||/\binstellen\b|technisch\s+uitwerken|verpakking\s+bestellen|materiaal\s+bestellen/.test(label)};
+function startMin(date,emp){try{return min(dayStartTime(date,emp))}catch(_){return 8*60+15}}
+function endMin(date,emp){try{return workdayEndMinutes(date,emp)}catch(_){return 16*60+30}}
+function capacity(date,emp){try{return employeeCapacity(date,emp,new Date(date+'T12:00').getDay()===6)}catch(_){return Math.max(0,endMin(date,emp)-startMin(date,emp))}}
+function breaks(date,emp){try{return (planningBreaks(date,emp)||[]).map(x=>[x[0],x[1]])}catch(_){return[]}}
 function previous(t){return(S()?.tasks||[]).filter(x=>x.orderId===t.orderId&&!x.deleted&&Number(x.seq)<Number(t.seq)).sort((a,b)=>Number(b.seq)-Number(a.seq))[0]||null}
-function dependencyAt(t){if(!t.dependsPrev)return'';const p=previous(t);if(!p)return'';try{return taskFinishAt(p)||''}catch(_){return''}}
-function intervals(date,emp,key,excluded,includeBreaks=true){const out=!key&&includeBreaks&&typeof planningBreaks==='function'?planningBreaks(date,emp).map(x=>[x[0],x[1]]):[];for(const t of S()?.tasks||[]){if(excluded.has(t.id)||t.deleted||complete(t))continue;if(key&&machine(t)!==key)continue;for(const g of segments(t)){if(g.date!==date||!g.start)continue;if(!key&&g.employee!==emp)continue;const a=min(g.start),b=a+Math.max(0,Number(g.elapsedMinutes)||Number(g.minutes)||0);if(b>a)out.push([a,b])}}return out.sort((a,b)=>a[0]-b[0])}
-function elapsedForWork(date,emp,start,work){let elapsed=Math.max(0,Number(work)||0),guard=0;while(guard++<10){const end=start+elapsed,breaks=(typeof planningBreaks==='function'?planningBreaks(date,emp):[]).reduce((n,x)=>n+Math.max(0,Math.min(end,x[1])-Math.max(start,x[0])),0),next=work+breaks;if(next===elapsed)break;elapsed=next}return elapsed}
-function workForElapsed(date,emp,start,elapsed){const end=start+Math.max(0,Number(elapsed)||0),breaks=(typeof planningBreaks==='function'?planningBreaks(date,emp):[]).reduce((n,x)=>n+Math.max(0,Math.min(end,x[1])-Math.max(start,x[0])),0);return Math.max(0,end-start-breaks)}
-function freeStart(candidate,duration,busy,end){let x=candidate;for(const[a,b]of busy){if(x>=end)break;if(x<b&&x+duration>a)x=b}return x}
-function nextSlot(t,emp,cursor,excluded,overtimeDate='',overtimeEnd=0){let date=cursor.slice(0,10),wanted=min(cursor.slice(11,16)),guard=0;while(guard++<180){const dayStart=startMin(date,emp),dayEnd=Math.max(endMin(date,emp),date===overtimeDate?overtimeEnd:0);if(capacity(date,emp)<=0&&dayEnd<=dayStart){date=addDay(date);wanted=0;continue}let pos=Math.max(dayStart,wanted),tries=0;while(pos<dayEnd&&tries++<200){const empBusy=intervals(date,emp,'',excluded),machineBusy=machine(t)?intervals(date,emp,machine(t),excluded):[];const all=[...empBusy,...machineBusy].sort((a,b)=>a[0]-b[0]);const next=freeStart(pos,1,all,dayEnd);if(next>=dayEnd)break;const collision=all.find(([a,b])=>next<b&&next+1>a);if(collision){pos=collision[1];continue}let free=dayEnd-next;for(const[a]of all)if(a>next){free=Math.min(free,a-next);break}if(free>0)return{date,start:next,free};pos=next+1}date=addDay(date);wanted=0}return null}
-function allocate(t,emp,startAt,excluded,overtimeDate='',overtimeEnd=0){clear(t);let need=Math.max(0,Number(t.estimate)||0),cursor=startAt,out=[],guard=0;while(need>0&&guard++<240){const slot=nextSlot(t,emp,cursor,excluded,overtimeDate,overtimeEnd);if(!slot)break;const take=Math.min(need,slot.free);out.push({date:slot.date,employee:emp,start:time(slot.start),minutes:take});need-=take;cursor=at(slot.date,time(slot.start+take))}out=typeof mergePauseSegments==='function'?mergePauseSegments(out):out;t.planSegments=out;t.employee=emp;t.date=out[0]?.date||null;t.start=out[0]?.start||'';return cursor}
-function allocateMore(t,emp,startAt,excluded,amount){let need=Math.max(0,Number(amount)||0),cursor=startAt,out=[],guard=0;while(need>0&&guard++<240){const slot=nextSlot(t,emp,cursor,excluded);if(!slot)break;const take=Math.min(need,slot.free);out.push({date:slot.date,employee:emp,start:time(slot.start),minutes:take});need-=take;cursor=need?at(addDay(slot.date),'00:00'):at(slot.date,time(slot.start+take))}t.planSegments=[...(t.planSegments||[]),...out];const f=first(t);t.employee=emp;t.date=f?.date||null;t.start=f?.start||'';return{cursor,unplanned:need}}
-function reflow(anchorId,emp,date,start,previousAt='',allowParallel=false,manualEnd=null){const s=S(),backup=clone(S()),anchor=s?.tasks?.find(t=>t.id===anchorId);if(!anchor||!movable(anchor)||!emp||!date||!start)return{moved:0,finish:'',actualStart:'',unplanned:0};const oldAnchor=first(anchor),oldAt=previousAt||(oldAnchor?at(oldAnchor.date,oldAnchor.start||'00:00'):at(date,start)),overtimeDate=manualEnd?.date||'',overtimeEnd=min(manualEnd?.time||'');const candidates=(s.tasks||[]).filter(t=>movable(t)&&t.employee===emp&&t.id!==anchorId).map(t=>({t,first:first(t)})).filter(x=>x.first&&at(x.first.date,x.first.start||'00:00')>=oldAt).sort((a,b)=>at(a.first.date,a.first.start||'00:00').localeCompare(at(b.first.date,b.first.start||'00:00')));const queue=[anchor,...candidates.map(x=>x.t)],excluded=new Set(queue.map(t=>t.id)),before=new Map(queue.map(t=>[t.id,JSON.stringify(segments(t))]));for(const t of queue)clear(t);let cursor=at(date,start);for(const t of queue){const dep=dependencyAt(t);if(!(allowParallel&&t===anchor)&&dep&&dep>cursor)cursor=dep;cursor=allocate(t,emp,cursor,excluded,t===anchor?overtimeDate:'',t===anchor?overtimeEnd:0)||cursor;excluded.delete(t.id)}let moved=0,unplanned=0;for(const t of queue){if(before.get(t.id)!==JSON.stringify(segments(t)))moved++;const planned=segments(t).reduce((n,g)=>n+(Number(g.minutes)||0),0);unplanned+=Math.max(0,(Number(t.estimate)||0)-planned)}const a=first(anchor),actualStart=a?at(a.date,a.start||'00:00'):'';try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}return{moved,finish:cursor,actualStart,unplanned}}
-function extendDay(s,anchor,original,index,minutes){const segment=original[index],oldMinutes=Number(segment.minutes)||0,delta=minutes-oldMinutes,emp=segment.employee||anchor.employee,start=min(segment.start),oldEnd=start+(Number(segment.elapsedMinutes)||oldMinutes),newEnd=start+elapsedForWork(segment.date,emp,start,minutes),future=original.slice(index+1).reduce((n,g)=>n+(Number(g.minutes)||0),0);if(delta>future)return{error:'Er staan niet genoeg minuten op volgende dagen om naar dit dagblok te verplaatsen.'};const threshold=at(segment.date,time(oldEnd)),candidates=(s.tasks||[]).filter(t=>movable(t)&&t.employee===emp&&t.id!==anchor.id).map(t=>({t,first:first(t)})).filter(x=>x.first&&at(x.first.date,x.first.start||'00:00')>=threshold).sort((a,b)=>at(a.first.date,a.first.start||'00:00').localeCompare(at(b.first.date,b.first.start||'00:00'))),candidateIds=new Set(candidates.map(x=>x.t.id)),ignore=new Set([anchor.id,...candidateIds]),busy=[...intervals(segment.date,emp,'',ignore,false),...(machine(anchor)?intervals(segment.date,emp,machine(anchor),ignore,false):[])];if(busy.some(([a,b])=>oldEnd<b&&newEnd>a))return{error:'Deze langere eindtijd botst met vastgezet werk van deze medewerker of machine. Verplaats dat werk eerst.'};const before=new Map([[anchor.id,JSON.stringify(segments(anchor))],...candidates.map(x=>[x.t.id,JSON.stringify(segments(x.t))])]),adjusted=original.map(g=>({...g}));adjusted[index].minutes=minutes;adjusted[index].elapsedMinutes=newEnd-start;let remove=delta;for(let i=index+1;i<adjusted.length&&remove>0;i++){const take=Math.min(remove,Number(adjusted[i].minutes)||0);adjusted[i].minutes-=take;remove-=take}anchor.planSegments=adjusted.filter(g=>Number(g.minutes)>0);anchor.employee=emp;anchor.date=anchor.planSegments[0]?.date||null;anchor.start=anchor.planSegments[0]?.start||'';for(const x of candidates)clear(x.t);const excluded=new Set(candidateIds);let cursor=at(segment.date,time(newEnd));for(const x of candidates){const dep=dependencyAt(x.t);if(dep&&dep>cursor)cursor=dep;cursor=allocate(x.t,emp,cursor,excluded)||cursor;excluded.delete(x.t.id)}let moved=0,unplanned=0;for(const t of [anchor,...candidates.map(x=>x.t)]){if(before.get(t.id)!==JSON.stringify(segments(t)))moved++;const planned=segments(t).reduce((n,g)=>n+(Number(g.minutes)||0),0);unplanned+=Math.max(0,(Number(t.estimate)||0)-planned)}try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}return{moved,finish:taskFinishAt(anchor),unplanned,direction:'earlier'}}
-function resizeDay(anchorId,index,newMinutes){const s=S(),backup=clone(S()),anchor=s?.tasks?.find(t=>t.id===anchorId),original=segments(anchor).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.start||'').localeCompare(b.start||'')),segment=original[index];if(!anchor||!movable(anchor)||!segment||original.length<2)return{error:'Deze taak heeft geen bewerkbaar meerdaags blok.'};const oldMinutes=Math.max(0,Number(segment.minutes)||0),wallMinutes=Math.max(0,Number(newMinutes)||0);let minutes=wallMinutes;if(minutes<=0)return{error:'De eindtijd moet later zijn dan de starttijd.'};if(minutes===oldMinutes)return{moved:0,finish:taskFinishAt(anchor),unplanned:0};const emp=segment.employee||anchor.employee;if(!emp)return{error:'Aan dit dagblok is geen medewerker gekoppeld.'};minutes=workForElapsed(segment.date,emp,min(segment.start),wallMinutes);if(minutes===oldMinutes)return{moved:0,finish:taskFinishAt(anchor),unplanned:0};if(minutes>oldMinutes)return extendDay(s,anchor,original,index,minutes);const prefix=original.slice(0,index+1).map(g=>({...g}));prefix[index].minutes=minutes;prefix[index].elapsedMinutes=elapsedForWork(segment.date,emp,min(segment.start),minutes);const nextOriginal=original[index+1],threshold=nextOriginal?at(nextOriginal.date,nextOriginal.start||'00:00'):at(addDay(segment.date),'00:00'),candidates=(s.tasks||[]).filter(t=>movable(t)&&t.employee===emp&&t.id!==anchorId).map(t=>({t,first:first(t)})).filter(x=>x.first&&at(x.first.date,x.first.start||'00:00')>=threshold).sort((a,b)=>at(a.first.date,a.first.start||'00:00').localeCompare(at(b.first.date,b.first.start||'00:00')));const queue=[anchor,...candidates.map(x=>x.t)],excluded=new Set(queue.map(t=>t.id)),before=new Map(queue.map(t=>[t.id,JSON.stringify(segments(t))]));for(const x of candidates)clear(x.t);anchor.planSegments=prefix;anchor.employee=emp;anchor.date=prefix[0]?.date||null;anchor.start=prefix[0]?.start||'';let cursor=at(addDay(segment.date),'00:00'),need=Math.max(0,(Number(anchor.estimate)||0)-prefix.reduce((n,g)=>n+(Number(g.minutes)||0),0)),extra=allocateMore(anchor,emp,cursor,excluded,need);cursor=extra.cursor;excluded.delete(anchor.id);for(const x of candidates){const dep=dependencyAt(x.t);if(dep&&dep>cursor)cursor=dep;cursor=allocate(x.t,emp,cursor,excluded)||cursor;excluded.delete(x.t.id)}let moved=0,unplanned=extra.unplanned;for(const t of queue){if(before.get(t.id)!==JSON.stringify(segments(t)))moved++;const planned=segments(t).reduce((n,g)=>n+(Number(g.minutes)||0),0);unplanned+=t===anchor?0:Math.max(0,(Number(t.estimate)||0)-planned)}try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}return{moved,finish:taskFinishAt(anchor),unplanned,direction:'later'}}
-function reorderUp(anchorId,date,emp){const s=S(),backup=clone(S()),anchor=s?.tasks?.find(t=>t.id===anchorId);if(!anchor||!movable(anchor))return{error:'Deze taak kan niet worden verplaatst.'};const day=(s.tasks||[]).filter(t=>movable(t)&&t.employee===emp).map(t=>({t,f:first(t)})).filter(x=>x.f&&x.f.date===date).sort((a,b)=>at(a.f.date,a.f.start||'00:00').localeCompare(at(b.f.date,b.f.start||'00:00'))),index=day.findIndex(x=>x.t===anchor);if(index<=0)return{error:'Deze taak staat al bovenaan.'};const previous=day[index-1].t,pf=day[index-1].f;if(anchor.orderId===previous.orderId&&anchor.dependsPrev)return{error:'Deze processtap moet na de vorige stap van dezelfde order blijven.'};const pair=[anchor,previous],excluded=new Set(pair.map(t=>t.id)),before=new Map(pair.map(t=>[t.id,JSON.stringify(segments(t))]));for(const t of pair)clear(t);let cursor=at(date,pf.start||time(startMin(date,emp))),unplanned=0;for(const t of pair){const dep=dependencyAt(t);if(dep&&dep>cursor)cursor=dep;cursor=allocate(t,emp,cursor,excluded)||cursor;excluded.delete(t.id);unplanned+=Math.max(0,(Number(t.estimate)||0)-segments(t).reduce((n,g)=>n+(Number(g.minutes)||0),0))}if(unplanned){state=backup;return{error:'De volgorde is niet gewijzigd omdat hierdoor werk uit de planning zou verdwijnen.'}}let moved=0;for(const t of pair)if(before.get(t.id)!==JSON.stringify(segments(t)))moved++;try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}return{moved,unplanned}}
-function reorderBefore(anchorId,targetId,date,emp){
- const s=S(),backup=clone(S()),anchor=s?.tasks?.find(t=>t.id===anchorId),target=s?.tasks?.find(t=>t.id===targetId),af=first(anchor),tf=first(target);
- if(!anchor||!target||anchor===target||!reorderable(anchor)||!reorderable(target))return{error:'Deze taak kan niet op deze plek worden gezet.'};
- if(!af||!tf||af.employee!==emp||tf.employee!==emp||tf.date!==date)return{error:'Sleep binnen dezelfde medewerker en werkdag om de volgorde te wijzigen.'};
- const dayStart=at(date,time(startMin(date,emp)));
- let queue=(s.tasks||[]).filter(t=>reorderable(t)&&t.employee===emp).map(t=>({t,f:first(t)})).filter(x=>x.f&&at(x.f.date,x.f.start||'00:00')>=dayStart).sort((a,b)=>at(a.f.date,a.f.start||'00:00').localeCompare(at(b.f.date,b.f.start||'00:00'))).map(x=>x.t);
- queue=queue.filter(t=>t!==anchor);const targetIndex=queue.indexOf(target);if(targetIndex<0)return{error:'Doelblok kon niet worden gevonden.'};queue.splice(targetIndex,0,anchor);
- const excluded=new Set(queue.map(t=>t.id)),before=new Map(queue.map(t=>[t.id,JSON.stringify(segments(t))]));for(const t of queue)clear(t);
- let cursor=dayStart,unplanned=0;for(const t of queue){const dep=dependencyAt(t);if(dep&&dep>cursor)cursor=dep;cursor=allocate(t,emp,cursor,excluded)||cursor;excluded.delete(t.id);unplanned+=Math.max(0,(Number(t.estimate)||0)-segments(t).reduce((n,g)=>n+(Number(g.minutes)||0),0))}
- const nextAnchor=first(anchor),nextTarget=first(target),dependencyConflict=queue.some(t=>{const f=first(t),dep=dependencyAt(t);return!!(t.dependsPrev&&f&&dep&&at(f.date,f.start||'00:00')<dep)});if(unplanned||!nextAnchor||!nextTarget||at(nextAnchor.date,nextAnchor.start||'00:00')>at(nextTarget.date,nextTarget.start||'00:00')||dependencyConflict){state=backup;return{error:unplanned?'De volgorde is niet gewijzigd omdat hierdoor werk uit de planning zou verdwijnen.':'Deze volgorde botst met de procesvolgorde van de order.'}}
- let moved=0;for(const t of queue)if(before.get(t.id)!==JSON.stringify(segments(t)))moved++;try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}return{moved,unplanned:0,actualStart:first(queue[0])?.start||''}
+function overlaps(a,z,b,y){return a<y&&z>b}
+function busyEmployee(date,emp,current){
+ const out=[];
+ for(const t of S()?.tasks||[]){
+  if(t.id===current.id||t.deleted||done(t))continue;
+  if(current.parallelGroupId&&t.parallelGroupId===current.parallelGroupId)continue;
+  for(const g of segments(t)){if(g.date!==date||g.employee!==emp||!g.start)continue;const a=min(g.start),z=a+(Number(g.elapsedMinutes)||Number(g.minutes)||0);if(z>a)out.push([a,z,t])}
+ }
+ return out;
 }
-function install(){if(typeof window.saveTask!=='function'||typeof window.render!=='function')return setTimeout(install,150);if(window.saveTask.__manualStartWrapped)return;const original=window.saveTask;const wrapped=function(id){const emp=document.getElementById('mEmp')?.value||'',date=document.getElementById('mDate')?.value||'',start=document.getElementById('mStart')?.value||'',manualEnd=document.getElementById('mEnd')?.value||'',status=document.getElementById('mStatus')?.value||'',estimate=Number(document.getElementById('mEst')?.value)||0,oldTask=S()?.tasks?.find(t=>t.id===id),oldFirst=first(oldTask),oldAt=oldFirst?at(oldFirst.date,oldFirst.start||'00:00'):'';if(status==='open'&&emp&&date&&estimate<=0)return alert('Deze taak heeft 0 minuten. Vul eerst een begrote tijd groter dan 0 in voordat je hem inplant.');original.apply(this,arguments);if(!emp||!date||!start||status!=='open')return;const requested=at(date,start),result=reflow(id,emp,date,start,oldAt,false,manualEnd?{date,time:manualEnd}:null);try{save()}catch(e){console.error(e)}try{render()}catch(_){ }const notes=[];if(result.actualStart&&result.actualStart!==requested)notes.push(`De vroegst geldige start is ${result.actualStart.slice(0,10)} om ${result.actualStart.slice(11,16)} door bestaande planning of de vorige processtap.`);if(result.moved>1)notes.push(`${result.moved-1} volgende taak/taken zijn opnieuw aangesloten om de beschikbare werkdagen te vullen.`);if(result.unplanned)notes.push(`${result.unplanned} minuten konden niet veilig worden ingepland.`);if(notes.length)alert('Starttijd opgeslagen.\n\n'+notes.join('\n'))};wrapped.__manualStartWrapped=true;window.saveTask=wrapped;window.RALAB_MANUAL_START={version:VERSION,reflow,resizeDay,reorderUp,reorderBefore}}
+function busyMachine(date,key,current){
+ if(!key)return[];const out=[];
+ for(const t of S()?.tasks||[]){
+  if(t.id===current.id||t.deleted||done(t)||machineKey(t)!==key)continue;
+  for(const g of segments(t)){if(g.date!==date||!g.start)continue;const a=min(g.start),z=a+(Number(g.elapsedMinutes)||Number(g.minutes)||0);if(z>a)out.push([a,z,t])}
+ }
+ return out;
+}
+function workIntervals(date,emp,from){
+ const a=Math.max(startMin(date,emp),from),z=endMin(date,emp);if(z<=a)return[];
+ let p=a,out=[];for(const [ba,bz] of breaks(date,emp)){if(bz<=p||ba>=z)continue;if(ba>p)out.push([p,Math.min(ba,z)]);p=Math.max(p,bz);if(p>=z)break}if(p<z)out.push([p,z]);return out.filter(x=>x[1]>x[0]);
+}
+function nextWorking(date,emp){
+ let d=addDay(date),guard=0;while(guard++<14){if(capacity(d,emp)>0)return d;d=addDay(d)}return'';
+}
+function strictProposal(t,emp,date,start,estimate){
+ if(!t||!emp||!date||!start)return{error:'Kies medewerker, datum en starttijd.'};
+ if(ralphOnly(t)&&emp!=='Ralph')return{error:'Deze taak is Ralph-only en kan alleen bij Ralph worden gepland.'};
+ const requested=at(date,start),p=previous(t);
+ if(t.dependsPrev&&p){let finish='';try{finish=taskFinishAt(p)||''}catch(_){}if(finish&&requested<finish)return{error:'Deze taak kan niet vóór de vorige processtap starten ('+finish.slice(0,10)+' '+finish.slice(11,16)+').'};}
+ let need=Math.max(0,Number(estimate)||0);if(!need)return{error:'Begrote tijd moet groter zijn dan 0 minuten.'};
+ let d=date,first=true,out=[],guard=0;
+ while(need>0&&guard++<60){
+  if(capacity(d,emp)<=0)return{error:emp+' heeft op '+d+' geen beschikbare werktijd.'};
+  const from=first?min(start):startMin(d,emp),windows=workIntervals(d,emp,from);
+  if(!windows.length)return{error:'Starttijd valt buiten de werktijd van '+emp+'.'};
+  const eb=busyEmployee(d,emp,t),mb=busyMachine(d,machineKey(t),t);
+  for(const [a,z] of windows){
+   if(need<=0)break;const take=Math.min(need,z-a),end=a+take;if(take<=0)continue;
+   const eHit=eb.find(x=>overlaps(a,end,x[0],x[1]));if(eHit){const o=typeof order==='function'?order(eHit[2].orderId):null;return{error:emp+' is dan al bezet'+(o?' met '+(o.orderNo||o.product||'ander werk'):'')+'.'};}
+   const mHit=mb.find(x=>overlaps(a,end,x[0],x[1]));if(mHit){return{error:'Machine/werkplek '+(t.assignedMachine||t.machine||t.name||'')+' is dan al bezet.'};}
+   out.push({date:d,employee:emp,start:tm(a),minutes:take});need-=take;
+  }
+  if(need>0){const n=nextWorking(d,emp);if(!n)return{error:'Geen volgende werkdag gevonden.'};d=n;first=false}
+ }
+ if(need>0)return{error:'Taak past niet binnen de beschikbare werkdagen.'};
+ out=typeof mergePauseSegments==='function'?mergePauseSegments(out):out;
+ return{segments:out};
+}
+function applyStrict(t,proposal,emp){
+ try{clearTaskPlanning(t)}catch(_){t.planSegments=[];t.date=null;t.start=''}
+ t.planSegments=proposal.segments;t.employee=emp;t.date=proposal.segments[0]?.date||null;t.start=proposal.segments[0]?.start||'';t.planningOrigin='manual';t.lockedPlanning=true;t.manualPlanning=true;
+}
+function prefillDrop(id,emp,date){
+ const t=S()?.tasks?.find(x=>x.id===id);if(!t)return;
+ openTask(id);
+ const e=document.getElementById('mEmp'),d=document.getElementById('mDate'),s=document.getElementById('mStart');
+ if(e)e.value=emp;if(d)d.value=date;if(s&&!s.value){try{s.value=dayStartTime(date,emp)||'08:15'}catch(_){s.value='08:15'}}
+}
+function install(){
+ if(typeof window.saveTask!=='function'||typeof window.openTask!=='function'||typeof window.render!=='function')return setTimeout(install,150);
+ const originalSave=window.saveTask;
+ window.saveTask=function(id){
+  const t=S()?.tasks?.find(x=>x.id===id),emp=document.getElementById('mEmp')?.value||'',date=document.getElementById('mDate')?.value||'',start=document.getElementById('mStart')?.value||'',status=document.getElementById('mStatus')?.value||'',estimate=Number(document.getElementById('mEst')?.value)||0;
+  if(t&&status==='open'&&emp&&date){
+   if(!start)return alert('Kies ook een starttijd.');
+   const proposal=strictProposal(t,emp,date,start,estimate);if(proposal.error)return alert(proposal.error);
+   const old=window.scheduleTaskAcrossCapacity;
+   window.scheduleTaskAcrossCapacity=function(task){applyStrict(task,proposal,emp);return taskFinishAt(task)};
+   try{originalSave.apply(this,arguments)}finally{window.scheduleTaskAcrossCapacity=old}
+   const fresh=S()?.tasks?.find(x=>x.id===id);if(fresh){fresh.planningOrigin='manual';fresh.lockedPlanning=true;fresh.manualPlanning=true;try{save()}catch(_){}}
+   return;
+  }
+  return originalSave.apply(this,arguments);
+ };
+ const oldDropWeek=window.dropWeek;
+ window.dropWeek=function(e,emp,date){e.preventDefault();e.currentTarget?.classList?.remove('dropover');const id=e.dataTransfer?.getData('text/plain');if(!id)return;prefillDrop(id,emp,date)};
+ const oldDropToday=window.dropToday;
+ window.dropToday=function(e,emp){e.preventDefault();const id=e.dataTransfer?.getData('text/plain');if(!id)return;if(!emp)return oldDropToday?.apply(this,arguments);prefillDrop(id,emp,typeof selectedDate!=='undefined'?selectedDate:new Date().toISOString().slice(0,10))};
+ window.RALAB_MANUAL_START={version:VERSION,strictProposal,prefillDrop};
+}
 install();
 })();
