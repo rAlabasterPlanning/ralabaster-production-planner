@@ -1,7 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const {fullApp}=require('./full-app-fixture.cjs');
 function safety(){
- const source=fs.readFileSync(path.join(__dirname,'../assets/performance-v1.js'),'utf8').replace('  let tries=0;', '  window.testSafety={seedHashes,collectChanges,mergeRows,preserveMissing,markDeleted,cancelDeletion,loadNormalizedCloud,saveNormalizedCloud};\n  let tries=0;');
+ const source=fs.readFileSync(path.join(__dirname,'../assets/performance-v1.js'),'utf8').replace('  let tries=0;', '  window.testSafety={seedHashes,collectChanges,mergeRows,mergeQuoteChanges,preserveMissing,markDeleted,cancelDeletion,loadNormalizedCloud,saveNormalizedCloud};\n  let tries=0;');
  const values=new Map(),ctx=vm.createContext({window:{},state:{orders:[{id:'old',active:true,status:'confirmed'}],tasks:[{id:'task',orderId:'old',status:'open',planSegments:[{date:'2026-10-01',start:'08:15',minutes:30,employee:'Ralph'}]}]},localStorage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},KEY:'cache',WORKSPACE_ID:'ralabaster',structuredClone,setInterval:()=>1,clearInterval:()=>{},setTimeout:()=>1,clearTimeout:()=>{},requestAnimationFrame:fn=>fn(),console,isExternalTask:()=>false,isDryTask:()=>false,renderOnlineBadge:()=>{},cloudUser:{id:'user'},cloudStatus:'online',cloudLoading:false});
  vm.runInContext(source,ctx);ctx.window.testSafety.seedHashes();return ctx;
 }
@@ -22,6 +22,40 @@ test('pending startup merges remote orders with a new local calculation order',a
  c.supabaseClient={from:table=>{const q={select:()=>q,eq:()=>q,order:()=>q,range:()=>Promise.resolve(rows[table]),maybeSingle:()=>Promise.resolve(rows[table])};return q}};
  assert.equal(await c.window.testSafety.loadNormalizedCloud(),true);assert.deepEqual(Array.from(c.state.orders,x=>x.id),['remote','new']);assert.equal(c.state.tasks[0].id,'remote-task');
  assert.equal((await c.window.testSafety.collectChanges('now')).changedOrders.some(x=>x.deleted),false);
+});
+test('pending order changes do not discard cloud quotations on startup',async()=>{
+ const c=safety();c.state.quotes=[];c.localStorage.setItem('ralabaster_planner_pending_v1','pending');
+ const quotes=[{id:'quote',quoteNo:'20260910-1',name:'Existing quotation'}];
+ const rows={planner_shared_state:{data:{data:{normalizedVersion:2,quotes},updated_at:'stamp'},error:null},planner_orders_v2:{data:[],error:null},planner_tasks_v2:{data:[],error:null}};
+ c.supabaseClient={from:table=>{const q={select:()=>q,eq:()=>q,order:()=>q,range:()=>Promise.resolve(rows[table]),maybeSingle:()=>Promise.resolve(rows[table])};return q}};
+ assert.equal(await c.window.testSafety.loadNormalizedCloud(),true);
+ assert.equal(c.state.quotes.length,1);assert.equal(c.state.quotes[0].id,'quote');
+ // After initialization a deliberate local removal remains authoritative.
+ c.state.quotes=[];await c.window.testSafety.loadNormalizedCloud();assert.equal(c.state.quotes.length,0);
+});
+test('a stale quote list preserves remote additions, edits and deletions',()=>{
+ const c=safety(),before=[{id:'a',name:'old'},{id:'deleted-remotely'},{id:'removed-locally'}];
+ const remote=[{id:'a',name:'updated remotely'},{id:'new-remote'},{id:'removed-locally'}];
+ const local=[{id:'a',name:'old'},{id:'deleted-remotely'},{id:'new-local'}];
+ const result=c.window.testSafety.mergeQuoteChanges(remote,local,before);
+ assert.deepEqual(Array.from(result,q=>q.id),['a','new-remote','new-local']);assert.equal(result[0].name,'updated remotely');
+});
+test('local quotation edits and status updates are retained',()=>{
+ const c=safety(),before=[{id:'a',status:'concept',qty:10}],local=[{id:'a',status:'accepted',qty:20}];
+ assert.equal(c.window.testSafety.mergeQuoteChanges(before,local,before)[0].status,'accepted');
+ assert.equal(c.window.testSafety.mergeQuoteChanges(before,local,before)[0].qty,20);
+});
+test('an open quotation inbox refreshes after cloud loading and keeps filters',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;
+ w.RALAB_ERP.show('quotes');await f.wait(50);
+ const search=d.getElementById('quoteSearch');search.value='20260910';search.dispatchEvent(new w.Event('input',{bubbles:true}));
+ vm.runInContext("state.quotes=[{id:'q1',quoteNo:'20260910-1',name:'Existing quotation',qty:100,saleUnit:25,status:'concept'},{id:'q2',quoteNo:'20260910-21',name:'Accepted quotation',qty:10,saleUnit:149.29,status:'accepted'}]",f.ctx);
+ w.dispatchEvent(new w.Event('ralabaster:state-loaded'));await f.wait(30);
+ assert.equal(d.querySelectorAll('[data-open-quote-row]').length,2);
+ assert.equal(d.getElementById('quoteSearch').value,'20260910');
+ d.getElementById('quoteStatusFilter').value='accepted';d.getElementById('quoteStatusFilter').dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.equal(d.querySelectorAll('[data-open-quote-row]').length,1);assert.match(d.getElementById('quoteInboxBody').textContent,/20260910-21/);
+ assert.deepEqual(f.errors,[]);
 });
 test('quick order supports free text, sorts first, persists and links later',async t=>{
  const f=await fullApp(t),w=f.w,d=w.document;w.alert=()=>{};
@@ -64,3 +98,4 @@ test('settings are excluded from the generic blocked screen selector',()=>{
  for(const selector of css.match(/html\[data-customer-mode="on"\] main > section[^\{]+/g)||[])assert.match(selector,/:not\(#view-settings\)/);
  assert.match(css,/#view-settings > :not\(\[data-customer-mode-settings\]\)/);
 });
+

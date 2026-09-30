@@ -1,3 +1,9 @@
+## 2026-09-30 — Quotation loading and synchronization regression
+
+Keep cloud quotations when pending local order changes exist during startup. Merge subsequent quotation changes against the last cloud quotation snapshot so stale browsers retain remote additions/edits and intentional local removals still work. Refresh an open quotation inbox after cloud loading without running planning calculations; retain its search, status, date, mail and margin filters.
+
+Validation: quotation loading/merge regressions, existing quotation edit and PDF workflows, and order synchronization safety tests. Eight unrelated full-app planner/AI tests also fail on unchanged main. This change does not reconstruct missing historical quotations; data recovery needs a full backup or a surviving browser snapshot.
+
 ## 2026-09-30 — Klantmodus instellingen bereikbaar
 
 Instellingen uitgezonderd van de algemene schermblokkade; alleen de klantmodusschakelaar blijft zichtbaar terwijl de overige instellingen verborgen zijn. Dit voorkomt dat de hogere CSS-specificiteit de schakelaar alsnog verbergt.
@@ -359,4 +365,5 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
   sleutels en wachtwoorden worden niet gedeeld.
 - Schrijven blijft gecontroleerd: voorstellen worden pas na Ralphs akkoord
   definitief en de AI bestuurt geen machines.
+
 
