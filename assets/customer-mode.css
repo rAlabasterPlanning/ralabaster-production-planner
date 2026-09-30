@@ -22,3 +22,6 @@ html[data-customer-mode="on"] #printArea { display:none!important; }
 
 .customer-mode-close { display:none; }
 html[data-customer-mode="on"] #modalRoot:not(:has([data-customer-safe-modal])) .customer-mode-close { display:block; margin:16px; }
+
+html[data-customer-mode="on"] #view-settings > [data-customer-mode-settings] { display:block!important; }
+html[data-customer-mode="on"] #view-settings::before { display:none!important; }

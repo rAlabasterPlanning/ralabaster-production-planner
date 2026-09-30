@@ -1,6 +1,6 @@
 ## Klantmodus
 
-- Vaste schakelaar met lokale voorkeur; werkt ook na verversen en in andere tabbladen.
+- Schakelaar bij Instellingen met lokale voorkeur; werkt ook na verversen en in andere tabbladen.
 - Interne calculaties, financiële schermen, ongecontroleerde pop-ups en interne afdrukken afgeschermd. Orderoverzicht en planning blijven beschikbaar; verkoopprijzen in de order blijven zichtbaar.
 
 # 2026-09-30 — Recover orders, prevent implicit deletion, add quick order capture

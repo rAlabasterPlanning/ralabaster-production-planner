@@ -47,7 +47,8 @@ test('quick order matches an existing customer without creating duplicates',asyn
 test('customer mode persists locally, protects details and keeps sale prices and quick orders',async t=>{
  const f=await fullApp(t),w=f.w,d=w.document;
  const style=d.createElement('style');style.textContent=fs.readFileSync(path.join(__dirname,'../assets/customer-mode.css'),'utf8');d.head.append(style);
- const before=JSON.stringify(f.state());d.getElementById('customerModeToggle').click();
+ assert.equal(d.querySelector('header #customerModeToggle'),null);vm.runInContext('switchView("settings")',f.ctx);await f.wait(30);
+ const before=JSON.stringify(f.state());d.getElementById('customerModeToggle').click();assert.equal(w.getComputedStyle(d.querySelector('[data-customer-mode-settings]')).display,'block');
  assert.equal(w.RALAB_CUSTOMER_MODE.active(),true);assert.equal(w.localStorage.getItem('ralabaster_customer_mode_v1'),'on');assert.equal(d.getElementById('customerModeToggle').getAttribute('aria-pressed'),'true');assert.equal(JSON.stringify(f.state()),before);
  w.RALAB_ERP.show('dashboard');await f.wait(30);const card=d.querySelector('#view-dashboard > *');assert.equal(w.getComputedStyle(card).display,'none');
  await w.RALAB_ERP.openOrder(f.state().orders[0].id);await f.wait(30);
