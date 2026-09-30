@@ -99,3 +99,9 @@ test('settings are excluded from the generic blocked screen selector',()=>{
  assert.match(css,/#view-settings > :not\(\[data-customer-mode-settings\]\)/);
 });
 
+test('confirmed quotation deletion registers an explicit intent for each line',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;w.confirm=()=>true;
+ vm.runInContext("state.quotes=[{id:'guard-1',quoteNo:'SAFE-001',customerId:'',name:'Lamp',qty:2,saleUnit:25},{id:'guard-2',quoteNo:'SAFE-001',customerId:'',name:'Lamp 2',qty:3,saleUnit:30}]",f.ctx);
+ w.RALAB_DOCS.openQuote('SAFE-001');await f.wait(30);d.querySelector('[data-delete-quote]').click();await f.wait(30);
+ assert.equal(f.state().quotes.length,0);assert.deepEqual(f.state().quoteDeletionIntents.map(x=>x.id),['guard-1','guard-2']);assert.ok(f.state().quoteDeletionIntents.every(x=>Number.isFinite(Date.parse(x.at))));assert.deepEqual(f.errors,[]);
+});

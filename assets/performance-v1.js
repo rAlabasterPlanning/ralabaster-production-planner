@@ -182,7 +182,7 @@
       const {changedOrders,changedTasks}=await collectChanges(now,snapshot);
       if(changedOrders.length)await upsertChunks('planner_orders_v2',changedOrders);
       if(changedTasks.length)await upsertChunks('planner_tasks_v2',changedTasks);
-      const meta={...snapshot,orders:[],tasks:[],pendingRecordDeletions:{orders:[],tasks:[]},normalizedVersion:2};
+      const meta={...snapshot,quoteWriteBaseline:cloudQuotes,orders:[],tasks:[],pendingRecordDeletions:{orders:[],tasks:[]},normalizedVersion:2};
       const {error}=await supabaseClient.from('planner_shared_state').upsert({workspace_id:WORKSPACE_ID,data:meta,updated_at:now},{onConflict:'workspace_id'});if(error)throw error;
       cloudStamp=now;
       cloudQuotes=structuredClone(snapshot.quotes);

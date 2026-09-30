@@ -1,3 +1,9 @@
+## 2026-09-30 — Daily recovery snapshots and quotation guard
+
+Private database snapshots capture shared metadata, all normalized order/task records including deleted/archived records, worker configuration and legacy state nightly at 02:00 UTC; retained for 90 days. Initial snapshot created immediately. Quotation updates retain before/after versions and preserve missing records unless explicitly removed with a new confirmed deletion intent. Client sends its last cloud quotation baseline so unchanged stale quotes cannot overwrite remote edits. Recovery tables/functions are inaccessible to normal clients. These are in-database recovery copies, not an independent disaster-recovery backup.
+
+Validation: rolled-back live database checks for empty-list protection, stale edits, explicit deletion, retained versions and permanent shared-state deletion blocking; job activation, initial snapshot contents and privilege checks.
+
 ## 2026-09-30 — Quotation loading and synchronization regression
 
 Keep cloud quotations when pending local order changes exist during startup. Merge subsequent quotation changes against the last cloud quotation snapshot so stale browsers retain remote additions/edits and intentional local removals still work. Refresh an open quotation inbox after cloud loading without running planning calculations; retain its search, status, date, mail and margin filters.
