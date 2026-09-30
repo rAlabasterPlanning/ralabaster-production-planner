@@ -11,6 +11,7 @@
   let analysisCache=new Map(),lastOrderHashes=new Map(),lastTaskHashes=new Map(),lastOrderSnapshots=new Map(),lastTaskSnapshots=new Map();
   let pendingViewFrame=0,cloudStamp='',exactMode=false,localPersistTimer=0;
   let syncInFlight=false,syncQueued=false,cloudDirty=false;
+  let cloudQuotes=[];
 
   const hash=x=>JSON.stringify(x);
   const yieldUI=()=>new Promise(resolve=>requestAnimationFrame(()=>resolve()));
@@ -71,22 +72,25 @@
       const taskReq=fetchPaged((a,b)=>supabaseClient.from('planner_tasks_v2').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).eq('deleted',false).eq('order_active',true).range(a,b));
       const [metaRes,orderRows,taskRows]=await Promise.all([metaReq,orderReq,taskReq]);if(metaRes.error)throw metaRes.error;
       const meta=metaRes.data?.data||{};
+      const incomingQuotes=Array.isArray(meta.quotes)?meta.quotes:[];
       const remoteState={...state,...meta,orders:orderRows.map(r=>r.data),tasks:taskRows.map(r=>r.data)};
       const pending=localStorage.getItem(PENDING_KEY);
       if(pending||cloudDirty){
         // A compact/local cache is never an authoritative list of deletions.
         const local=state;
         seedHashes(remoteState);
-        state={...remoteState,...local,orders:mergeRows(remoteState.orders,local.orders),tasks:mergeRows(remoteState.tasks,local.tasks)};
+        state={...remoteState,...local,orders:mergeRows(remoteState.orders,local.orders),tasks:mergeRows(remoteState.tasks,local.tasks),quotes:normalizedReady?mergeQuoteChanges(incomingQuotes,local.quotes||[],cloudQuotes):mergeRows(incomingQuotes,local.quotes||[])};
         cloudDirty=true;
       }else{
         state=remoteState;seedHashes();
       }
+      cloudQuotes=structuredClone(incomingQuotes);
       if(!Array.isArray(state.deletedTasks))state.deletedTasks=[];if(!Array.isArray(state.history))state.history=[];
       cloudStamp=metaRes.data?.updated_at||cloudStamp;normalizedReady=true;invalidate();scheduleLocalPersist();
       cloudStatus='online';renderOnlineBadge();
       if(pending||cloudDirty)setTimeout(saveNormalizedCloud,0);
-      // Do not force a render here. The currently visible UI keeps responding; the next user action reads fresh state.
+      // Notify lightweight metadata views without running a full planner render.
+      window.dispatchEvent?.(new CustomEvent('ralabaster:state-loaded'));
       return true;
     }catch(e){console.warn('Genormaliseerde plannerdata laden mislukt; lokale planner blijft actief.',e);cloudStatus='error';renderOnlineBadge();return false}
     finally{normalizedInitBusy=false}
@@ -110,6 +114,14 @@
   }
   function mergeRows(remote,local){
     return [...new Map([...(remote||[]),...(local||[])].map(x=>[x.id,x])).values()];
+  }
+  function mergeQuoteChanges(remote,local,baseline){
+    const result=new Map(remote.map(q=>[q.id,q])),before=new Map(baseline.map(q=>[q.id,q])),current=new Map(local.map(q=>[q.id,q]));
+    // Only apply local changes since the last cloud read. An unchanged stale
+    // list must not remove quotations created or edited in another browser.
+    for(const q of local)if(!before.has(q.id)||hash(q)!==hash(before.get(q.id)))result.set(q.id,q);
+    for(const id of before.keys())if(!current.has(id))result.delete(id);
+    return [...result.values()];
   }
   function validDate(x){if(!/^\d{4}-\d{2}-\d{2}$/.test(x||''))return null;const d=new Date(x+'T12:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===x?x:null}
   function safeSeq(x){const n=Number(x);return Number.isInteger(n)&&n>=-2147483648&&n<=2147483647?n:null}
@@ -164,12 +176,17 @@
     state.pendingRecordDeletions ||= {orders:[],tasks:[]};
     const now=new Date().toISOString(),snapshot=structuredClone(state);
     try{
+      const {data:latest,error:readError}=await supabaseClient.from('planner_shared_state').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).maybeSingle();if(readError)throw readError;
+      const localQuotes=hash(snapshot.quotes||[]);
+      snapshot.quotes=mergeQuoteChanges(latest?.data?.quotes||[],snapshot.quotes||[],cloudQuotes);
       const {changedOrders,changedTasks}=await collectChanges(now,snapshot);
       if(changedOrders.length)await upsertChunks('planner_orders_v2',changedOrders);
       if(changedTasks.length)await upsertChunks('planner_tasks_v2',changedTasks);
       const meta={...snapshot,orders:[],tasks:[],pendingRecordDeletions:{orders:[],tasks:[]},normalizedVersion:2};
       const {error}=await supabaseClient.from('planner_shared_state').upsert({workspace_id:WORKSPACE_ID,data:meta,updated_at:now},{onConflict:'workspace_id'});if(error)throw error;
       cloudStamp=now;
+      cloudQuotes=structuredClone(snapshot.quotes);
+      if(hash(state.quotes||[])===localQuotes)state.quotes=structuredClone(snapshot.quotes);
       for(const kind of ['orders','tasks']){
         const sent=new Map((snapshot.pendingRecordDeletions?.[kind]||[]).map(x=>[x.id,x.deletedAt]));
         if(state.pendingRecordDeletions?.[kind])state.pendingRecordDeletions[kind]=state.pendingRecordDeletions[kind].filter(x=>sent.get(x.id)!==x.deletedAt);
@@ -231,3 +248,4 @@
   let tries=0;const timer=setInterval(()=>{tries++;if(install()||tries>100)clearInterval(timer)},100);
   const normTimer=setInterval(async()=>{if(!installed||normalizedReady||normalizedInitBusy)return;if(typeof supabaseClient!=='undefined'&&supabaseClient&&typeof cloudUser!=='undefined'&&cloudUser){const ok=await loadNormalizedCloud(true);if(ok)clearInterval(normTimer)}},350);
 })();
+
