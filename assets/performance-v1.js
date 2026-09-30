@@ -1,7 +1,7 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20260913-12';
+  const VERSION='20260930-guard-v1';
   const PENDING_KEY='ralabaster_planner_pending_v1';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
@@ -73,22 +73,44 @@
       const meta=metaRes.data?.data||{};
       const remoteState={...state,...meta,orders:orderRows.map(r=>r.data),tasks:taskRows.map(r=>r.data)};
       const pending=localStorage.getItem(PENDING_KEY);
-      if(pending){
-        // Keep newer local edits and compare them with the last cloud snapshot.
-        seedHashes(remoteState);cloudDirty=true;
+      if(pending||cloudDirty){
+        // A compact/local cache is never an authoritative list of deletions.
+        const local=state;
+        seedHashes(remoteState);
+        state={...remoteState,...local,orders:mergeRows(remoteState.orders,local.orders),tasks:mergeRows(remoteState.tasks,local.tasks)};
+        cloudDirty=true;
       }else{
         state=remoteState;seedHashes();
       }
       if(!Array.isArray(state.deletedTasks))state.deletedTasks=[];if(!Array.isArray(state.history))state.history=[];
       cloudStamp=metaRes.data?.updated_at||cloudStamp;normalizedReady=true;invalidate();scheduleLocalPersist();
       cloudStatus='online';renderOnlineBadge();
-      if(pending)setTimeout(saveNormalizedCloud,0);
+      if(pending||cloudDirty)setTimeout(saveNormalizedCloud,0);
       // Do not force a render here. The currently visible UI keeps responding; the next user action reads fresh state.
       return true;
     }catch(e){console.warn('Genormaliseerde plannerdata laden mislukt; lokale planner blijft actief.',e);cloudStatus='error';renderOnlineBadge();return false}
     finally{normalizedInitBusy=false}
   }
 
+  // Only explicit, confirmed actions can create a deletion record.
+  function markDeleted(kind,id){
+    const rows=kind==='orders'?state.orders:state.tasks,record=rows?.find(x=>x.id===id);
+    if(!record)return;
+    const queue=state.pendingRecordDeletions ||= {orders:[],tasks:[]};
+    queue[kind]=[...(queue[kind]||[]).filter(x=>x.id!==id),{...structuredClone(record),deleted:true,deletedAt:new Date().toISOString()}];
+    if(kind==='orders')for(const t of state.tasks||[])if(t.orderId===id)markDeleted('tasks',t.id);
+  }
+  function cancelDeletion(kind,id){
+    if(state.pendingRecordDeletions?.[kind])state.pendingRecordDeletions[kind]=state.pendingRecordDeletions[kind].filter(x=>x.id!==id);
+  }
+  function preserveMissing(source,baseline,kind){
+    const ids=new Set((source[kind]||[]).map(x=>x.id));
+    const deleted=new Set((source.pendingRecordDeletions?.[kind]||[]).map(x=>x.id));
+    for(const [id,record] of baseline)if(!ids.has(id)&&!deleted.has(id))source[kind].push(structuredClone(record));
+  }
+  function mergeRows(remote,local){
+    return [...new Map([...(remote||[]),...(local||[])].map(x=>[x.id,x])).values()];
+  }
   function validDate(x){if(!/^\d{4}-\d{2}-\d{2}$/.test(x||''))return null;const d=new Date(x+'T12:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===x?x:null}
   function safeSeq(x){const n=Number(x);return Number.isInteger(n)&&n>=-2147483648&&n<=2147483647?n:null}
   function orderRow(o,now){const del=!!o.deleted;return {workspace_id:WORKSPACE_ID,order_id:String(o.id||''),order_no:o.orderNo||'',active:!del&&o.active!==false&&o.status!=='completed',status:o.status||'',deadline:validDate(o.deadline),completed_at:validDate(o.completedAt),data:o,deleted:del,updated_at:now}}
@@ -113,29 +135,47 @@
   }
 
   async function collectChanges(now,source=state){
-    const orders=source.orders||[],tasks=source.tasks||[],activeByOrder=new Map(orders.map(o=>[o.id,o.active!==false&&o.status!=='completed']));
+    const orders=source.orders||[],tasks=source.tasks||[],ordersById=new Map(orders.map(o=>[o.id,o])),activeByOrder=new Map(orders.map(o=>[o.id,!o.deleted&&o.active!==false&&o.status!=='completed']));
     const changedOrders=[],changedTasks=[],currentOrderIds=new Set(orders.map(o=>o.id)),currentTaskIds=new Set(tasks.map(t=>t.id));
     for(let i=0;i<orders.length;i++){const o=orders[i],h=hash(o);if(lastOrderHashes.get(o.id)!==h)changedOrders.push(orderRow(o,now));if(i&&i%DIFF_CHUNK===0)await yieldUI()}
     for(let i=0;i<tasks.length;i++){const t=tasks[i],h=hash(t);if(lastTaskHashes.get(t.id)!==h)changedTasks.push(taskRow(t,activeByOrder.get(t.orderId)!==false,now));if(i&&i%DIFF_CHUNK===0)await yieldUI()}
-    // Removed records must remain as tombstones in Supabase; otherwise they return on the next reload.
-    for(const [id,old] of lastOrderSnapshots){if(currentOrderIds.has(id))continue;const deleted={...structuredClone(old),deleted:true,active:false,status:'deleted'};changedOrders.push({...orderRow(deleted,now),deleted:true,active:false})}
-    for(const [id,old] of lastTaskSnapshots){if(currentTaskIds.has(id))continue;const deleted={...structuredClone(old),deleted:true};changedTasks.push({...taskRow(deleted,false,now),deleted:true,order_active:false})}
+    // Missing records are NOT deleted. Only a confirmed deletion supplies a tombstone.
+    for(const record of source.pendingRecordDeletions?.orders||[]){
+      const deleted={...record,deleted:true,active:false,status:'deleted'};
+      changedOrders.push(orderRow(deleted,now));
+    }
+    for(const record of source.pendingRecordDeletions?.tasks||[]){
+      changedTasks.push(taskRow({...record,deleted:true},false,now));
+    }
+    // Archiving/restoring an order must also update the visibility of unchanged tasks.
+    for(const t of tasks){
+      const old=lastOrderSnapshots.get(t.orderId),current=ordersById.get(t.orderId);
+      if(current&&old&&(!old.deleted&&old.active!==false&&old.status!=='completed')!==(!current.deleted&&current.active!==false&&current.status!=='completed'))changedTasks.push(taskRow(t,!current.deleted&&current.active!==false&&current.status!=='completed',now));
+    }
     return {changedOrders,changedTasks};
   }
 
   async function saveNormalizedCloud(){
     if(!supabaseClient||!cloudUser||cloudLoading)return;
-    if(!normalizedReady)return window.__RALAB_ORIGINAL_SAVE_CLOUD_STATE?.();
+    if(!normalizedReady){if(normalizedInitBusy)return;const loaded=await loadNormalizedCloud(true);if(!loaded)return;}
     if(syncInFlight){syncQueued=true;return}
     syncInFlight=true;syncQueued=false;
+    preserveMissing(state,lastOrderSnapshots,'orders');preserveMissing(state,lastTaskSnapshots,'tasks');
+    state.pendingRecordDeletions ||= {orders:[],tasks:[]};
     const now=new Date().toISOString(),snapshot=structuredClone(state);
     try{
       const {changedOrders,changedTasks}=await collectChanges(now,snapshot);
       if(changedOrders.length)await upsertChunks('planner_orders_v2',changedOrders);
       if(changedTasks.length)await upsertChunks('planner_tasks_v2',changedTasks);
-      const meta={...snapshot,orders:[],tasks:[],normalizedVersion:2};
+      const meta={...snapshot,orders:[],tasks:[],pendingRecordDeletions:{orders:[],tasks:[]},normalizedVersion:2};
       const {error}=await supabaseClient.from('planner_shared_state').upsert({workspace_id:WORKSPACE_ID,data:meta,updated_at:now},{onConflict:'workspace_id'});if(error)throw error;
-      cloudStamp=now;seedHashes(snapshot);cloudDirty=hash(state)!==hash(snapshot);
+      cloudStamp=now;
+      for(const kind of ['orders','tasks']){
+        const sent=new Map((snapshot.pendingRecordDeletions?.[kind]||[]).map(x=>[x.id,x.deletedAt]));
+        if(state.pendingRecordDeletions?.[kind])state.pendingRecordDeletions[kind]=state.pendingRecordDeletions[kind].filter(x=>sent.get(x.id)!==x.deletedAt);
+      }
+      snapshot.pendingRecordDeletions=structuredClone(state.pendingRecordDeletions||{orders:[],tasks:[]});
+      seedHashes(snapshot);cloudDirty=hash(state)!==hash(snapshot);scheduleLocalPersist();
       if(!cloudDirty)localStorage.removeItem(PENDING_KEY);else syncQueued=true;
       cloudStatus='online';renderOnlineBadge();
     }catch(e){window.__RALAB_LAST_SYNC_ERROR=String(e?.message||e);cloudStatus='error';renderOnlineBadge();const badge=document.getElementById('onlineBadge');if(badge){badge.title=window.__RALAB_LAST_SYNC_ERROR;badge.style.cursor='help';badge.onclick=()=>alert('Supabase synchronisatiefout:\n\n'+window.__RALAB_LAST_SYNC_ERROR)}console.error(e)}
@@ -171,6 +211,7 @@
 
     render=function(){ensureIndexes();return originalRender.apply(this,arguments)};
     save=function(){
+      preserveMissing(state,lastOrderSnapshots,'orders');preserveMissing(state,lastTaskSnapshots,'tasks');
       invalidate();cloudDirty=true;
       // Store immediately so even a quick screen refresh cannot undo the action.
       const txt=compactLocalState();if(txt)try{localStorage.setItem(KEY,txt);localStorage.setItem(PENDING_KEY,new Date().toISOString())}catch(_){}
@@ -184,7 +225,7 @@
     };
     switchView=function(v){currentView=v;document.querySelectorAll('section[id^="view-"]').forEach(x=>x.classList.add('hidden'));document.getElementById('view-'+v)?.classList.remove('hidden');document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));if(pendingViewFrame)cancelAnimationFrame(pendingViewFrame);pendingViewFrame=requestAnimationFrame(()=>{pendingViewFrame=0;render()})};
 
-    window.RALAB_PERFORMANCE={version:VERSION,invalidate,rebuild:()=>{invalidate();ensureIndexes()},getOrder,getOrderTasks,getActiveOrders:activeOrders,loadArchivedOrders,loadOrderBundle,isNormalized:()=>normalizedReady,exactOrderAnalysis:window.RALAB_EXACT_ORDER_ANALYSIS};
+    window.RALAB_PERFORMANCE={version:VERSION,invalidate,rebuild:()=>{invalidate();ensureIndexes()},getOrder,getOrderTasks,getActiveOrders:activeOrders,loadArchivedOrders,loadOrderBundle,isNormalized:()=>normalizedReady,markDeleted,cancelDeletion,ensureLoaded:()=>normalizedReady?Promise.resolve(true):loadNormalizedCloud(true),exactOrderAnalysis:window.RALAB_EXACT_ORDER_ANALYSIS};
     installed=true;ensureIndexes();return true;
   }
   let tries=0;const timer=setInterval(()=>{tries++;if(install()||tries>100)clearInterval(timer)},100);

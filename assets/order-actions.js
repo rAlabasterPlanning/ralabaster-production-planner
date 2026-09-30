@@ -35,6 +35,7 @@ function directOrder(){
 function deleteOrderNow(id){
   const s=S();if(!s)return;
   const o=(s.orders||[]).find(x=>x.id===id);if(!o)return;
+  window.RALAB_PERFORMANCE?.markDeleted?.('orders',id);
   s.tasks=(s.tasks||[]).filter(t=>t.orderId!==id);
   s.orders=(s.orders||[]).filter(x=>x.id!==id);
   (s.quotes||[]).forEach(q=>{if(q.orderId===id){q.orderId='';if(q.status==='accepted')q.status='concept'}});
@@ -77,3 +78,4 @@ document.addEventListener('click',e=>{
 },true);
 install();setTimeout(install,400);setTimeout(install,1200);setTimeout(install,2500);
 })();
+

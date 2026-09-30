@@ -97,7 +97,7 @@ function applyProposal(messageId){
     own.filter(t=>(Number(t.seq)||0)>=seq).forEach(t=>{t.seq=(Number(t.seq)||0)+1});
     s.tasks.push({id:`ait_${Date.now()}_${index}`,orderId:a.orderId,seq,name:String(a.name||'Nieuwe taak'),machine:String(a.machine||''),estimate:Math.max(0,Number(a.estimate)||0),dependsPrev:seq>1,type:a.taskType==='external'?'external':'internal',employee:null,date:null,start:'',planSegments:[],status:'open',actual:0,doneQty:0,note:''});
    }else if(a.type==='remove_task'){
-    const task=taskById(a.taskId);s.deletedTasks=Array.isArray(s.deletedTasks)?s.deletedTasks:[];s.deletedTasks.push({task:JSON.parse(JSON.stringify(task)),deletedAt:Date.now(),source:'ai_proposal'});s.tasks=s.tasks.filter(t=>t.id!==a.taskId);
+    const task=taskById(a.taskId);s.deletedTasks=Array.isArray(s.deletedTasks)?s.deletedTasks:[];s.deletedTasks.push({task:JSON.parse(JSON.stringify(task)),deletedAt:Date.now(),source:'ai_proposal'});window.RALAB_PERFORMANCE?.markDeleted?.('tasks',a.taskId);s.tasks=s.tasks.filter(t=>t.id!==a.taskId);
    }else if(a.type==='update_task'){
     const task=taskById(a.taskId),fields=a.fields||{},allowed=['name','machine','estimate','employee','dependsPrev','type'];if(('machine'in fields)||('estimate'in fields))clearMovablePlanning(task);allowed.forEach(k=>{if(k in fields)task[k]=k==='estimate'?Math.max(0,Number(fields[k])||0):fields[k]});
    }else if(a.type==='link_tasks'){
@@ -132,3 +132,4 @@ function install(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,100));else setTimeout(install,100)
 })();
+

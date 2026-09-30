@@ -171,6 +171,7 @@ function parallelTaskStart(t,fallback){
  return first||fallback;
 }
 function planOrderStrict(o,opts={}){
+ if(o?.needsCalculation)return null;
  setDerivedDates(o);const ts=orderTasks(o.id).filter(t=>!taskDone(t)&&!isGeneral(t)).sort((a,b)=>a.seq-b.seq);let cursor=chainStartForOrder(o,opts),flowEmployee=chooseFlowEmployee(o,ts,opts),lastEmployee=flowEmployee;if(flowEmployee)o.productionEmployee=flowEmployee;
  for(let i=0;i<ts.length;i++){const t=ts[i];if(frozen(t)){const f=taskFinishAt(t);if(f&&f>cursor)cursor=f;lastEmployee=t.employee||lastEmployee;continue}
    const next=ts[i+1];
@@ -303,3 +304,4 @@ function install(){if(typeof window.renderOrders!=='function'||typeof window.ope
 }
 install();
 })();
+

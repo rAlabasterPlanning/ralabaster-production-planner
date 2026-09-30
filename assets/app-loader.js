@@ -1,7 +1,7 @@
 window.RALAB_CORE_READY=window.RALAB_CORE_READY||new Promise((resolve,reject)=>{window.__RALAB_CORE_RESOLVE=resolve;window.__RALAB_CORE_REJECT=reject});
 (async()=>{
   try{
-    const ver='20260925-8';
+    const ver='20260930-1';
     const parts=['app.part01.txt','app.part02.txt','app.part03.txt','app.part04.txt','app.part05.txt','app.part06.txt','app.part07.txt'];
     const texts=await Promise.all(parts.map(async p=>{
       const r=await fetch('assets/'+p+'?v='+ver,{cache:'default'});
@@ -45,3 +45,4 @@ async function loadCloudState(silent=false){
     if(main) main.innerHTML='<div style="padding:24px;font-family:system-ui"><h2>Planner kon niet laden</h2><p>'+String(e.message||e)+'</p><p>Vernieuw de pagina met Ctrl+F5.</p></div>';
   }
 })();
+

@@ -7,7 +7,7 @@ function init(){const s=S();if(!s)return false;s.customers=s.customers||[];s.quo
 function perf(){return window.RALAB_PERFORMANCE||null}
 function taskList(id){const p=perf();return p?.getOrderTasks?p.getOrderTasks(id):((S().tasks||[]).filter(t=>t.orderId===id).sort((a,b)=>(+a.seq||0)-(+b.seq||0)))}
 function findOrder(id){const p=perf();return p?.getOrder?p.getOrder(id):(S().orders||[]).find(x=>x.id===id)}
-function status(o){const ts=taskList(o.id);if(o.deleted)return'Verwijderd';if(o.active===false||o.status==='completed')return'Afgerond';if(o.waitingMaterial||o.materialStatus==='waiting')return'Wacht op materiaal';if(!ts.length)return'Bevestigd';let done=0,ext=false,busy=false,planned=false;for(const t of ts){if(t.status==='done')done++;if(t.status==='external')ext=true;if(t.status==='in_progress')busy=true;if(t.date||(t.planSegments||[]).length)planned=true}if(done===ts.length)return'Gereed';if(ext)return'Extern';if(busy)return'In productie';if(planned)return'Gepland';return'Nog te plannen'}
+function status(o){if(o.needsCalculation)return 'Nog calculeren / aanvullen';const ts=taskList(o.id);if(o.deleted)return'Verwijderd';if(o.active===false||o.status==='completed')return'Afgerond';if(o.waitingMaterial||o.materialStatus==='waiting')return'Wacht op materiaal';if(!ts.length)return'Bevestigd';let done=0,ext=false,busy=false,planned=false;for(const t of ts){if(t.status==='done')done++;if(t.status==='external')ext=true;if(t.status==='in_progress')busy=true;if(t.date||(t.planSegments||[]).length)planned=true}if(done===ts.length)return'Gereed';if(ext)return'Extern';if(busy)return'In productie';if(planned)return'Gepland';return'Nog te plannen'}
 function currentStep(o){const ts=taskList(o.id);return ts.find(t=>t.status!=='done')||ts.at(-1)}
 function pageInfo(total,page){const pages=Math.max(1,Math.ceil(total/PAGE));page=Math.min(page,pages-1);return {pages,page,start:page*PAGE,end:Math.min(total,(page+1)*PAGE)}}
 function pager(total,page,fn){const p=pageInfo(total,page);if(total<=PAGE)return'';return `<div class="toolbar" style="margin-top:12px"><span class="muted">${p.start+1}–${p.end} van ${total}</span><div class="spacer"></div><button class="btn small" ${p.page<=0?'disabled':''} onclick="${fn}(${p.page-1})">← Vorige</button><span class="pill">${p.page+1}/${p.pages}</span><button class="btn small" ${p.page>=p.pages-1?'disabled':''} onclick="${fn}(${p.page+1})">Volgende →</button></div>`}
@@ -109,6 +109,8 @@ function orderFeasibility(o){
 }
 function orderSequenceValue(o){const n=Number(o?.productionSequence);return Number.isFinite(n)&&n>0?n:0}
 function orderSortForProduction(a,b){
+ if(!!a.needsCalculation!==!!b.needsCalculation)return a.needsCalculation?-1:1;
+ if(a.needsCalculation&&b.needsCalculation)return String(b.createdAt||b.created||'').localeCompare(String(a.createdAt||a.created||''));
  const sa=orderSequenceValue(a),sb=orderSequenceValue(b);
  if(sa&&sb&&sa!==sb)return sa-sb;if(sa&&!sb)return-1;if(!sa&&sb)return 1;
  const da=orderDeadlineValue(a),db=orderDeadlineValue(b);if(da!==db)return da.localeCompare(db);
@@ -179,6 +181,25 @@ async function planCurrentSequence(button){
    if(button?.isConnected){button.disabled=false;button.textContent=old}
  }
 }
+function quickOrderForm(){
+ if(!init())return;
+ const s=S(),customers=(s.customers||[]).filter(c=>!c.deleted),products=[...new Set([...(s.productTemplates||[]).map(p=>p.name),...(s.orders||[]).filter(o=>!o.deleted).map(o=>o.product)].filter(Boolean))].sort();
+ const html=`<div class="modalhead"><h3>Snelle order toevoegen</h3></div><form data-customer-safe-modal id="quickOrderForm"><div class="modalbody"><div class="grid2"><div class="field"><label for="quickCustomer">Klant *</label><input id="quickCustomer" class="input" list="quickCustomers" required autocomplete="off" placeholder="Kies of typ een klantnaam"><datalist id="quickCustomers">${customers.map(c=>`<option value="${esc(c.name)}"></option>`).join('')}</datalist><div class="muted">Een nieuwe naam kun je later aan een klantdossier koppelen.</div></div><div class="field"><label for="quickProduct">Product *</label><input id="quickProduct" class="input" list="quickProducts" required placeholder="Kies of typ een product"><datalist id="quickProducts">${products.map(p=>`<option value="${esc(p)}"></option>`).join('')}</datalist></div><div class="field"><label for="quickQty">Aantal (optioneel)</label><input id="quickQty" class="input" type="number" min="1" step="1" placeholder="Later invullen"></div><div class="field"><label for="quickDeadline">Gewenste datum (optioneel)</label><input id="quickDeadline" class="input" type="date"></div></div><div class="field" style="margin-top:12px"><label for="quickNote">Notitie (optioneel)</label><textarea id="quickNote" placeholder="Wat wil je later uitwerken?"></textarea></div><div class="notice">Deze order komt bovenaan als <b>Nog calculeren / aanvullen</b> en wordt nog niet ingepland.</div></div><div class="modalfoot"><button class="btn" type="button" onclick="closeModal()">Annuleren</button><button class="btn primary" type="submit">Snelle order opslaan</button></div></form>`;
+ showModal(html);setTimeout(()=>document.getElementById('quickCustomer')?.focus(),0);
+}
+function saveQuickOrder(){
+ const form=document.getElementById('quickOrderForm');if(!form||!form.reportValidity())return false;
+ const customerName=document.getElementById('quickCustomer').value.trim(),product=document.getElementById('quickProduct').value.trim();
+ if(!customerName||!product)return false;
+ const s=S(),customer=(s.customers||[]).find(c=>!c.deleted&&productContractKey(c.name)===productContractKey(customerName)),template=(s.productTemplates||[]).filter(t=>productContractKey(t.name)===productContractKey(product)).sort((a,b)=>(Number(b.version)||0)-(Number(a.version)||0))[0];
+ const rawQty=document.getElementById('quickQty').value,qty=rawQty?Number(rawQty):0;
+ const id='o_quick_'+(globalThis.crypto?.randomUUID?.()||Date.now()+'_'+Math.random().toString(36).slice(2)),stamp=new Date().toISOString();
+ s.orders.push({id,orderNo:'SNEL-'+Date.now().toString().slice(-8),customerId:customer?.id||'',customerName:customer?.name||customerName,product,productTemplateId:template?.id||'',qty,quantityPending:!rawQty,deadline:document.getElementById('quickDeadline').value||'',note:document.getElementById('quickNote').value.trim(),active:true,status:'needs_calculation',needsCalculation:true,created:iso(),createdAt:stamp});
+ try{save()}catch(e){s.orders=s.orders.filter(o=>o.id!==id);console.error(e);alert('Order kon niet worden opgeslagen.');return false}
+ closeModal();show('orderoverview');return true;
+}
+document.addEventListener('submit',e=>{if(e.target.id==='quickOrderForm'){e.preventDefault();saveQuickOrder()}});
+document.addEventListener('click',e=>{if(e.target.closest('[data-quick-order]')){e.preventDefault();quickOrderForm()}});
 function renderOrderOverview(){
  if(!init())return;
  const root=document.getElementById('view-orderoverview'),s=S();if(!root)return;
@@ -192,7 +213,7 @@ function renderOrderOverview(){
  const stockRows=(s.contractStockWork||[]).filter(x=>!x.deleted&&x.status!=='done').filter(x=>!q||[x.customerName,x.product].join(' ').toLowerCase().includes(q));
  const hintsHtml=batchHints.map(h=>`<div class="notice" style="margin-bottom:8px"><b>🔗 ${esc(h.first.product)}</b> · ${h.rows.length} open order(s) · ${h.rows.reduce((n,o)=>n+(Number(o.qty)||0),0)} st.${h.contract?' · contract '+Number(h.contract.contractQty||0)+' st. · nog verwacht '+h.st.remaining+' st.':''}<span style="float:right">${h.contract?'<button class="btn small" type="button" data-contract-produce="'+esc(h.cust.id)+'" data-product="'+esc(h.first.product)+'">Vooruit produceren?</button>':''}</span></div>`).join('');
  const stockHtml=stockRows.length?`<div class="panel" style="padding:10px;margin-bottom:10px"><b>Contractvoorraad / vooruitwerk</b>${stockRows.map(x=>`<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid #eee"><span style="flex:1"><b>${esc(x.product)}</b><span class="muted"> · ${esc(x.customerName)} · geen harde deadline</span></span><b>${Number(x.qty)||0} st.</b><span class="pill">mag vooruit</span></div>`).join('')}</div>`:''; 
- root.innerHTML=`<div class="toolbar"><h2>Orderoverzicht</h2><span class="pill">${all.length} actief</span><div class="spacer"></div><button class="btn primary" type="button" data-plan-current-sequence>Plan volgens huidige volgorde</button><button class="btn" onclick="RALAB_ERP.show('calculation')">+ Nieuwe calculatie</button></div>
+ root.innerHTML=`<div class="toolbar"><h2>Orderoverzicht</h2><span class="pill">${all.length} actief</span><div class="spacer"></div><button class="btn primary" type="button" data-quick-order>+ Snelle order</button><button class="btn primary" type="button" data-plan-current-sequence>Plan volgens huidige volgorde</button><button class="btn" onclick="RALAB_ERP.show('calculation')">+ Nieuwe calculatie</button></div>
  ${hintsHtml}${stockHtml}<div class="panel" style="padding:10px;margin-bottom:10px"><input class="input" type="search" data-orderoverview-search placeholder="Zoek ordernummer, klant, product of project" value="${esc(root.dataset.q||'')}" style="width:min(560px,100%)"></div>
  <div class="notice"><b>Productievolgorde:</b> standaard op deadline. Vul alleen een volgordenummer in als je handmatig wilt overrulen. Deadline is direct in de lijst aanpasbaar.</div>
  <div class="panel" style="overflow:auto">
@@ -200,11 +221,11 @@ function renderOrderOverview(){
  ${all.map(o=>{const n=nextStepInfo(o),seq=orderSequenceValue(o)||'',deadline=(o.communicatedDeadline||o.maximumReadyDate||o.deadline||'');return `<tr data-overview-order="${esc(o.id)}">
    <td><input class="input" style="width:68px;text-align:center" type="number" min="1" placeholder="auto" data-overview-sequence="${esc(o.id)}" value="${esc(seq)}"></td>
    <td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')"><b>${esc(o.orderNo||'')}</b></button></td>
-   <td><b>${esc(o.product||'')}</b><div class="muted">${esc(o.customerName||'')} · ${Number(o.qty)||0} st.</div></td>
+   <td><b>${esc(o.product||'')}</b><div class="muted">${esc(o.customerName||'')} · ${o.quantityPending?'Aantal nog invullen':(Number(o.qty)||0)+' st.'}</div>${o.needsCalculation?'<span class="pill" style="background:#fff2cf;color:#795500">Nog calculeren / aanvullen</span>':''}</td>
    <td><input class="input" type="date" data-overview-deadline="${esc(o.id)}" value="${esc(deadline)}"></td>
-   <td data-earliest-delivery="${esc(o.id)}"><span class="muted">Berekenen…</span></td>
-   <td>${(()=>{const today=iso(),late=o.productionLatestWorkDate&&o.productionLatestWorkDate<today,due=o.productionLatestStartDate&&o.productionLatestStartDate<=today;if(late)return '<b>TE LAAT</b>';if(due)return '<b>DIRECT STARTEN</b>';if(o.productionLatestStartWeek&&o.productionLatestStartDate)return '<b>Week '+esc(String(o.productionLatestStartWeek).slice(-2))+'</b><div class="muted">'+esc(o.productionLatestStartDate)+'</div>';return '<b>Nog berekenen</b>'})()}</td>
-   <td><b>${esc(n.task?.name||'Gereed')}</b><div class="muted">${esc(n.task?.machine||'')}</div></td>
+   <td ${o.needsCalculation?'':'data-earliest-delivery="'+esc(o.id)+'"'}><span class="muted">${o.needsCalculation?'Na uitwerken':'Berekenen…'}</span></td>
+   <td>${(()=>{if(o.needsCalculation)return '<span class="muted">Na uitwerken</span>';const today=iso(),late=o.productionLatestWorkDate&&o.productionLatestWorkDate<today,due=o.productionLatestStartDate&&o.productionLatestStartDate<=today;if(late)return '<b>TE LAAT</b>';if(due)return '<b>DIRECT STARTEN</b>';if(o.productionLatestStartWeek&&o.productionLatestStartDate)return '<b>Week '+esc(String(o.productionLatestStartWeek).slice(-2))+'</b><div class="muted">'+esc(o.productionLatestStartDate)+'</div>';return '<b>Nog berekenen</b>'})()}</td>
+   <td><b>${o.needsCalculation?'Nog calculeren / aanvullen':esc(n.task?.name||'Gereed')}</b><div class="muted">${esc(n.task?.machine||'')}</div></td>
    <td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')">Open</button></td>
  </tr>`}).join('')||'<tr><td colspan="8">Geen actieve orders.</td></tr>'}
  </tbody></table></div>`;
@@ -283,7 +304,8 @@ async function openOrder(id){
    <button class="btn small ${done?'':'primary'}" type="button" data-order-task-toggle="${esc(t.id)}">${done?'Heropenen':'Klaar'}</button>
    <button class="btn small" type="button" data-order-task-delete="${esc(t.id)}">Verwijderen</button>
  </div>`}).join('');
- const html=`<div class="modalhead"><h3>${esc(o.orderNo)} · ${esc(o.customerName||'')} · ${esc(o.product)}</h3></div><div class="modalbody"><div class="grid3"><div><b>Status</b><br>${status({...o,id:o.id})}</div><div><b>Intern gereed</b><br>${esc(o.internalExpectedDate||'—')}</div><div><b>Klantdeadline</b><br>${esc(o.communicatedDeadline||o.deadline||'—')}</div></div>
+ const html=`<div data-customer-safe-modal hidden></div><div class="modalhead"><h3>${esc(o.orderNo)} · ${esc(o.customerName||'')} · ${esc(o.product)}</h3></div><div class="modalbody"><div class="grid3"><div><b>Status</b><br>${status({...o,id:o.id})}</div><div><b>Intern gereed</b><br>${esc(o.internalExpectedDate||'—')}</div><div><b>Klantdeadline</b><br>${esc(o.communicatedDeadline||o.deadline||'—')}</div></div>
+ ${o.needsCalculation?'<div class="notice"><b>Nog calculeren / aanvullen</b> · '+esc(o.note||'')+'<br><button class="btn primary" type="button" data-order-to-calc="'+esc(o.id)+'">Order uitwerken</button></div>':''}
  <div style="display:flex;align-items:center;gap:10px;margin-top:18px"><h3 style="margin:0">Proces</h3><span class="pill">${ts.length} taken</span></div>
  <div style="display:grid;grid-template-columns:82px minmax(190px,1fr) 105px 140px 120px 110px 92px;gap:8px;margin-top:8px;padding:0 0 5px;font-size:12px;font-weight:700;color:var(--muted,#667)"><span></span><span>Taak / werkplek</span><span>Duur</span><span>Voorkeursmedewerker</span><span>Parallel</span><span></span><span></span></div><div>${rows||'<div class="muted">Nog geen taken.</div>'}</div>
  <div class="panel" style="padding:10px;margin-top:10px"><b>Taak toevoegen</b><div style="display:grid;grid-template-columns:minmax(170px,1fr) minmax(170px,1fr) 100px 135px 120px auto;gap:8px;margin-top:7px">
@@ -294,7 +316,7 @@ async function openOrder(id){
    <select class="input" data-new-order-task-parallel><option value="">Niet parallel</option>${['A','B','C','D'].map(x=>`<option value="${x}">Parallel ${x}</option>`).join('')}</select>
    <button class="btn primary" type="button" data-add-order-task="${esc(o.id)}">+ Toevoegen</button>
  </div><datalist id="orderTaskMachineList">${machineList}</datalist></div>
- <h3>Commercieel</h3><div>Kostprijs/st: ${euro(o.costUnit)} · Verkoop/st: ${euro(o.saleUnit)} · Totaal: ${euro(o.totalSale)}</div></div><div class="modalfoot" style="flex-wrap:wrap"><button class="btn" onclick="RALAB_ERP.deleteOrder('${o.id}')">Verwijder order</button><button class="btn" type="button" data-copy-order="${esc(o.id)}">Order kopiëren</button><button class="btn" type="button" data-unplan-order="${esc(o.id)}">Ontplannen</button><button class="btn" type="button" data-order-to-calc="${esc(o.id)}">Terug naar calculatie</button><div class="spacer"></div><button class="btn primary" type="button" data-order-save-close="${esc(o.id)}">Opslaan en sluiten</button><button class="btn" onclick="RALAB_ERP.orderConfirmation('${o.id}')">Order confirmation</button></div>`;
+ <h3>Commercieel</h3><div><span data-internal-finance>Kostprijs/st: ${euro(o.costUnit)} · </span>Verkoop/st: ${euro(o.saleUnit)} · Totaal: ${euro(o.totalSale)}</div></div><div class="modalfoot" style="flex-wrap:wrap"><button class="btn" onclick="RALAB_ERP.deleteOrder('${o.id}')">Verwijder order</button><button class="btn" type="button" data-copy-order="${esc(o.id)}">Order kopiëren</button><button class="btn" type="button" data-unplan-order="${esc(o.id)}">Ontplannen</button><button class="btn" type="button" data-order-to-calc="${esc(o.id)}">Terug naar calculatie</button><div class="spacer"></div><button class="btn primary" type="button" data-order-save-close="${esc(o.id)}">Opslaan en sluiten</button><button class="btn" onclick="RALAB_ERP.orderConfirmation('${o.id}')">Order confirmation</button></div>`;
  if(typeof showModal==='function')showModal(html);else alert(o.orderNo)
 }
 function saveAndCloseOrder(id){
@@ -477,3 +499,4 @@ document.addEventListener('click',e=>{
  const pr=e.target.closest('[data-customer-print]');if(pr){e.preventDefault();e.stopImmediatePropagation();window.RALAB_ERP?.printCustomerOrders?.(pr.dataset.customerPrint);return}
  const row=e.target.closest('#view-customers tr[data-customer-id]');if(row&&!e.target.closest('button,input,a,select')){e.preventDefault();window.RALAB_ERP?.openCustomer?.(row.dataset.customerId)}
 },true);
+

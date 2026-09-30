@@ -1,3 +1,16 @@
+## Klantmodus
+
+- Vaste schakelaar met lokale voorkeur; werkt ook na verversen en in andere tabbladen.
+- Interne calculaties, financiële schermen, ongecontroleerde pop-ups en interne afdrukken afgeschermd. Orderoverzicht en planning blijven beschikbaar; verkoopprijzen in de order blijven zichtbaar.
+
+# 2026-09-30 — Recover orders, prevent implicit deletion, add quick order capture
+
+Recovered the 22 orders accidentally marked deleted at 07:42:41 UTC and their affected tasks; retained earlier explicit deletions and existing task progress/planning. Normalized synchronization no longer infers deletion from absence in local state, merges pending local changes with remote records, and waits for normalized initialization before writing. Confirmed removal paths register explicit tombstones. Database triggers block implicit deletion/hiding and permanent DELETE and retain the pre-deletion record; confirmed ChatGPT RPC deletions supply explicit timestamps.
+
+Added + Snelle order to Orderoverzicht. Existing customers/products can be selected, or free-text customer/product names captured without creating a customer dossier. Draft orders appear first with Nog calculeren / aanvullen, optional quantity/date/note, and are excluded from capacity planning until linked to a customer and given process steps in the existing order editor.
+
+Validation: local snapshot/explicit deletion/initial merge regressions, full app quick order creation and later linking, JavaScript parse checks, database guard assertions inside a rolled-back transaction. See tests/record-safety.test.cjs.
+
 # rAlabaster Productieplanner — Changelog
 
 This is a practical development log, not a full semantic-versioning history. It exists so future work can quickly understand recent changes and avoid reintroducing old problems.
@@ -342,3 +355,4 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
   sleutels en wachtwoorden worden niet gedeeld.
 - Schrijven blijft gecontroleerd: voorstellen worden pas na Ralphs akkoord
   definitief en de AI bestuurt geen machines.
+

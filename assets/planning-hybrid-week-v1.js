@@ -226,7 +226,7 @@ function resetGeneratedPlanning(){
 }
 function needsWeekAssignment(){
  const s=S();if(!s)return false;
- const active=(s.orders||[]).filter(o=>o&&!o.deleted&&o.active!==false&&!o.isGeneralWork&&o.status!=='completed');
+ const active=(s.orders||[]).filter(o=>o&&!o.needsCalculation&&!o.deleted&&o.active!==false&&!o.isGeneralWork&&o.status!=='completed');
  for(const o of active){
    const deadline=o.communicatedDeadline||o.deadline||o.maximumReadyDate||'';
    const open=(s.tasks||[]).some(t=>t.orderId===o.id&&!t.deleted&&!['done','completed'].includes(String(t.status||'').toLowerCase()));
