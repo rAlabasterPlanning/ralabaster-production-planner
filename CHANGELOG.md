@@ -1,3 +1,9 @@
+# 2026-09-30 — Deadlines veilig tussen apparaten
+
+- Deadlinewijzigingen krijgen per order een eigen revisietijd, zodat de nieuwste wijziging wint.
+- Een oudere iPad- of pc-sessie kan een nieuwere deadline niet meer terugzetten bij een latere synchronisatie.
+- De database geeft de behouden deadline terug aan het oudere apparaat, zodat ook dat scherm weer de actuele datum toont.
+
 ## 2026-09-30 — Order closeout review and Outlook PDF draft
 
 Orderoverzicht provides Order afgerond. Review actual task minutes, consumption, notes, quantity and material weights before archiving. Store checked timestamp and then show delivery actions. Outlook draft downloads an X-Unsent MIME .eml with customer address, editable body and PDF attachment; user opens it in Outlook and sends manually. Web Share and mailto/download fallbacks available. No automatic sending. PDF excludes internal timings, consumption and margins. Browser cannot silently launch a downloaded file; desktop Outlook compatibility requires device validation.

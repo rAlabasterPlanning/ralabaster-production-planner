@@ -1,7 +1,7 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20260930-guard-v1';
+  const VERSION='20260930-deadline-guard-v1';
   const PENDING_KEY='ralabaster_planner_pending_v1';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
@@ -123,6 +123,18 @@
     for(const id of before.keys())if(!current.has(id))result.delete(id);
     return [...result.values()];
   }
+  const DEADLINE_FIELDS=['communicatedDeadline','deadline','maximumReadyDate','internalTargetDate','planningCheckedAt','weekPlanningUpdatedAt'];
+  function stampDeadlineChanges(source,baseline,now=new Date().toISOString()){
+    for(const o of source.orders||[]){
+      const before=baseline.get(o.id);
+      if(!before){if(DEADLINE_FIELDS.some(k=>o[k]))o.deadlineUpdatedAt=o.deadlineUpdatedAt||now;continue}
+      if(DEADLINE_FIELDS.some(k=>hash(o[k]??null)!==hash(before[k]??null))&&String(o.deadlineUpdatedAt||'')===String(before.deadlineUpdatedAt||''))o.deadlineUpdatedAt=now;
+    }
+  }
+  function acceptSavedDeadlines(savedRows,snapshot){
+    const snapById=new Map((snapshot.orders||[]).map((o,i)=>[o.id,i])),liveById=new Map((state.orders||[]).map(o=>[o.id,o]));
+    for(const row of savedRows||[]){const server=row?.data;if(!server?.id)continue;const i=snapById.get(server.id);if(i!==undefined)snapshot.orders[i]=structuredClone(server);const live=liveById.get(server.id);if(live&&String(live.deadlineUpdatedAt||'')<=String(server.deadlineUpdatedAt||''))for(const k of [...DEADLINE_FIELDS,'deadlineUpdatedAt']){if(Object.prototype.hasOwnProperty.call(server,k))live[k]=structuredClone(server[k]);else delete live[k]}}
+  }
   function validDate(x){if(!/^\d{4}-\d{2}-\d{2}$/.test(x||''))return null;const d=new Date(x+'T12:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===x?x:null}
   function safeSeq(x){const n=Number(x);return Number.isInteger(n)&&n>=-2147483648&&n<=2147483647?n:null}
   function orderRow(o,now){const del=!!o.deleted;return {workspace_id:WORKSPACE_ID,order_id:String(o.id||''),order_no:o.orderNo||'',active:!del&&o.active!==false&&o.status!=='completed',status:o.status||'',deadline:validDate(o.deadline),completed_at:validDate(o.completedAt),data:o,deleted:del,updated_at:now}}
@@ -136,17 +148,21 @@
     }
     return [...byKey.values()];
   }
-  async function upsertChunks(table,rows){
+  async function upsertChunks(table,rows,returnRows=false){
     const clean=uniqueRows(table,rows);
     const conflict=table==='planner_tasks_v2'?'workspace_id,task_id':'workspace_id,order_id';
+    const saved=[];
     for(let i=0;i<clean.length;i+=50){
-      const chunk=clean.slice(i,i+50),{error}=await supabaseClient.from(table).upsert(chunk,{onConflict:conflict});
+      const chunk=clean.slice(i,i+50),request=supabaseClient.from(table).upsert(chunk,{onConflict:conflict}),{data,error}=await(returnRows?request.select('data'):request);
       if(error){throw new Error(`${table} (${chunk.length} records): ${error.message||'opslaan mislukt'}${error.code?' ['+error.code+']':''}`)}
+      if(returnRows&&data)saved.push(...data);
       await yieldUI();
     }
+    return saved;
   }
 
   async function collectChanges(now,source=state){
+    stampDeadlineChanges(source,lastOrderSnapshots,now);
     const orders=source.orders||[],tasks=source.tasks||[],ordersById=new Map(orders.map(o=>[o.id,o])),activeByOrder=new Map(orders.map(o=>[o.id,!o.deleted&&o.active!==false&&o.status!=='completed']));
     const changedOrders=[],changedTasks=[],currentOrderIds=new Set(orders.map(o=>o.id)),currentTaskIds=new Set(tasks.map(t=>t.id));
     for(let i=0;i<orders.length;i++){const o=orders[i],h=hash(o);if(lastOrderHashes.get(o.id)!==h)changedOrders.push(orderRow(o,now));if(i&&i%DIFF_CHUNK===0)await yieldUI()}
@@ -180,7 +196,7 @@
       const localQuotes=hash(snapshot.quotes||[]);
       snapshot.quotes=mergeQuoteChanges(latest?.data?.quotes||[],snapshot.quotes||[],cloudQuotes);
       const {changedOrders,changedTasks}=await collectChanges(now,snapshot);
-      if(changedOrders.length)await upsertChunks('planner_orders_v2',changedOrders);
+      if(changedOrders.length){const savedOrders=await upsertChunks('planner_orders_v2',changedOrders,true);acceptSavedDeadlines(savedOrders,snapshot)}
       if(changedTasks.length)await upsertChunks('planner_tasks_v2',changedTasks);
       const meta={...snapshot,quoteWriteBaseline:cloudQuotes,orders:[],tasks:[],pendingRecordDeletions:{orders:[],tasks:[]},normalizedVersion:2};
       const {error}=await supabaseClient.from('planner_shared_state').upsert({workspace_id:WORKSPACE_ID,data:meta,updated_at:now},{onConflict:'workspace_id'});if(error)throw error;
@@ -228,6 +244,7 @@
 
     render=function(){ensureIndexes();return originalRender.apply(this,arguments)};
     save=function(){
+      stampDeadlineChanges(state,lastOrderSnapshots);
       preserveMissing(state,lastOrderSnapshots,'orders');preserveMissing(state,lastTaskSnapshots,'tasks');
       invalidate();cloudDirty=true;
       // Store immediately so even a quick screen refresh cannot undo the action.
