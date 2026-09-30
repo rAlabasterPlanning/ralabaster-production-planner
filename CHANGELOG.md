@@ -1,3 +1,9 @@
+# 2026-09-30 — Afgeronde orders en taken beschermd
+
+- Een oudere sessie kan een afgeronde order niet meer opnieuw actief maken.
+- Gereedmeldingen, werkelijke tijd, gereed aantal, verbruik en nacalculatiegegevens van taken gebruiken nu ook nieuwste-wijziging-wint.
+- Verwijderingen blijven uitsluitend mogelijk via een bevestigde verwijderactie met herstelkopie.
+
 # 2026-09-30 — Deadlines veilig tussen apparaten
 
 - Deadlinewijzigingen krijgen per order een eigen revisietijd, zodat de nieuwste wijziging wint.
