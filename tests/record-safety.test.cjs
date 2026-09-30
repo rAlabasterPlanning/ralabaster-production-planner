@@ -48,7 +48,7 @@ test('customer mode persists locally, protects details and keeps sale prices and
  const f=await fullApp(t),w=f.w,d=w.document;
  const style=d.createElement('style');style.textContent=fs.readFileSync(path.join(__dirname,'../assets/customer-mode.css'),'utf8');d.head.append(style);
  assert.equal(d.querySelector('header #customerModeToggle'),null);vm.runInContext('switchView("settings")',f.ctx);await f.wait(30);
- const before=JSON.stringify(f.state());d.getElementById('customerModeToggle').click();assert.equal(w.getComputedStyle(d.querySelector('[data-customer-mode-settings]')).display,'block');
+ const before=JSON.stringify(f.state());d.getElementById('customerModeToggle').click();assert.equal(w.getComputedStyle(d.querySelector('[data-customer-mode-settings]')).display,'block');assert.equal(w.getComputedStyle(d.querySelector('#view-settings > .toolbar')).display,'none');d.getElementById('customerModeToggle').click();assert.equal(w.RALAB_CUSTOMER_MODE.active(),false);d.getElementById('customerModeToggle').click();
  assert.equal(w.RALAB_CUSTOMER_MODE.active(),true);assert.equal(w.localStorage.getItem('ralabaster_customer_mode_v1'),'on');assert.equal(d.getElementById('customerModeToggle').getAttribute('aria-pressed'),'true');assert.equal(JSON.stringify(f.state()),before);
  w.RALAB_ERP.show('dashboard');await f.wait(30);const card=d.querySelector('#view-dashboard > *');assert.equal(w.getComputedStyle(card).display,'none');
  await w.RALAB_ERP.openOrder(f.state().orders[0].id);await f.wait(30);
@@ -57,4 +57,10 @@ test('customer mode persists locally, protects details and keeps sale prices and
  w.RALAB_ERP.show('orderoverview');await f.wait(30);d.querySelector('[data-quick-order]').click();assert.ok(d.querySelector('#quickOrderForm[data-customer-safe-modal]'));
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../assets/customer-mode.js'),'utf8'),f.ctx);assert.equal(w.RALAB_CUSTOMER_MODE.active(),true);
  w.RALAB_CUSTOMER_MODE.set(false);assert.equal(w.getComputedStyle(d.querySelector('#view-dashboard > *')).display==='none',false);assert.deepEqual(f.errors,[]);
+});
+
+test('settings are excluded from the generic blocked screen selector',()=>{
+ const css=fs.readFileSync(path.join(__dirname,'../assets/customer-mode.css'),'utf8');
+ for(const selector of css.match(/html\[data-customer-mode="on"\] main > section[^\{]+/g)||[])assert.match(selector,/:not\(#view-settings\)/);
+ assert.match(css,/#view-settings > :not\(\[data-customer-mode-settings\]\)/);
 });

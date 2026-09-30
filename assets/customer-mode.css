@@ -4,8 +4,8 @@
 html[data-customer-mode="on"] [data-internal-finance] { display:none!important; }
 /* Only reviewed screens are available while sharing the planner with customers.
    CSS applies before rendering, including asynchronous updates and printing. */
-html[data-customer-mode="on"] main > section:not(#view-orderoverview):not(#view-orders):not(#view-weeks):not(#view-today):not(#view-external) > * { display:none!important; }
-html[data-customer-mode="on"] main > section:not(#view-orderoverview):not(#view-orders):not(#view-weeks):not(#view-today):not(#view-external)::before {
+html[data-customer-mode="on"] main > section:not(#view-orderoverview):not(#view-orders):not(#view-weeks):not(#view-today):not(#view-external):not(#view-settings) > * { display:none!important; }
+html[data-customer-mode="on"] main > section:not(#view-orderoverview):not(#view-orders):not(#view-weeks):not(#view-today):not(#view-external):not(#view-settings)::before {
  content:"Dit interne scherm is afgeschermd in klantmodus. Open Orderoverzicht of Overzichtplanner, of zet klantmodus uit.";
  display:block; padding:24px; border:1px solid #cbd9d2; border-radius:8px; background:white;
 }
@@ -23,5 +23,5 @@ html[data-customer-mode="on"] #printArea { display:none!important; }
 .customer-mode-close { display:none; }
 html[data-customer-mode="on"] #modalRoot:not(:has([data-customer-safe-modal])) .customer-mode-close { display:block; margin:16px; }
 
-html[data-customer-mode="on"] #view-settings > [data-customer-mode-settings] { display:block!important; }
+html[data-customer-mode="on"] #view-settings > :not([data-customer-mode-settings]) { display:none!important; }
 html[data-customer-mode="on"] #view-settings::before { display:none!important; }

@@ -1,3 +1,7 @@
+## 2026-09-30 — Klantmodus instellingen bereikbaar
+
+Instellingen uitgezonderd van de algemene schermblokkade; alleen de klantmodusschakelaar blijft zichtbaar terwijl de overige instellingen verborgen zijn. Dit voorkomt dat de hogere CSS-specificiteit de schakelaar alsnog verbergt.
+
 ## Klantmodus
 
 - Schakelaar bij Instellingen met lokale voorkeur; werkt ook na verversen en in andere tabbladen.
