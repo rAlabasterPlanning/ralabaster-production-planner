@@ -1,3 +1,7 @@
+## 2026-09-30 — Order closeout review and Outlook PDF draft
+
+Orderoverzicht provides Order afgerond. Review actual task minutes, consumption, notes, quantity and material weights before archiving. Store checked timestamp and then show delivery actions. Outlook draft downloads an X-Unsent MIME .eml with customer address, editable body and PDF attachment; user opens it in Outlook and sends manually. Web Share and mailto/download fallbacks available. No automatic sending. PDF excludes internal timings, consumption and margins. Browser cannot silently launch a downloaded file; desktop Outlook compatibility requires device validation.
+
 ## 2026-09-30 — Daily recovery snapshots and quotation guard
 
 Private database snapshots capture shared metadata, all normalized order/task records including deleted/archived records, worker configuration and legacy state nightly at 02:00 UTC; retained for 90 days. Initial snapshot created immediately. Quotation updates retain before/after versions and preserve missing records unless explicitly removed with a new confirmed deletion intent. Client sends its last cloud quotation baseline so unchanged stale quotes cannot overwrite remote edits. Recovery tables/functions are inaccessible to normal clients. These are in-database recovery copies, not an independent disaster-recovery backup.

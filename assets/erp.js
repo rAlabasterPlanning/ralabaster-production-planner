@@ -226,7 +226,7 @@ function renderOrderOverview(){
    <td ${o.needsCalculation?'':'data-earliest-delivery="'+esc(o.id)+'"'}><span class="muted">${o.needsCalculation?'Na uitwerken':'Berekenen…'}</span></td>
    <td>${(()=>{if(o.needsCalculation)return '<span class="muted">Na uitwerken</span>';const today=iso(),late=o.productionLatestWorkDate&&o.productionLatestWorkDate<today,due=o.productionLatestStartDate&&o.productionLatestStartDate<=today;if(late)return '<b>TE LAAT</b>';if(due)return '<b>DIRECT STARTEN</b>';if(o.productionLatestStartWeek&&o.productionLatestStartDate)return '<b>Week '+esc(String(o.productionLatestStartWeek).slice(-2))+'</b><div class="muted">'+esc(o.productionLatestStartDate)+'</div>';return '<b>Nog berekenen</b>'})()}</td>
    <td><b>${o.needsCalculation?'Nog calculeren / aanvullen':esc(n.task?.name||'Gereed')}</b><div class="muted">${esc(n.task?.machine||'')}</div></td>
-   <td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')">Open</button></td>
+   <td><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')">Open</button> ${o.needsCalculation?'':'<button class="btn small primary" type="button" data-closeout-order-button="'+esc(o.id)+'">Order afgerond</button>'}</td>
  </tr>`}).join('')||'<tr><td colspan="8">Geen actieve orders.</td></tr>'}
  </tbody></table></div>`;
  setTimeout(refreshEarliestDeliveryDates,0);
