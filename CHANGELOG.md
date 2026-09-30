@@ -1,3 +1,10 @@
+# 2026-09-30 — Back-up- en herstelcentrum
+
+- Ieder uur wordt zeven dagen lang een volledig intern herstelpunt bewaard; dagelijkse herstelpunten blijven 90 dagen staan.
+- Instellingen toont de actuele back-upstatus en waarschuwt als de laatste kopie ouder dan 26 uur is.
+- Beheerders kunnen een volledig herstelbestand downloaden, een herstelpunt vooraf bekijken en het pas na een exacte bevestiging terugzetten.
+- Vóór ieder herstel wordt automatisch een extra veiligheidskopie gemaakt.
+
 # 2026-09-30 — Afgeronde orders en taken beschermd
 
 - Een oudere sessie kan een afgeronde order niet meer opnieuw actief maken.
