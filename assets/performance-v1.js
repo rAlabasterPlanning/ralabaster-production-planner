@@ -12,6 +12,8 @@
   let pendingViewFrame=0,cloudStamp='',exactMode=false,localPersistTimer=0;
   let syncInFlight=false,syncQueued=false,cloudDirty=false;
   let cloudQuotes=[];
+  let cloudMetadata={};
+  const OPERATIONAL_KEYS=new Set(['orders','tasks','quotes','quoteWriteBaseline','metadataWriteBaseline','pendingRecordDeletions','normalizedVersion']);
 
   const hash=x=>JSON.stringify(x);
   const yieldUI=()=>new Promise(resolve=>requestAnimationFrame(()=>resolve()));
@@ -79,12 +81,13 @@
         // A compact/local cache is never an authoritative list of deletions.
         const local=state;
         seedHashes(remoteState);
-        state={...remoteState,...local,orders:mergeRows(remoteState.orders,local.orders),tasks:mergeRows(remoteState.tasks,local.tasks),quotes:normalizedReady?mergeQuoteChanges(incomingQuotes,local.quotes||[],cloudQuotes):mergeRows(incomingQuotes,local.quotes||[])};
+        state={...remoteState,...mergeMetadata(meta,local,cloudMetadata,!normalizedReady),orders:mergeRows(remoteState.orders,local.orders),tasks:mergeRows(remoteState.tasks,local.tasks),pendingRecordDeletions:local.pendingRecordDeletions,quotes:normalizedReady?mergeQuoteChanges(incomingQuotes,local.quotes||[],cloudQuotes):mergeRows(incomingQuotes,local.quotes||[])};
         cloudDirty=true;
       }else{
         state=remoteState;seedHashes();
       }
       cloudQuotes=structuredClone(incomingQuotes);
+      cloudMetadata=structuredClone(meta);
       if(!Array.isArray(state.deletedTasks))state.deletedTasks=[];if(!Array.isArray(state.history))state.history=[];
       cloudStamp=metaRes.data?.updated_at||cloudStamp;normalizedReady=true;invalidate();scheduleLocalPersist();
       cloudStatus='online';renderOnlineBadge();
@@ -114,6 +117,20 @@
   }
   function mergeRows(remote,local){
     return [...new Map([...(remote||[]),...(local||[])].map(x=>[x.id,x])).values()];
+  }
+  function identifiedRows(list){return Array.isArray(list)&&list.every(x=>x&&typeof x==='object'&&x.id)}
+  function mergeMetadata(remote,local,baseline={},initial=false){
+    const result=Object.fromEntries(Object.entries(remote).filter(([key])=>!OPERATIONAL_KEYS.has(key)));
+    for(const [key,value] of Object.entries(local)){
+      if(OPERATIONAL_KEYS.has(key))continue;
+      const server=remote[key],before=baseline[key];
+      if(Array.isArray(server)&&Array.isArray(value)){
+        if(identifiedRows(server)&&identifiedRows(value)&&identifiedRows(before||[]))result[key]=initial?mergeRows(server,value):mergeQuoteChanges(server,value,before||[]);
+        else if(initial)result[key]=[...new Map([...server,...value].map(x=>[hash(x),x])).values()];
+        else if(hash(value)!==hash(before))result[key]=value;
+      }else if(initial||hash(value)!==hash(before))result[key]=value;
+    }
+    return result;
   }
   function mergeQuoteChanges(remote,local,baseline){
     const result=new Map(remote.map(q=>[q.id,q])),before=new Map(baseline.map(q=>[q.id,q])),current=new Map(local.map(q=>[q.id,q]));
@@ -208,12 +225,17 @@
     try{
       const {data:latest,error:readError}=await supabaseClient.from('planner_shared_state').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).maybeSingle();if(readError)throw readError;
       const localQuotes=hash(snapshot.quotes||[]);
+      const localMetadata=structuredClone(snapshot);
+      Object.assign(snapshot,mergeMetadata(latest?.data||{},snapshot,cloudMetadata));
       snapshot.quotes=mergeQuoteChanges(latest?.data?.quotes||[],snapshot.quotes||[],cloudQuotes);
       const {changedOrders,changedTasks}=await collectChanges(now,snapshot);
       if(changedOrders.length){const savedOrders=await upsertChunks('planner_orders_v2',changedOrders,true);acceptSavedDeadlines(savedOrders,snapshot)}
       if(changedTasks.length){const savedTasks=await upsertChunks('planner_tasks_v2',changedTasks,true);acceptSavedTaskProgress(savedTasks,snapshot)}
-      const meta={...snapshot,quoteWriteBaseline:cloudQuotes,orders:[],tasks:[],pendingRecordDeletions:{orders:[],tasks:[]},normalizedVersion:2};
-      const {error}=await supabaseClient.from('planner_shared_state').upsert({workspace_id:WORKSPACE_ID,data:meta,updated_at:now},{onConflict:'workspace_id'});if(error)throw error;
+      const meta={...snapshot,quoteWriteBaseline:cloudQuotes,metadataWriteBaseline:cloudMetadata,orders:[],tasks:[],pendingRecordDeletions:{orders:[],tasks:[]},normalizedVersion:2};
+      const {data:savedMeta,error}=await supabaseClient.from('planner_shared_state').upsert({workspace_id:WORKSPACE_ID,data:meta,updated_at:now},{onConflict:'workspace_id'}).select('data,updated_at').maybeSingle();if(error)throw error;
+      if(!savedMeta?.data)throw new Error('Opgeslagen planner-metadata kon niet worden bevestigd');
+      for(const [key,value] of Object.entries(savedMeta.data))if(!OPERATIONAL_KEYS.has(key)){snapshot[key]=value;if(hash(state[key])===hash(localMetadata[key]))state[key]=structuredClone(value)}
+      cloudMetadata=structuredClone(savedMeta.data);
       cloudStamp=now;
       cloudQuotes=structuredClone(snapshot.quotes);
       if(hash(state.quotes||[])===localQuotes)state.quotes=structuredClone(snapshot.quotes);
@@ -280,4 +302,5 @@
   let tries=0;const timer=setInterval(()=>{tries++;if(install()||tries>100)clearInterval(timer)},100);
   const normTimer=setInterval(async()=>{if(!installed||normalizedReady||normalizedInitBusy)return;if(typeof supabaseClient!=='undefined'&&supabaseClient&&typeof cloudUser!=='undefined'&&cloudUser){const ok=await loadNormalizedCloud(true);if(ok)clearInterval(normTimer)}},350);
 })();
+
 
