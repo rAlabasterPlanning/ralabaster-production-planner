@@ -1,3 +1,11 @@
+# 2026-10-01 — Preserve shared customer and product data
+
+Restore the missing 12 customers, 30 product templates, one order confirmation and two decision-log entries from the 11:15 UTC internal snapshot. Only those empty metadata lists were replaced; database hashes confirmed every order/task row remained unchanged. Captured full pre/post recovery snapshots.
+
+Pending startup and later metadata saves now preserve remote data and merge local changes against the last cloud snapshot. A database trigger protects nonempty customer/product/confirmation/decision lists from legacy clients submitting empty arrays without the matching write baseline. Confirmed saves return server metadata to the browser. Operational order/task persistence stays separate.
+
+Validation: metadata startup/merge/save regressions and existing record/quote safety tests; database protection checked in a rolled-back transaction. Missing historical quotations remain a separate unresolved recovery issue.
+
 # 2026-09-30 — Back-up- en herstelcentrum
 
 - Ieder uur wordt zeven dagen lang een volledig intern herstelpunt bewaard; dagelijkse herstelpunten blijven 90 dagen staan.
@@ -394,5 +402,6 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
   sleutels en wachtwoorden worden niet gedeeld.
 - Schrijven blijft gecontroleerd: voorstellen worden pas na Ralphs akkoord
   definitief en de AI bestuurt geen machines.
+
 
 

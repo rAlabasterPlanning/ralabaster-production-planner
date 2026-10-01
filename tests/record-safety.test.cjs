@@ -3,8 +3,29 @@ const {fullApp}=require('./full-app-fixture.cjs');
 function safety(){
  const source=fs.readFileSync(path.join(__dirname,'../assets/performance-v1.js'),'utf8').replace('  let tries=0;', '  window.testSafety={seedHashes,collectChanges,mergeRows,mergeQuoteChanges,preserveMissing,markDeleted,cancelDeletion,loadNormalizedCloud,saveNormalizedCloud};\n  let tries=0;');
  const values=new Map(),ctx=vm.createContext({window:{},state:{orders:[{id:'old',active:true,status:'confirmed'}],tasks:[{id:'task',orderId:'old',status:'open',planSegments:[{date:'2026-10-01',start:'08:15',minutes:30,employee:'Ralph'}]}]},localStorage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},KEY:'cache',WORKSPACE_ID:'ralabaster',structuredClone,setInterval:()=>1,clearInterval:()=>{},setTimeout:()=>1,clearTimeout:()=>{},requestAnimationFrame:fn=>fn(),console,isExternalTask:()=>false,isDryTask:()=>false,renderOnlineBadge:()=>{},cloudUser:{id:'user'},cloudStatus:'online',cloudLoading:false});
- vm.runInContext(source,ctx);ctx.window.testSafety.seedHashes();return ctx;
+ vm.runInContext(source.replace('mergeQuoteChanges,preserveMissing','mergeQuoteChanges,mergeMetadata,preserveMissing'),ctx);ctx.window.testSafety.seedHashes();return ctx;
 }
+test('pending startup preserves cloud customers and product templates',async()=>{
+ const c=safety();c.state.customers=[];c.state.productTemplates=[];c.localStorage.setItem('ralabaster_planner_pending_v1','pending');
+ const rows={planner_shared_state:{data:{data:{normalizedVersion:2,customers:[{id:'customer',name:'Existing'}],productTemplates:[{id:'product',name:'Template'}]},updated_at:'stamp'},error:null},planner_orders_v2:{data:[],error:null},planner_tasks_v2:{data:[],error:null}};
+ c.supabaseClient={from:table=>{const q={select:()=>q,eq:()=>q,order:()=>q,range:()=>Promise.resolve(rows[table]),maybeSingle:()=>Promise.resolve(rows[table])};return q}};
+ assert.equal(await c.window.testSafety.loadNormalizedCloud(),true);assert.equal(c.state.customers[0].id,'customer');assert.equal(c.state.productTemplates[0].id,'product');
+});
+test('metadata merges remote changes and retains explicit local edits and deletions',()=>{
+ const c=safety(),before={customers:[{id:'a',name:'Before'},{id:'delete'}],productTemplates:[{id:'p',name:'Before'}],setting:'old'};
+ const remote={customers:[{id:'a',name:'Remote'},{id:'delete'},{id:'new'}],productTemplates:before.productTemplates,setting:'remote',orders:[],tasks:[],normalizedVersion:2};
+ const local={customers:[{id:'a',name:'Before'}],productTemplates:[{id:'p',name:'Local'}],setting:'old',orders:[{id:'must-not-merge'}]};
+ const merged=c.window.testSafety.mergeMetadata(remote,local,before);
+ assert.deepEqual(Array.from(merged.customers,x=>x.id),['a','new']);assert.equal(merged.customers[0].name,'Remote');assert.equal(merged.productTemplates[0].name,'Local');assert.equal(merged.setting,'remote');assert.equal(merged.orders,undefined);
+});
+test('saving metadata preserves remote customers and the operational snapshot',async()=>{
+ const c=safety();let data={normalizedVersion:2,customers:[{id:'customer',name:'Initial'}],productTemplates:[{id:'p',name:'Before'}],quotes:[]},written;
+ const order={id:'active',active:true},task={id:'task',orderId:'active',status:'open'};
+ c.supabaseClient={from:table=>{const q={select:()=>q,eq:()=>q,order:()=>q,range:()=>Promise.resolve({data:[{data:table==='planner_orders_v2'?order:task}],error:null}),maybeSingle:()=>Promise.resolve({data:{data,updated_at:'stamp'},error:null}),upsert:payload=>{assert.equal(table,'planner_shared_state');written=structuredClone(payload.data);data=written;return q}};return q}};
+ assert.equal(await c.window.testSafety.loadNormalizedCloud(),true);c.state.productTemplates[0].name='Local edit';data.customers.push({id:'remote-new'});
+ await c.window.testSafety.saveNormalizedCloud();
+ assert.equal(c.window.__RALAB_LAST_SYNC_ERROR,undefined);assert.equal(written.customers.length,2);assert.equal(written.productTemplates[0].name,'Local edit');assert.equal(written.orders.length,0);assert.equal(c.state.orders[0].id,'active');assert.equal(c.state.tasks[0].id,'task');assert.equal(c.state.customers.length,2);
+});
 test('a partial local snapshot never becomes a bulk deletion',async()=>{
  const c=safety();c.state={orders:[{id:'new',active:true}],tasks:[]};
  const changes=await c.window.testSafety.collectChanges('2026-09-30T00:00:00Z');
@@ -105,3 +126,4 @@ test('confirmed quotation deletion registers an explicit intent for each line',a
  w.RALAB_DOCS.openQuote('SAFE-001');await f.wait(30);d.querySelector('[data-delete-quote]').click();await f.wait(30);
  assert.equal(f.state().quotes.length,0);assert.deepEqual(f.state().quoteDeletionIntents.map(x=>x.id),['guard-1','guard-2']);assert.ok(f.state().quoteDeletionIntents.every(x=>Number.isFinite(Date.parse(x.at))));assert.deepEqual(f.errors,[]);
 });
+
