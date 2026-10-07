@@ -39,7 +39,10 @@ async function requirePlannerAdmin(client,user){
  if(error)throw error;
  if(data?.user_id)return true;
  const {data:member}=await client.from('portal_customer_users').select('user_id').eq('user_id',user.id).eq('active',true).maybeSingle();
- if(member?.user_id){location.replace('/portal');return false}
+ if(member?.user_id){
+  await client.auth.signOut();
+  const e=new Error('U was ingelogd als klant. Log hieronder in met uw planneraccount.');e.code='CUSTOMER_SESSION';throw e;
+ }
  throw new Error('Dit account heeft geen toegang tot de hoofdplanner.');
 }
 
@@ -63,12 +66,14 @@ async function boot(){
  }
  const client=window.supabase.createClient(CFG.supabaseUrl,CFG.supabasePublishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
  window.RALAB_ADMIN_AUTH={client};
+ let bootMessage='';
  try{
   const {data,error}=await client.auth.getSession();
   if(error)throw error;
   if(data?.session?.user){if(await requirePlannerAdmin(client,data.session.user)){reveal();return}return}
- }catch(e){console.error(e)}
+ }catch(e){console.error(e);bootMessage=e?.code==='CUSTOMER_SESSION'?e.message:''}
  const gate=gateHtml(),form=gate.querySelector('#ralabAuthForm'),err=gate.querySelector('#ralabAuthError'),btn=gate.querySelector('#ralabAuthSubmit');
+ if(bootMessage)err.textContent=bootMessage;
  form.addEventListener('submit',async e=>{
   e.preventDefault();err.textContent='';btn.disabled=true;btn.textContent='Bezig met inloggen…';
   const email=gate.querySelector('#ralabAuthEmail').value.trim(),password=gate.querySelector('#ralabAuthPassword').value;
@@ -79,7 +84,7 @@ async function boot(){
    if(!await requirePlannerAdmin(client,data.session.user))return;
    localStorage.setItem(AUTH_EMAIL_KEY,email);
    location.reload();
-  }catch(e){err.textContent='Inloggen mislukt. Controleer e-mailadres en wachtwoord.';btn.disabled=false;btn.textContent='Inloggen'}
+  }catch(e){err.textContent=e?.code==='CUSTOMER_SESSION'?e.message:'Inloggen mislukt. Controleer e-mailadres en wachtwoord.';btn.disabled=false;btn.textContent='Inloggen'}
  });
 }
 boot();
