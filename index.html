@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="assets/ai-planner-v1.css?v=20260922-1">
 <link rel="stylesheet" href="assets/ai-planner-v2.css?v=20260922-3">
 <link rel="stylesheet" href="assets/customer-mode.css?v=20260930-3">
+<link rel="stylesheet" href="assets/inventory-v1.css?v=20261007-1">
 <script src="assets/customer-mode.js?v=20260930-1"></script>
 <style>
 .nav-more-menu[hidden]{display:none!important}
@@ -37,6 +38,7 @@
     <button class="navbtn erp-nav" data-view="products">Producten</button>
     <button class="navbtn" data-view="workplaces">Werkplekken</button>
     <button class="navbtn" data-view="tooling">Gereedschap</button>
+    <button class="navbtn erp-nav" data-view="inventory">Voorraad</button>
     <button class="navbtn erp-nav" data-view="customers">Klanten</button>
     <button class="navbtn" data-view="portaladmin">Klantportaal</button>
     <button class="navbtn" data-view="history">Historie</button>
@@ -60,6 +62,7 @@
 <section id="view-products" class="hidden"></section>
 <section id="view-workplaces" class="hidden"></section>
 <section id="view-tooling" class="hidden"></section>
+<section id="view-inventory" class="hidden"></section>
 <section id="view-customers" class="hidden"></section>
 <section id="view-portaladmin" class="hidden"></section>
 <section id="view-import" class="hidden"></section>
@@ -87,6 +90,8 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/quote-meta.js?v=20260923-2"></script>
 <script src="assets/order-actions.js?v=20260930-1"></script>
 <script src="assets/products.js?v=20261007-fixed-price-1"></script>
+<script src="assets/inventory-v1.js?v=20261007-1"></script>
+<script src="assets/inventory-product-fields-v1.js?v=20261007-1"></script>
 <script src="assets/products-sequence-v2.js?v=20260911-1"></script>
 <script src="assets/workplaces-v1.js?v=20260921-1"></script>
 <script src="assets/commercial.js?v=20260925-3"></script>
