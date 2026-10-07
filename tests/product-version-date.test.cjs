@@ -102,3 +102,17 @@ test('multi-product totaal blijft direct juist na aantallen wijzigen en productw
  change(w,d.getElementById('cQty'),'5');await f.wait(50);assert.match(d.getElementById('cCalcTotalSale').textContent,/650,00/);
  d.querySelector('[data-cui-product="0"]').click();await f.wait(160);assert.equal(d.getElementById('cManualSalePrice').value,'100');assert.match(d.getElementById('cCalcTotalSale').textContent,/650,00/);assert.deepEqual(f.errors,[]);
 });
+
+test('calculatie onthoudt de productprijs en maakt bij latere prijswijziging een nieuwe versie',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;
+ w.HTMLElement.prototype.scrollIntoView=()=>{};
+ vm.runInContext("state.productTemplates.push({id:'price-version-base',name:'Prijsversie lamp',version:3,materialCost:10,materialMode:'unit',marginMode:'factor',marginValue:3,manualSalePrice:null,saleUnit:null,ops:[{id:'op20',name:'Schuren',rate:26,mode:'unit',minutes:5,externalBatch:0,externalUnit:0}],updated:'2026-10-01'})",f.ctx);
+ d.querySelector('.navbtn[data-view="calculation"]').click();await f.wait(220);
+ let choice=d.getElementById('cuiTemplateChoice');choice.value='price-version-base';choice.dispatchEvent(new w.Event('change',{bubbles:true}));await f.wait(100);
+ let price=d.getElementById('cManualSalePrice');price.value='160,50';price.dispatchEvent(new w.Event('input',{bubbles:true}));price.dispatchEvent(new w.Event('change',{bubbles:true}));await f.wait(80);
+ let family=f.state().productTemplates.filter(x=>x.name==='Prijsversie lamp');assert.equal(family.length,1);assert.equal(family[0].saleUnit,160.5);assert.equal(family[0].version,3);
+ w.RALAB_CALC.newCalc();await f.wait(180);choice=d.getElementById('cuiTemplateChoice');choice.value='price-version-base';choice.dispatchEvent(new w.Event('change',{bubbles:true}));await f.wait(100);assert.equal(d.getElementById('cManualSalePrice').value,'160.5');
+ price=d.getElementById('cManualSalePrice');price.value='175';price.dispatchEvent(new w.Event('input',{bubbles:true}));price.dispatchEvent(new w.Event('change',{bubbles:true}));await f.wait(80);
+ family=f.state().productTemplates.filter(x=>x.name==='Prijsversie lamp').sort((a,b)=>a.version-b.version);assert.equal(family.length,2);assert.deepEqual(family.map(x=>x.version),[3,4]);assert.equal(family[0].saleUnit,160.5);assert.equal(family[1].saleUnit,175);assert.equal(w.RALAB_CALC_UI.products[0].templateId,family[1].id);
+ w.RALAB_CALC.newCalc();await f.wait(180);choice=d.getElementById('cuiTemplateChoice');choice.value=family[1].id;choice.dispatchEvent(new w.Event('change',{bubbles:true}));await f.wait(100);assert.equal(d.getElementById('cManualSalePrice').value,'175');assert.deepEqual(f.errors,[]);
+});
