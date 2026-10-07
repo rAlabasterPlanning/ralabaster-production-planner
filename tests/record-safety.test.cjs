@@ -131,6 +131,16 @@ test('ordernummer is direct aanpasbaar zonder een order of taak te dupliceren',a
  assert.equal(f.state().orders.find(x=>x.id==='rename-order').orderNo,'NIEUW-001');assert.equal(f.state().orders.length,orderCount);assert.equal(f.state().tasks.length,taskCount);assert.equal(f.state().tasks.find(x=>x.id==='rename-task').orderId,'rename-order');
  input=d.querySelector('[data-overview-order-no="rename-order"]');input.value='BESTAAT-002';input.dispatchEvent(new w.Event('change',{bubbles:true}));await f.wait(50);assert.equal(f.state().orders.find(x=>x.id==='rename-order').orderNo,'NIEUW-001');assert.match(alerts.at(-1),/bestaat al/i);assert.deepEqual(f.errors,[]);
 });
+test('deadline opslaan houdt de schermvolgorde vast tot het ordertabblad opnieuw opent',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;
+ vm.runInContext("state.orders.push({id:'deadline-first',orderNo:'DEADLINE-A',product:'Eerste',customerName:'Klant',qty:1,active:true,status:'confirmed',communicatedDeadline:'2026-10-10',deadline:'2026-10-10'},{id:'deadline-second',orderNo:'DEADLINE-B',product:'Tweede',customerName:'Klant',qty:1,active:true,status:'confirmed',communicatedDeadline:'2026-10-20',deadline:'2026-10-20'})",f.ctx);w.RALAB_PERFORMANCE.invalidate();
+ w.RALAB_ERP.show('orderoverview');await f.wait(80);
+ const ids=()=>[...d.querySelectorAll('[data-overview-order]')].map(x=>x.dataset.overviewOrder),before=ids();assert.ok(before.indexOf('deadline-first')<before.indexOf('deadline-second'));
+ const input=d.querySelector('[data-overview-deadline="deadline-first"]');input.value='2026-10-30';input.dispatchEvent(new w.Event('change',{bubbles:true}));await f.wait(120);
+ const during=ids();assert.ok(during.indexOf('deadline-first')<during.indexOf('deadline-second'));assert.equal(f.state().orders.find(x=>x.id==='deadline-first').deadline,'2026-10-30');
+ w.RALAB_ERP.show('products');await f.wait(30);w.RALAB_ERP.show('orderoverview');await f.wait(80);
+ const after=ids();assert.ok(after.indexOf('deadline-second')<after.indexOf('deadline-first'));assert.deepEqual(f.errors,[]);
+});
 test('customer mode persists locally, protects details and keeps sale prices and quick orders',async t=>{
  const f=await fullApp(t),w=f.w,d=w.document;
  const style=d.createElement('style');style.textContent=fs.readFileSync(path.join(__dirname,'../assets/customer-mode.css'),'utf8');d.head.append(style);
