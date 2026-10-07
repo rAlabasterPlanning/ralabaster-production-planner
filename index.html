@@ -38,6 +38,7 @@
     <button class="navbtn" data-view="workplaces">Werkplekken</button>
     <button class="navbtn" data-view="tooling">Gereedschap</button>
     <button class="navbtn erp-nav" data-view="customers">Klanten</button>
+    <button class="navbtn" data-view="portaladmin">Klantportaal</button>
     <button class="navbtn" data-view="history">Historie</button>
     <button class="navbtn" data-view="settings">Instellingen</button>
   </div>
@@ -60,6 +61,7 @@
 <section id="view-workplaces" class="hidden"></section>
 <section id="view-tooling" class="hidden"></section>
 <section id="view-customers" class="hidden"></section>
+<section id="view-portaladmin" class="hidden"></section>
 <section id="view-import" class="hidden"></section>
 <section id="view-history" class="hidden"></section>
 <section id="view-settings" class="hidden"></section>
@@ -72,7 +74,7 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="assets/config.js?v=20260913-1"></script>
-<script src="assets/admin-auth.js?v=20260910-1"></script>
+<script src="assets/admin-auth.js?v=20261007-portal-1"></script>
 <script src="assets/app-loader.js?v=20260930-closeout-1"></script>
 <script src="assets/custom.js"></script>
 <script src="assets/calculator.js?v=20260925-2"></script>
@@ -105,7 +107,9 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/bulk-excel-import-v1.js?v=20260913-4"></script>
 <script src="assets/bulk-excel-gildemeister-v1.js?v=20260911-2"></script>
 <script src="assets/planning-product-batching-v2.js?v=20260911-2"></script>
-<script src="assets/performance-v1.js?v=20261007-backup-flush-1"></script>\n<script src="assets/backup-recovery-v1.js?v=20261007-full-backup-1"></script>
+<script src="assets/performance-v1.js?v=20261007-backup-flush-2"></script>
+<script src="assets/backup-recovery-v1.js?v=20261007-full-backup-2"></script>
+<script src="assets/customer-portal-admin-v1.js?v=20261007-1"></script>
 <script src="assets/order-calculation-workflow-v1.js?v=20260913-13"></script>
 <script src="assets/order-calculation-bridge-v1.js?v=20260930-1"></script>
 <script src="assets/order-calculation-open-fix-v1.js?v=20260911-1"></script>

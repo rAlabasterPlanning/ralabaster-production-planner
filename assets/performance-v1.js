@@ -255,15 +255,14 @@
     }
   }
 
-  async function flushCloudSave(timeoutMs=20000){
+  async function flushCloudSave(timeoutMs=90000){
     if(!supabaseClient||!cloudUser)throw new Error('Log eerst in bij Supabase.');
     if(!normalizedReady){const loaded=await loadNormalizedCloud(true);if(!loaded)throw new Error('De actuele plannergegevens konden niet worden geladen.');}
-    const deadline=Date.now()+Math.max(1000,Number(timeoutMs)||20000);
+    const deadline=Date.now()+Math.max(1000,Number(timeoutMs)||90000);let lastAttempt=0;
     while(syncInFlight||syncQueued||cloudDirty||localStorage.getItem(PENDING_KEY)){
-      if(Date.now()>=deadline)throw new Error('Niet alle wijzigingen zijn op tijd naar Supabase opgeslagen. Probeer het opnieuw.');
-      if(!syncInFlight&&(cloudDirty||localStorage.getItem(PENDING_KEY)))await saveNormalizedCloud();
-      if(window.__RALAB_LAST_SYNC_ERROR&&(cloudDirty||localStorage.getItem(PENDING_KEY)))throw new Error(window.__RALAB_LAST_SYNC_ERROR);
-      await new Promise(resolve=>setTimeout(resolve,50));
+      if(Date.now()>=deadline)throw new Error(window.__RALAB_LAST_SYNC_ERROR||'Niet alle wijzigingen zijn op tijd naar Supabase opgeslagen. Probeer het opnieuw.');
+      if(!syncInFlight&&(cloudDirty||localStorage.getItem(PENDING_KEY))&&Date.now()-lastAttempt>=1000){lastAttempt=Date.now();await saveNormalizedCloud()}
+      await new Promise(resolve=>setTimeout(resolve,100));
     }
     return true;
   }
