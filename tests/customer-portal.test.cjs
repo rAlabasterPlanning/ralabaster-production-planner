@@ -50,5 +50,6 @@ test('planner contains portal management and role gate',()=>{
  assert.match(admin,/Product aan deze klant koppelen/);
  assert.match(admin,/data-portal-convert/);
  assert.match(auth,/requirePlannerAdmin/);
- assert.match(auth,/location\.replace\('\/portal'\)/);
+ assert.match(auth,/CUSTOMER_SESSION/);
+ assert.match(auth,/await client\.auth\.signOut\(\)/);
 });
