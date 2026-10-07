@@ -22,7 +22,7 @@ async function exportNow(btn){
  try{
   btn.textContent='Wijzigingen opslaan…';
   const flush=window.RALAB_PERFORMANCE?.flushCloudSave;if(typeof flush!=='function')throw new Error('De veilige synchronisatie is nog niet geladen. Vernieuw de pagina en probeer opnieuw.');
-  await flush();
+  await flush(90000);
   btn.textContent='Back-up maken…';
   const x=await rpc('planner_export_backup'),stamp=new Date(x?.exportedAt||Date.now()).toISOString().replace(/[:.]/g,'-');
   download(`rAlabaster-volledige-backup-${stamp}.json`,JSON.stringify(x,null,2));

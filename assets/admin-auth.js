@@ -34,6 +34,15 @@ function reveal(){
  addLogout();
 }
 
+async function requirePlannerAdmin(client,user){
+ const {data,error}=await client.from('portal_admins').select('user_id').eq('user_id',user.id).maybeSingle();
+ if(error)throw error;
+ if(data?.user_id)return true;
+ const {data:member}=await client.from('portal_customer_users').select('user_id').eq('user_id',user.id).eq('active',true).maybeSingle();
+ if(member?.user_id){location.replace('/portal');return false}
+ throw new Error('Dit account heeft geen toegang tot de hoofdplanner.');
+}
+
 function addLogout(){
  if(document.getElementById('ralabAdminLogout'))return;
  const header=document.querySelector('header');if(!header)return;
@@ -57,7 +66,7 @@ async function boot(){
  try{
   const {data,error}=await client.auth.getSession();
   if(error)throw error;
-  if(data?.session?.user){reveal();return}
+  if(data?.session?.user){if(await requirePlannerAdmin(client,data.session.user)){reveal();return}return}
  }catch(e){console.error(e)}
  const gate=gateHtml(),form=gate.querySelector('#ralabAuthForm'),err=gate.querySelector('#ralabAuthError'),btn=gate.querySelector('#ralabAuthSubmit');
  form.addEventListener('submit',async e=>{
@@ -67,6 +76,7 @@ async function boot(){
    const {data,error}=await client.auth.signInWithPassword({email,password});
    if(error)throw error;
    if(!data?.session)throw new Error('Geen geldige sessie ontvangen.');
+   if(!await requirePlannerAdmin(client,data.session.user))return;
    localStorage.setItem(AUTH_EMAIL_KEY,email);
    location.reload();
   }catch(e){err.textContent='Inloggen mislukt. Controleer e-mailadres en wachtwoord.';btn.disabled=false;btn.textContent='Inloggen'}
