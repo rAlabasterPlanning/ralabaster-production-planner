@@ -82,6 +82,7 @@ test('quick order supports free text, sorts first, persists and links later',asy
  const f=await fullApp(t),w=f.w,d=w.document;w.alert=()=>{};
  w.RALAB_ERP.show('orderoverview');await f.wait(60);const before=f.state();
  d.querySelector('[data-quick-order]').click();await f.wait(20);
+ const newMode=d.querySelector('input[name="quickProductMode"][value="new"]');newMode.click();assert.equal(newMode.checked,true);assert.equal(d.getElementById('quickProduct').disabled,false);assert.equal(d.getElementById('quickExistingProduct').disabled,true);
  d.getElementById('quickCustomer').value='Nieuwe klant uit mijn hoofd';d.getElementById('quickProduct').value='Nieuwe lamp';d.getElementById('quickNote').value='Eerst tekening bekijken';
  d.getElementById('quickOrderForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await f.wait(120);
  const added=f.state().orders.find(o=>o.needsCalculation);assert.ok(added);assert.equal(added.customerId,'');assert.equal(added.customerName,'Nieuwe klant uit mijn hoofd');assert.equal(added.quantityPending,true);assert.equal(f.state().tasks.length,before.tasks.length);assert.equal(d.querySelector('[data-overview-order]').dataset.overviewOrder,added.id);assert.match(d.querySelector('[data-overview-order]').textContent,/Nog calculeren \/ aanvullen/);
@@ -96,8 +97,22 @@ test('quick order supports free text, sorts first, persists and links later',asy
 });
 test('quick order matches an existing customer without creating duplicates',async t=>{
  const f=await fullApp(t),w=f.w,d=w.document;w.alert=()=>{};vm.runInContext("state.customers.push({id:'existing',name:'Ztahl'});",f.ctx);const count=f.state().customers.length;
- w.RALAB_ERP.show('orderoverview');await f.wait(40);d.querySelector('[data-quick-order]').click();d.getElementById('quickCustomer').value=' ztahl ';d.getElementById('quickProduct').value='Lamp';d.getElementById('quickOrderForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await f.wait(70);
+ w.RALAB_ERP.show('orderoverview');await f.wait(40);d.querySelector('[data-quick-order]').click();d.querySelector('input[name="quickProductMode"][value="new"]').click();d.getElementById('quickCustomer').value=' ztahl ';d.getElementById('quickProduct').value='Lamp';d.getElementById('quickOrderForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await f.wait(70);
  assert.equal(f.state().orders.find(o=>o.needsCalculation).customerId,'existing');assert.equal(f.state().customers.length,count);
+});
+test('quick order clearly switches between an existing and a new product',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;w.alert=()=>{};vm.runInContext("state.productTemplates=[{id:'template-1',name:'Bestaande lamp',version:2,ops:[]}];",f.ctx);
+ w.RALAB_ERP.show('orderoverview');await f.wait(40);d.querySelector('[data-quick-order]').click();await f.wait(20);
+ assert.equal(d.querySelector('input[name="quickProductMode"][value="existing"]').checked,true);assert.equal(d.getElementById('quickExistingProduct').disabled,false);assert.equal(d.getElementById('quickProduct').disabled,true);
+ d.getElementById('quickCustomer').value='Klant';d.getElementById('quickExistingProduct').value='Bestaande lamp';d.getElementById('quickOrderForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await f.wait(80);
+ const added=f.state().orders.find(o=>o.needsCalculation);assert.equal(added.product,'Bestaande lamp');assert.equal(added.productTemplateId,'template-1');assert.deepEqual(f.errors,[]);
+});
+test('a pending quick order product description can be edited directly',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;w.alert=()=>{};
+ w.RALAB_ERP.show('orderoverview');await f.wait(40);d.querySelector('[data-quick-order]').click();d.querySelector('input[name="quickProductMode"][value="new"]').click();d.getElementById('quickCustomer').value='Klant';d.getElementById('quickProduct').value='Eerste omschrijving';d.getElementById('quickOrderForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await f.wait(80);
+ const added=f.state().orders.find(o=>o.needsCalculation);await w.RALAB_ERP.openOrder(added.id);await f.wait(20);
+ const input=d.querySelector('[data-needs-calculation-product]');assert.equal(input.value,'Eerste omschrijving');input.value='Aangepaste productomschrijving';d.querySelector('[data-save-needs-product]').click();await f.wait(80);
+ assert.equal(f.state().orders.find(o=>o.id===added.id).product,'Aangepaste productomschrijving');assert.match(d.querySelector('.modalhead').textContent,/Aangepaste productomschrijving/);assert.deepEqual(f.errors,[]);
 });
 test('customer mode persists locally, protects details and keeps sale prices and quick orders',async t=>{
  const f=await fullApp(t),w=f.w,d=w.document;
@@ -126,4 +141,3 @@ test('confirmed quotation deletion registers an explicit intent for each line',a
  w.RALAB_DOCS.openQuote('SAFE-001');await f.wait(30);d.querySelector('[data-delete-quote]').click();await f.wait(30);
  assert.equal(f.state().quotes.length,0);assert.deepEqual(f.state().quoteDeletionIntents.map(x=>x.id),['guard-1','guard-2']);assert.ok(f.state().quoteDeletionIntents.every(x=>Number.isFinite(Date.parse(x.at))));assert.deepEqual(f.errors,[]);
 });
-
