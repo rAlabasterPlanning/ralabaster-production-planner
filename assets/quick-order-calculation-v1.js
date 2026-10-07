@@ -1,6 +1,6 @@
 // rAlabaster: snelle orders uitwerken in de normale calculatie en zonder duplicaat omzetten naar productieorder(s).
 (()=>{
-const VERSION='20261007-1';
+const VERSION='20261007-2';
 let activeQuickOrderId='',opening=false;
 let restoring=false;
 let selectedOpIds=new Set();
@@ -46,31 +46,43 @@ function open(id){
  try{window.RALAB_CALC?.newCalc?.()}finally{opening=false}
  setTimeout(()=>applyPrefill(o),30);return true;
 }
-function convertCreated(created){
- const s=S(),quick=quickOrder();if(!s||!quick||!quick.needsCalculation||!created.length)return false;
- const first=created[0],createdId=first.id,quickId=quick.id,product=window.RALAB_CALC_UI?.products?.[0]||{},ready=product.customerReadyDate||document.getElementById('cProductCustomerDate')?.value||document.getElementById('cDeadline')?.value||first.customerReadyDate||first.communicatedDeadline||first.deadline||'',original={id:quick.id,orderNo:quick.orderNo,note:quick.note,created:quick.created,createdAt:quick.createdAt,customerName:quick.customerName};
- Object.assign(quick,structuredClone(first),{id:quickId,note:original.note||first.note||'',created:original.created||first.created,createdAt:original.createdAt||first.createdAt,needsCalculation:false,quantityPending:false,status:'confirmed',calculationCompletedAt:new Date().toISOString(),quickOrderSource:true});
+function mergeCreatedIntoQuick(quick,first,count=1){
+ const s=S();if(!s||!quick||!first||quick.id===first.id)return false;
+ const createdId=first.id,quickId=quick.id,product=window.RALAB_CALC_UI?.products?.[0]||{},ready=quick.quickDraftReady||product.customerReadyDate||document.getElementById('cProductCustomerDate')?.value||document.getElementById('cDeadline')?.value||first.customerReadyDate||first.communicatedDeadline||first.deadline||'',original={id:quick.id,orderNo:quick.orderNo,note:quick.note,created:quick.created,createdAt:quick.createdAt,customerName:quick.customerName,draftQty:quick.quickDraftQty,draftProduct:quick.quickDraftProduct};
+ Object.assign(quick,structuredClone(first),{id:quickId,note:original.note||first.note||'',created:original.created||first.created,createdAt:original.createdAt||first.createdAt,needsCalculation:false,quantityPending:false,status:'confirmed',calculationCompletedAt:new Date().toISOString(),quickOrderSource:true,updatedAt:new Date().toISOString()});
  if(ready){quick.customerReadyDate=ready;quick.communicatedDeadline=ready;quick.deadline=ready}
- if(created.length===1)quick.orderNo=first.orderNo||original.orderNo;else quick.orderNo=first.orderNo||`${original.orderNo}-01`;
- s.orders=s.orders.filter(o=>o.id!==createdId);
+ if(original.draftQty)quick.qty=original.draftQty;if(original.draftProduct)quick.product=original.draftProduct;delete quick.quickDraftQty;delete quick.quickDraftProduct;delete quick.quickDraftReady;
  for(const t of s.tasks||[])if(t.orderId===createdId)t.orderId=quickId;
+ try{window.RALAB_PERFORMANCE?.markDeleted?.('orders',createdId)}catch(_){}
+ s.orders=s.orders.filter(o=>o.id!==createdId);
+ if(count===1)quick.orderNo=first.orderNo||original.orderNo;else quick.orderNo=first.orderNo||`${original.orderNo}-01`;
+ return true;
+}
+function convertCreated(created){
+ const quick=quickOrder();if(!quick||!quick.needsCalculation||!created.length||!mergeCreatedIntoQuick(quick,created[0],created.length))return false;
  try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
  try{save()}catch(e){console.error('Snelle order omzetten mislukt',e);alert('De calculatie is gemaakt, maar het samenvoegen met de snelle order kon niet worden opgeslagen.');return false}
  activeQuickOrderId='';document.getElementById('quickCalcContext')?.remove();setTimeout(()=>window.RALAB_ERP?.show?.('orderoverview'),20);return true;
 }
+function reconcilePendingDuplicates(){
+ const s=S();if(!s?.orders?.length)return false;let changed=false;
+ for(const quick of [...s.orders].filter(o=>o.needsCalculation&&!o.deleted&&String(o.orderNo||'').startsWith('SNEL-'))){const base=String(quick.orderNo||''),match=s.orders.find(o=>o.id!==quick.id&&!o.deleted&&!o.needsCalculation&&(String(o.orderNo||'')===base||String(o.orderNo||'')===base+'-01'));if(match&&mergeCreatedIntoQuick(quick,match,1))changed=true}
+ if(!changed)return false;try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}try{save()}catch(e){console.error('Dubbele snelle order herstellen mislukt',e);return false}setTimeout(()=>window.RALAB_ERP?.renderOrderOverview?.(),20);return true;
+}
 function install(){
  const calc=window.RALAB_CALC;if(!calc)return false;
  if(!calc.__quickOrderCalculationWrapped){
-  const oldConfirm=calc.confirmPlan;calc.confirmPlan=function(){const q=quickOrder();if(!q||!q.needsCalculation||!document.getElementById('quickCalcContext'))return oldConfirm.apply(this,arguments);const before=new Set((S()?.orders||[]).map(o=>o.id)),result=oldConfirm.apply(this,arguments),created=(S()?.orders||[]).filter(o=>!before.has(o.id));if(created.length)convertCreated(created);return result};
+  const oldConfirm=calc.confirmPlan;calc.confirmPlan=function(){const q=quickOrder();if(!q||!q.needsCalculation)return oldConfirm.apply(this,arguments);q.quickDraftQty=Math.max(1,num(document.getElementById('cQty')?.value)||1);q.quickDraftProduct=String(document.getElementById('cName')?.value||q.product||'').trim();q.quickDraftReady=document.getElementById('cProductCustomerDate')?.value||document.getElementById('cDeadline')?.value||q.quickDraftReady||'';const before=new Set((S()?.orders||[]).map(o=>o.id)),result=oldConfirm.apply(this,arguments),created=(S()?.orders||[]).filter(o=>!before.has(o.id));if(created.length)convertCreated(created);return result};
   const oldNew=calc.newCalc;calc.newCalc=function(){if(!opening){activeQuickOrderId='';document.getElementById('quickCalcContext')?.remove()}return oldNew.apply(this,arguments)};
   calc.__quickOrderCalculationWrapped=true;
  }
- window.RALAB_QUICK_CALC={version:VERSION,open,get activeOrderId(){return activeQuickOrderId}};return true;
+ window.RALAB_QUICK_CALC={version:VERSION,open,reconcile:reconcilePendingDuplicates,get activeOrderId(){return activeQuickOrderId}};return true;
 }
 document.addEventListener('change',e=>{if(e.target.id!=='cCustomer'||!activeQuickOrderId)return;const o=quickOrder(),id=e.target.value,c=S()?.customers?.find(x=>x.id===id);if(o&&id){o.customerId=id;o.customerName=c?.name||o.customerName;o.updatedAt=new Date().toISOString()}},true);
+document.addEventListener('change',e=>{if(!activeQuickOrderId)return;const o=quickOrder();if(!o)return;if(e.target.id==='cQty')o.quickDraftQty=Math.max(1,num(e.target.value)||1);if(e.target.id==='cName')o.quickDraftProduct=String(e.target.value||'').trim();if(e.target.id==='cProductCustomerDate'||e.target.id==='cDeadline')o.quickDraftReady=e.target.value||''},true);
 function syncSelectedOps(){const ui=window.RALAB_CALC_UI,p=ui?.products?.[ui.active],root=document.getElementById('view-calculation');if(!p||!root)return;const ops=[];root.querySelectorAll('[data-opcheck]').forEach(cb=>{const id=cb.dataset.opcheck;if(!selectedOpIds.has(id))return;cb.checked=true;const row=cb.closest('tr');ops.push({id,name:row?.querySelector('td:nth-child(2) b')?.textContent?.trim()||id,rate:num(root.querySelector(`[data-rate="${id}"]`)?.value),mode:root.querySelector(`[data-mode="${id}"]`)?.value||'unit',minutes:num(root.querySelector(`[data-minutes="${id}"]`)?.value),externalBatch:num(root.querySelector(`[data-eb="${id}"]`)?.value),externalUnit:num(root.querySelector(`[data-eu="${id}"]`)?.value)})});p.ops=ops}
 document.addEventListener('change',e=>{if(!activeQuickOrderId||!e.target.matches?.('[data-opcheck]'))return;const id=e.target.dataset.opcheck;if(e.target.checked)selectedOpIds.add(id);else selectedOpIds.delete(id);syncSelectedOps()},true);
 document.addEventListener('click',e=>{if(activeQuickOrderId&&e.target.closest?.('#cuiLoadSteps'))syncSelectedOps()},true);
-if(!install())setTimeout(install,500);setTimeout(install,1800);
+if(!install())setTimeout(install,500);setTimeout(install,1800);window.addEventListener('ralabaster:state-loaded',()=>setTimeout(reconcilePendingDuplicates,80));setTimeout(reconcilePendingDuplicates,2300);
 new MutationObserver(()=>{const o=quickOrder();if(o?.needsCalculation&&!document.getElementById('view-calculation')?.classList.contains('hidden'))requestAnimationFrame(()=>{restorePrefillIfRebuilt(o);syncSelectedOps();if(!document.getElementById('quickCalcContext'))contextNotice(o)})}).observe(document.querySelector('main')||document.body,{subtree:true,childList:true});
 })();

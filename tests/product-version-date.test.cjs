@@ -72,3 +72,16 @@ test('productoverzicht en calculatiekeuze tonen alleen de nieuwste productversie
  assert.ok(!values.includes('version-old'));
  assert.deepEqual(f.errors,[]);
 });
+
+test('vaste productverkoopprijs wordt geladen en punt en komma werken in prijsvelden',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;
+ w.HTMLElement.prototype.scrollIntoView=()=>{};
+ vm.runInContext("state.productTemplates.push({id:'fixed-price-template',name:'Vaste prijs lamp',version:4,materialCost:12.5,materialMode:'unit',marginMode:'factor',marginValue:3,manualSalePrice:'149,95',saleUnit:'149,95',ops:[{id:'op20',name:'Schuren',rate:26,mode:'unit',minutes:5,externalBatch:0,externalUnit:0}],updated:'2026-10-07'})",f.ctx);
+ d.querySelector('.navbtn[data-view="calculation"]').click();await f.wait(220);
+ const choice=d.getElementById('cuiTemplateChoice');choice.value='fixed-price-template';choice.dispatchEvent(new w.Event('change',{bubbles:true}));await f.wait(100);
+ assert.equal(d.getElementById('cManualSalePrice').value,'149.95');assert.match(d.getElementById('cLiveSale').textContent,/149,95/);
+ const price=d.getElementById('cManualSalePrice');price.value='123,45';price.dispatchEvent(new w.Event('input',{bubbles:true}));assert.match(d.getElementById('cLiveSale').textContent,/123,45/);
+ price.value='124.75';price.dispatchEvent(new w.Event('input',{bubbles:true}));assert.match(d.getElementById('cLiveSale').textContent,/124,75/);
+ w.RALAB_MASTER.productForm('fixed-price-template');await f.wait(20);assert.equal(d.getElementById('mpSaleUnit').value,'149,95');d.getElementById('mpSaleUnit').value='151,75';d.getElementById('mpMatCost').value='13,25';w.RALAB_MASTER.saveProduct();
+ const saved=f.state().productTemplates.find(x=>x.id==='fixed-price-template');assert.equal(saved.saleUnit,151.75);assert.equal(saved.manualSalePrice,151.75);assert.equal(saved.materialCost,13.25);assert.deepEqual(f.errors,[]);
+});
