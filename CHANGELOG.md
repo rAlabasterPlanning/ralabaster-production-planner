@@ -1,3 +1,10 @@
+# 2026-10-07 — Snelle order: bestaand of nieuw product
+
+- **+ Snelle order** toont nu een duidelijke keuze tussen een bestaand product en een nieuw product.
+- Bij een nieuw product kan de productomschrijving volledig vrij worden ingevoerd.
+- Bij snelle orders met status **Nog calculeren / aanvullen** kan de productomschrijving direct vanuit de geopende order worden aangepast en opgeslagen.
+- Een aangepaste omschrijving wordt opnieuw aan een bestaande producttemplate gekoppeld als de naam exact overeenkomt; anders blijft het een nieuw product dat nog moet worden uitgewerkt.
+
 # 2026-10-01 — Preserve shared customer and product data
 
 Restore the missing 12 customers, 30 product templates, one order confirmation and two decision-log entries from the 11:15 UTC internal snapshot. Only those empty metadata lists were replaced; database hashes confirmed every order/task row remained unchanged. Captured full pre/post recovery snapshots.
@@ -402,6 +409,5 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
   sleutels en wachtwoorden worden niet gedeeld.
 - Schrijven blijft gecontroleerd: voorstellen worden pas na Ralphs akkoord
   definitief en de AI bestuurt geen machines.
-
 
 

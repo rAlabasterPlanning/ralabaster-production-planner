@@ -184,14 +184,24 @@ async function planCurrentSequence(button){
 function quickOrderForm(){
  if(!init())return;
  const s=S(),customers=(s.customers||[]).filter(c=>!c.deleted),products=[...new Set([...(s.productTemplates||[]).map(p=>p.name),...(s.orders||[]).filter(o=>!o.deleted).map(o=>o.product)].filter(Boolean))].sort();
- const html=`<div class="modalhead"><h3>Snelle order toevoegen</h3></div><form data-customer-safe-modal id="quickOrderForm"><div class="modalbody"><div class="grid2"><div class="field"><label for="quickCustomer">Klant *</label><input id="quickCustomer" class="input" list="quickCustomers" required autocomplete="off" placeholder="Kies of typ een klantnaam"><datalist id="quickCustomers">${customers.map(c=>`<option value="${esc(c.name)}"></option>`).join('')}</datalist><div class="muted">Een nieuwe naam kun je later aan een klantdossier koppelen.</div></div><div class="field"><label for="quickProduct">Product *</label><input id="quickProduct" class="input" list="quickProducts" required placeholder="Kies of typ een product"><datalist id="quickProducts">${products.map(p=>`<option value="${esc(p)}"></option>`).join('')}</datalist></div><div class="field"><label for="quickQty">Aantal (optioneel)</label><input id="quickQty" class="input" type="number" min="1" step="1" placeholder="Later invullen"></div><div class="field"><label for="quickDeadline">Gewenste datum (optioneel)</label><input id="quickDeadline" class="input" type="date"></div></div><div class="field" style="margin-top:12px"><label for="quickNote">Notitie (optioneel)</label><textarea id="quickNote" placeholder="Wat wil je later uitwerken?"></textarea></div><div class="notice">Deze order komt bovenaan als <b>Nog calculeren / aanvullen</b> en wordt nog niet ingepland.</div></div><div class="modalfoot"><button class="btn" type="button" onclick="closeModal()">Annuleren</button><button class="btn primary" type="submit">Snelle order opslaan</button></div></form>`;
- showModal(html);setTimeout(()=>document.getElementById('quickCustomer')?.focus(),0);
+ const startMode=products.length?'existing':'new';
+ const html=`<div class="modalhead"><h3>Snelle order toevoegen</h3></div><form data-customer-safe-modal id="quickOrderForm"><div class="modalbody"><div class="grid2"><div class="field"><label for="quickCustomer">Klant *</label><input id="quickCustomer" class="input" list="quickCustomers" required autocomplete="off" placeholder="Kies of typ een klantnaam"><datalist id="quickCustomers">${customers.map(c=>`<option value="${esc(c.name)}"></option>`).join('')}</datalist><div class="muted">Een nieuwe naam kun je later aan een klantdossier koppelen.</div></div><div class="field"><label>Product *</label><div style="display:flex;gap:8px;flex-wrap:wrap;margin:5px 0 9px"><label class="btn small"><input type="radio" name="quickProductMode" value="existing" ${startMode==='existing'?'checked':''}> Bestaand product</label><label class="btn small"><input type="radio" name="quickProductMode" value="new" ${startMode==='new'?'checked':''}> Nieuw product</label></div><div data-quick-existing-product><select id="quickExistingProduct" class="input"><option value="">Kies een bestaand product</option>${products.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}</select></div><div data-quick-new-product><input id="quickProduct" class="input" type="text" autocomplete="off" placeholder="Typ de nieuwe productomschrijving"><div class="muted">Je kunt hier volledig vrij typen.</div></div></div><div class="field"><label for="quickQty">Aantal (optioneel)</label><input id="quickQty" class="input" type="number" min="1" step="1" placeholder="Later invullen"></div><div class="field"><label for="quickDeadline">Gewenste datum (optioneel)</label><input id="quickDeadline" class="input" type="date"></div></div><div class="field" style="margin-top:12px"><label for="quickNote">Notitie (optioneel)</label><textarea id="quickNote" placeholder="Wat wil je later uitwerken?"></textarea></div><div class="notice">Deze order komt bovenaan als <b>Nog calculeren / aanvullen</b> en wordt nog niet ingepland.</div></div><div class="modalfoot"><button class="btn" type="button" onclick="closeModal()">Annuleren</button><button class="btn primary" type="submit">Snelle order opslaan</button></div></form>`;
+ showModal(html);setQuickProductMode(startMode);setTimeout(()=>document.getElementById('quickCustomer')?.focus(),0);
+}
+function setQuickProductMode(mode){
+ const form=document.getElementById('quickOrderForm');if(!form)return false;
+ mode=mode==='new'?'new':'existing';
+ const existing=form.querySelector('[data-quick-existing-product]'),fresh=form.querySelector('[data-quick-new-product]'),existingInput=document.getElementById('quickExistingProduct'),newInput=document.getElementById('quickProduct');
+ if(existing)existing.hidden=mode!=='existing';if(fresh)fresh.hidden=mode!=='new';
+ if(existingInput){existingInput.disabled=mode!=='existing';existingInput.required=mode==='existing'}
+ if(newInput){newInput.disabled=mode!=='new';newInput.required=mode==='new'}
+ return true;
 }
 function saveQuickOrder(){
  const form=document.getElementById('quickOrderForm');if(!form||!form.reportValidity())return false;
- const customerName=document.getElementById('quickCustomer').value.trim(),product=document.getElementById('quickProduct').value.trim();
+ const mode=form.querySelector('input[name="quickProductMode"]:checked')?.value||'existing',customerName=document.getElementById('quickCustomer').value.trim(),product=(mode==='new'?document.getElementById('quickProduct'):document.getElementById('quickExistingProduct')).value.trim();
  if(!customerName||!product)return false;
- const s=S(),customer=(s.customers||[]).find(c=>!c.deleted&&productContractKey(c.name)===productContractKey(customerName)),template=(s.productTemplates||[]).filter(t=>productContractKey(t.name)===productContractKey(product)).sort((a,b)=>(Number(b.version)||0)-(Number(a.version)||0))[0];
+ const s=S(),customer=(s.customers||[]).find(c=>!c.deleted&&productContractKey(c.name)===productContractKey(customerName)),template=mode==='existing'?(s.productTemplates||[]).filter(t=>productContractKey(t.name)===productContractKey(product)).sort((a,b)=>(Number(b.version)||0)-(Number(a.version)||0))[0]:null;
  const rawQty=document.getElementById('quickQty').value,qty=rawQty?Number(rawQty):0;
  const id='o_quick_'+(globalThis.crypto?.randomUUID?.()||Date.now()+'_'+Math.random().toString(36).slice(2)),stamp=new Date().toISOString();
  s.orders.push({id,orderNo:'SNEL-'+Date.now().toString().slice(-8),customerId:customer?.id||'',customerName:customer?.name||customerName,product,productTemplateId:template?.id||'',qty,quantityPending:!rawQty,deadline:document.getElementById('quickDeadline').value||'',note:document.getElementById('quickNote').value.trim(),active:true,status:'needs_calculation',needsCalculation:true,created:iso(),createdAt:stamp});
@@ -200,6 +210,7 @@ function saveQuickOrder(){
 }
 document.addEventListener('submit',e=>{if(e.target.id==='quickOrderForm'){e.preventDefault();saveQuickOrder()}});
 document.addEventListener('click',e=>{if(e.target.closest('[data-quick-order]')){e.preventDefault();quickOrderForm()}});
+document.addEventListener('change',e=>{if(e.target.matches?.('#quickOrderForm input[name="quickProductMode"]'))setQuickProductMode(e.target.value)});
 function renderOrderOverview(){
  if(!init())return;
  const root=document.getElementById('view-orderoverview'),s=S();if(!root)return;
@@ -305,7 +316,7 @@ async function openOrder(id){
    <button class="btn small" type="button" data-order-task-delete="${esc(t.id)}">Verwijderen</button>
  </div>`}).join('');
  const html=`<div data-customer-safe-modal hidden></div><div class="modalhead"><h3>${esc(o.orderNo)} · ${esc(o.customerName||'')} · ${esc(o.product)}</h3></div><div class="modalbody"><div class="grid3"><div><b>Status</b><br>${status({...o,id:o.id})}</div><div><b>Intern gereed</b><br>${esc(o.internalExpectedDate||'—')}</div><div><b>Klantdeadline</b><br>${esc(o.communicatedDeadline||o.deadline||'—')}</div></div>
- ${o.needsCalculation?'<div class="notice"><b>Nog calculeren / aanvullen</b> · '+esc(o.note||'')+'<br><button class="btn primary" type="button" data-order-to-calc="'+esc(o.id)+'">Order uitwerken</button></div>':''}
+ ${o.needsCalculation?'<div class="notice"><b>Nog calculeren / aanvullen</b> · '+esc(o.note||'')+'<label style="display:block;margin-top:10px"><b>Productomschrijving</b><input class="input" type="text" data-needs-calculation-product="'+esc(o.id)+'" value="'+esc(o.product||'')+'" style="width:100%;margin-top:5px"></label><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px"><button class="btn" type="button" data-save-needs-product="'+esc(o.id)+'">Omschrijving opslaan</button><button class="btn primary" type="button" data-order-to-calc="'+esc(o.id)+'">Order uitwerken</button></div></div>':''}
  <div style="display:flex;align-items:center;gap:10px;margin-top:18px"><h3 style="margin:0">Proces</h3><span class="pill">${ts.length} taken</span></div>
  <div style="display:grid;grid-template-columns:82px minmax(190px,1fr) 105px 140px 120px 110px 92px;gap:8px;margin-top:8px;padding:0 0 5px;font-size:12px;font-weight:700;color:var(--muted,#667)"><span></span><span>Taak / werkplek</span><span>Duur</span><span>Voorkeursmedewerker</span><span>Parallel</span><span></span><span></span></div><div>${rows||'<div class="muted">Nog geen taken.</div>'}</div>
  <div class="panel" style="padding:10px;margin-top:10px"><b>Taak toevoegen</b><div style="display:grid;grid-template-columns:minmax(170px,1fr) minmax(170px,1fr) 100px 135px 120px auto;gap:8px;margin-top:7px">
@@ -326,6 +337,16 @@ function saveAndCloseOrder(id){
  try{renderOrderOverview()}catch(_){}
  const root=document.getElementById('modalRoot');if(root)root.innerHTML='';
  return true;
+}
+function saveNeedsCalculationProduct(id){
+ const s=S(),o=s?.orders?.find(x=>x.id===id&&!x.deleted);if(!s||!o||!o.needsCalculation)return false;
+ const input=document.querySelector('[data-needs-calculation-product="'+CSS.escape(id)+'"]'),product=String(input?.value||'').trim();
+ if(!product){alert('Vul een productomschrijving in.');input?.focus();return false}
+ const template=(s.productTemplates||[]).filter(t=>productContractKey(t.name)===productContractKey(product)).sort((a,b)=>(Number(b.version)||0)-(Number(a.version)||0))[0];
+ o.product=product;o.productTemplateId=template?.id||'';o.updatedAt=new Date().toISOString();
+ try{save()}catch(e){console.error(e);alert('Productomschrijving kon niet worden opgeslagen.');return false}
+ try{window.RALAB_PERFORMANCE?.invalidate?.()}catch(_){}
+ renderOrderOverview();openOrder(id);return true;
 }
 function mutableTask(id){return S()?.tasks?.find(t=>t.id===id&&!t.deleted)||null}
 function renumberOrderTasks(orderId){(S()?.tasks||[]).filter(t=>t.orderId===orderId&&!t.deleted).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0)).forEach((t,i)=>t.seq=i+1)}
@@ -470,6 +491,7 @@ document.addEventListener('change',e=>{const pref=e.target.closest?.('[data-orde
 document.addEventListener('pointerdown',e=>{const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(!dl)return;e.preventDefault();e.stopPropagation();openDeadlineQuickPick(dl)},true);
 document.addEventListener('click',e=>{
  const seqPlan=e.target.closest?.('[data-plan-current-sequence]');if(seqPlan){e.preventDefault();planCurrentSequence(seqPlan);return}
+ const saveProduct=e.target.closest?.('[data-save-needs-product]');if(saveProduct){e.preventDefault();saveNeedsCalculationProduct(saveProduct.dataset.saveNeedsProduct);return}
  const saveClose=e.target.closest?.('[data-order-save-close]');if(saveClose){e.preventDefault();saveAndCloseOrder(saveClose.dataset.orderSaveClose);return}
  const contractAdd=e.target.closest?.('[data-contract-add]');if(contractAdd){e.preventDefault();addCustomerProductContract(contractAdd.dataset.contractAdd);return}
  const contractRemove=e.target.closest?.('[data-contract-remove]');if(contractRemove){e.preventDefault();removeCustomerProductContract(contractRemove.dataset.customerId,contractRemove.dataset.contractRemove);return}
@@ -488,7 +510,7 @@ document.addEventListener('click',e=>{
  const toggle=e.target.closest?.('[data-order-task-toggle]');if(toggle){e.preventDefault();toggleOrderTaskDone(toggle.dataset.orderTaskToggle);return}
  const del=e.target.closest?.('[data-order-task-delete]');if(del){e.preventDefault();removeOrderTask(del.dataset.orderTaskDelete);return}
  const star=e.target.closest?.('#view-orders [data-priority-order], #view-orderoverview [data-priority-order]');if(!star||star.disabled)return;e.preventDefault();e.stopPropagation();setOrderPriority(star.dataset.priorityOrder,star.dataset.priorityValue)},true);
-window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,setOrderTaskPreferred,setOrderTaskParallel,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask,copyOrder,confirmCopyOrder,nextStandardOrderNo,saveAndCloseOrder,addCustomerProductContract,removeCustomerProductContract,openContractProductionPrompt,createContractStockWork};
+window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,setOrderTaskPreferred,setOrderTaskParallel,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask,copyOrder,confirmCopyOrder,nextStandardOrderNo,saveAndCloseOrder,saveNeedsCalculationProduct,addCustomerProductContract,removeCustomerProductContract,openContractProductionPrompt,createContractStockWork};
 const priorityStyle=document.createElement('style');priorityStyle.textContent='.order-priority{display:inline-flex;gap:1px;white-space:nowrap}.priority-star{appearance:none;border:0;background:transparent;color:#b8bfbb;font-size:25px;line-height:1;padding:2px;cursor:pointer;touch-action:manipulation}.priority-star.active{color:#d99a00}.priority-star:focus-visible{outline:2px solid #176b55;border-radius:4px}@media(max-width:700px){.priority-star{font-size:29px;padding:4px}}';document.head.appendChild(priorityStyle);
 const overviewMobileStyle=document.createElement('style');overviewMobileStyle.textContent='@media(max-width:700px){.order-overview-panel{overflow:visible!important;background:transparent!important;border:0!important;box-shadow:none!important}.order-overview-list{display:block;min-width:0!important}.order-overview-list thead{display:none}.order-overview-list tbody{display:grid;gap:12px}.order-overview-list tr{display:grid;grid-template-columns:1fr 1fr;background:#fff;border:1px solid #dfe4e2;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(20,35,30,.08)}.order-overview-list td{display:block;padding:10px 12px!important;border:0!important;min-width:0}.order-overview-list td:before{content:attr(data-label);display:block;margin-bottom:4px;color:#68716e;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.02em}.order-overview-list td:nth-child(3),.order-overview-list td:nth-child(7),.order-overview-list .order-overview-actions{grid-column:1/-1}.order-overview-list .order-overview-actions{display:flex;gap:8px;padding-top:12px!important;border-top:1px solid #e5e9e7!important;background:#f7f9f8}.order-overview-list .order-overview-actions:before{display:none}.order-overview-list .order-overview-actions .btn{min-height:42px;flex:1;white-space:normal}.order-overview-list input[type=date]{width:100%;min-width:0}.order-overview-list td:nth-child(5),.order-overview-list td:nth-child(6){font-size:13px}}';document.head.appendChild(overviewMobileStyle);
 setTimeout(()=>{if(!init())return;document.querySelectorAll('.erp-nav').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();show(b.dataset.view)}));},1200);
@@ -500,4 +522,3 @@ document.addEventListener('click',e=>{
  const pr=e.target.closest('[data-customer-print]');if(pr){e.preventDefault();e.stopImmediatePropagation();window.RALAB_ERP?.printCustomerOrders?.(pr.dataset.customerPrint);return}
  const row=e.target.closest('#view-customers tr[data-customer-id]');if(row&&!e.target.closest('button,input,a,select')){e.preventDefault();window.RALAB_ERP?.openCustomer?.(row.dataset.customerId)}
 },true);
-
