@@ -29,10 +29,11 @@ function financials(o,tasks){
 }
 function deliveryStatusHtml(o){
  if(o.packingSlipSentAt)return `<span class="badge ok">Verzonden</span> <b>${esc(dateTime(o.packingSlipSentAt))}</b>${o.packingSlipRecipient?' · '+esc(o.packingSlipRecipient):''}`;
+ if(o.packingSlipFailureAt)return `<span class="badge bad">Verzending mislukt</span> ${esc(dateTime(o.packingSlipFailureAt))}${o.packingSlipRecipient?' · '+esc(o.packingSlipRecipient):''}`;
  if(o.packingSlipDraftAt)return `<span class="badge" style="background:#fff2cf;color:#795500">Concept gemaakt</span> ${esc(dateTime(o.packingSlipDraftAt))}${o.packingSlipRecipient?' · '+esc(o.packingSlipRecipient):''}`;
  return '<span class="badge bad">Nog niet verzonden</span>';
 }
-function actionModal(o,tasks){const s=stats(tasks),yieldText=o.yieldPct!=null?num(o.yieldPct).toLocaleString('nl-NL',{maximumFractionDigits:1})+'%':'—';return `<div data-customer-safe-modal hidden></div><div class="modalhead"><h3>Order afgerond – ${esc(o.orderNo)} – ${esc(o.product)}</h3></div><div class="modalbody"><div class="grid3"><div class="pill"><strong>Aantal</strong><br>${num(o.completedQty||o.qty)}</div><div class="pill" data-internal-finance><strong>Rendement</strong><br>${yieldText}</div><div class="pill" data-internal-finance><strong>Tijd</strong><br>${minutes(s.actual)} werkelijk / ${minutes(s.estimate)} begroot</div></div><div class="notice" style="margin-top:16px"><b>Pakbonstatus</b><div data-packing-status style="margin-top:6px">${deliveryStatusHtml(o)}</div></div><div class="field" style="margin-top:16px"><label for="completedDeliveryNote"><b>Opmerking op pakbon</b></label><textarea id="completedDeliveryNote" class="input" rows="3" data-completed-note="${esc(o.id)}" placeholder="Bijv. deellevering, verpakking of aandachtspunt">${esc(o.deliveryNote||'')}</textarea><div class="muted" data-completed-note-status>Wordt automatisch opgeslagen en op de pakbon gezet.</div></div><div class="field" style="margin-top:16px"><label for="completedCustomerEmail">E-mailadres klant</label><input id="completedCustomerEmail" class="input" type="email" value="${esc(o.packingSlipRecipient||customerEmail(o))}" placeholder="klant@bedrijf.nl"><div class="muted">Na het maken van het Outlook-concept wordt dat geregistreerd. Verstuur het concept in Outlook en bevestig daarna hieronder dat de pakbon is verzonden.</div><div class="muted" data-packing-draft-status role="status"></div></div><div style="margin-top:18px"><b>Wat wil je doen?</b></div><div style="display:grid;gap:10px;margin-top:10px"><button class="btn primary" type="button" data-completed-document="report" data-order-id="${esc(o.id)}">Productierapport / nacalculatie maken</button><button class="btn" type="button" data-completed-document="packing" data-order-id="${esc(o.id)}">Pakbon maken</button><button class="btn primary" type="button" data-packing-outlook="${esc(o.id)}">Outlook-concept met PDF</button><button class="btn" type="button" data-packing-share-pdf="${esc(o.id)}">PDF delen via mailapp</button><button class="btn" type="button" data-packing-mail-pdf="${esc(o.id)}">E-mail openen + PDF downloaden</button><button class="btn" type="button" data-packing-sent="${esc(o.id)}">✓ Markeer pakbon als verzonden</button></div></div><div class="modalfoot"><button class="btn" type="button" data-completed-overview>Terug naar afgeronde orders</button><div class="spacer"></div><button class="btn" type="button" data-completed-close>Sluiten</button></div>`}
+function actionModal(o,tasks){const s=stats(tasks),yieldText=o.yieldPct!=null?num(o.yieldPct).toLocaleString('nl-NL',{maximumFractionDigits:1})+'%':'—';return `<div data-customer-safe-modal hidden></div><div class="modalhead"><h3>Order afgerond – ${esc(o.orderNo)} – ${esc(o.product)}</h3></div><div class="modalbody"><div class="grid3"><div class="pill"><strong>Aantal</strong><br>${num(o.completedQty||o.qty)}</div><div class="pill" data-internal-finance><strong>Rendement</strong><br>${yieldText}</div><div class="pill" data-internal-finance><strong>Tijd</strong><br>${minutes(s.actual)} werkelijk / ${minutes(s.estimate)} begroot</div></div><div class="notice" style="margin-top:16px"><b>Pakbonstatus</b><div data-packing-status style="margin-top:6px">${deliveryStatusHtml(o)}</div></div><div class="field" style="margin-top:16px"><label for="completedDeliveryNote"><b>Opmerking op pakbon</b></label><textarea id="completedDeliveryNote" class="input" rows="3" data-completed-note="${esc(o.id)}" placeholder="Bijv. deellevering, verpakking of aandachtspunt">${esc(o.deliveryNote||'')}</textarea><div class="muted" data-completed-note-status>Wordt automatisch opgeslagen en op de pakbon gezet.</div></div><div class="field" style="margin-top:16px"><label for="completedCustomerEmail">E-mailadres klant</label><input id="completedCustomerEmail" class="input" type="email" value="${esc(o.packingSlipRecipient||customerEmail(o))}" placeholder="klant@bedrijf.nl"><div class="muted">Na het maken van het Outlook-concept wordt dat geregistreerd. Verstuur het concept in Outlook en bevestig daarna hieronder dat de pakbon is verzonden.</div><div class="muted" data-packing-draft-status role="status"></div></div><div style="margin-top:18px"><b>Wat wil je doen?</b></div><div style="display:grid;gap:10px;margin-top:10px"><button class="btn primary" type="button" data-completed-document="report" data-order-id="${esc(o.id)}">Productierapport / nacalculatie maken</button><button class="btn" type="button" data-completed-document="packing" data-order-id="${esc(o.id)}">Pakbon maken</button><button class="btn primary" type="button" data-packing-outlook="${esc(o.id)}">Outlook-concept met PDF</button><button class="btn" type="button" data-packing-share-pdf="${esc(o.id)}">PDF delen via mailapp</button><button class="btn" type="button" data-packing-mail-pdf="${esc(o.id)}">E-mail openen + PDF downloaden</button><button class="btn" type="button" data-packing-sent="${esc(o.id)}">✓ Markeer pakbon als verzonden</button><button class="btn" type="button" data-packing-failed="${esc(o.id)}">Verzending mislukt / opnieuw proberen</button></div></div><div class="modalfoot"><button class="btn" type="button" data-completed-overview>Terug naar afgeronde orders</button><div class="spacer"></div><button class="btn" type="button" data-completed-close>Sluiten</button></div>`}
 async function open(id){
  if(typeof showModal==='function')showModal('<div class="modalhead"><h3>Afgeronde order laden…</h3></div><div class="modalbody"><div class="notice">Gegevens worden opgehaald.</div></div>');
  try{const b=await bundle(id);if(typeof showModal==='function')showModal(actionModal(b.order,b.tasks||[]));return b}catch(err){console.error(err);if(typeof closeModal==='function')closeModal();alert('De afgeronde order kon niet worden geopend.');return null}
@@ -73,10 +74,10 @@ async function persistNote(id,value){
 }
 async function persistDeliveryState(id,change){
  try{
-  const b=await bundle(id),o=b.order,now=new Date().toISOString();
-  Object.assign(o,change);
+  const b=await bundle(id),o=b.order,now=new Date().toISOString(),data={...change},eventType=data.packingSlipEventType||(data.packingSlipSentAt?'sent':'draft');
+  delete data.packingSlipEventType;Object.assign(o,data);
   o.packingSlipEvents=Array.isArray(o.packingSlipEvents)?o.packingSlipEvents:[];
-  o.packingSlipEvents.push({type:change.packingSlipSentAt?'sent':'draft',at:now,to:o.packingSlipRecipient||''});
+  o.packingSlipEvents.push({type:eventType,at:now,to:o.packingSlipRecipient||''});
   const local=localBundle(id);
   if(local){if(typeof save==='function')save();performanceApi()?.invalidate?.()}
   else{
@@ -88,7 +89,7 @@ async function persistDeliveryState(id,change){
   return true
  }catch(err){console.error('Pakbonstatus opslaan mislukt',err);alert('De pakbonstatus kon niet worden opgeslagen. Probeer het opnieuw.');return false}
 }
-function markDeliveryDraft(id,to){return persistDeliveryState(id,{packingSlipDraftAt:new Date().toISOString(),packingSlipRecipient:String(to||'').trim()})}
+function markDeliveryDraft(id,to){return persistDeliveryState(id,{packingSlipDraftAt:new Date().toISOString(),packingSlipFailureAt:null,packingSlipRecipient:String(to||'').trim()})}
 async function markDeliverySent(id){
  const field=document.getElementById('completedCustomerEmail'),to=String(field?.value||'').trim();
  if(!to||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)||field&&!field.checkValidity()){alert('Vul eerst een geldig e-mailadres van de klant in.');field?.focus();return false}
@@ -96,16 +97,22 @@ async function markDeliverySent(id){
  if(ok){const status=document.querySelector('[data-packing-draft-status]');if(status)status.textContent='Verzending geregistreerd.'}
  return ok
 }
+async function markDeliveryFailed(id){
+ const ok=await persistDeliveryState(id,{packingSlipSentAt:null,packingSlipFailureAt:new Date().toISOString(),packingSlipEventType:'failed'});
+ if(ok){const status=document.querySelector('[data-packing-draft-status]');if(status)status.textContent='Mislukte verzending geregistreerd. Maak een nieuw Outlook-concept en probeer opnieuw.'}
+ return ok
+}
 function completedOverview(){if(typeof closeModal==='function')closeModal();window.RALAB_ERP?.show?.('completed')}
 document.addEventListener('input',e=>{const field=e.target.closest?.('[data-completed-note]');if(!field)return;const id=field.dataset.completedNote;updateNoteDraft(id,field.value);noteStatus('Opslaan…');clearTimeout(noteTimer);noteTimer=setTimeout(()=>persistNote(id,field.value),450)},true);
 document.addEventListener('click',e=>{
  const actions=e.target.closest?.('[data-completed-actions]');if(actions){e.preventDefault();e.stopImmediatePropagation();open(actions.dataset.completedActions);return}
  const sent=e.target.closest?.('[data-packing-sent]');if(sent){e.preventDefault();e.stopImmediatePropagation();markDeliverySent(sent.dataset.packingSent);return}
+ const failed=e.target.closest?.('[data-packing-failed]');if(failed){e.preventDefault();e.stopImmediatePropagation();markDeliveryFailed(failed.dataset.packingFailed);return}
  const doc=e.target.closest?.('[data-completed-document]');if(doc){e.preventDefault();e.stopImmediatePropagation();createDocument(doc.dataset.orderId,doc.dataset.completedDocument);return}
  const email=e.target.closest?.('[data-completed-email]');if(email){e.preventDefault();e.stopImmediatePropagation();prepareEmail(email.dataset.completedEmail);return}
  if(e.target.closest?.('[data-completed-overview]')){e.preventDefault();e.stopImmediatePropagation();completedOverview();return}
  if(e.target.closest?.('[data-completed-close]')){e.preventDefault();e.stopImmediatePropagation();if(typeof closeModal==='function')closeModal();return}
  const legacy=e.target.closest?.('#modalRoot button[onclick]'),raw=legacy?.getAttribute('onclick')||'';let m=raw.match(/printProductionReport\(['"]([^'"]+)['"]\)/);if(m){e.preventDefault();e.stopImmediatePropagation();createDocument(m[1],'report');return}m=raw.match(/printPackingSlip\(['"]([^'"]+)['"]\)/);if(m){e.preventDefault();e.stopImmediatePropagation();createDocument(m[1],'packing');return}m=raw.match(/emailPackingSlip\(['"]([^'"]+)['"]\)/);if(m){e.preventDefault();e.stopImmediatePropagation();prepareEmail(m[1])}
 },true);
-window.RALAB_COMPLETED_ORDER_ACTIONS={version:VERSION,open,createDocument,prepareEmail,persistNote,bundle,financials,markDeliveryDraft,markDeliverySent,deliveryStatusHtml};
+window.RALAB_COMPLETED_ORDER_ACTIONS={version:VERSION,open,createDocument,prepareEmail,persistNote,bundle,financials,markDeliveryDraft,markDeliverySent,markDeliveryFailed,deliveryStatusHtml};
 })();

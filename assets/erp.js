@@ -438,7 +438,7 @@ function confirmCopyOrder(id){
    productionLatestStartWeek:'',productionLatestWorkDate:'',weekPlanningUpdatedAt:'',
    planningDecision:'',planningDecisionAt:''
  });
- delete cloned.completedAt;delete cloned.deletedAt;delete cloned.productionSequence;delete cloned.packingSlipDraftAt;delete cloned.packingSlipSentAt;delete cloned.packingSlipRecipient;delete cloned.packingSlipEvents;
+ delete cloned.completedAt;delete cloned.deletedAt;delete cloned.productionSequence;delete cloned.packingSlipDraftAt;delete cloned.packingSlipSentAt;delete cloned.packingSlipFailureAt;delete cloned.packingSlipRecipient;delete cloned.packingSlipEvents;
  s.orders.push(cloned);
  const srcTasks=(s.tasks||[]).filter(t=>t.orderId===id&&!t.deleted).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));
  srcTasks.forEach((t,i)=>{
@@ -483,6 +483,7 @@ function orderConfirmation(id){const s=S(),o=findOrder(id),c=s.customers.find(x=
 function completedPackingStatus(o){
  const format=v=>{const d=new Date(v);return v&&!Number.isNaN(d.getTime())?d.toLocaleString('nl-NL',{dateStyle:'short',timeStyle:'short'}):''};
  if(o.packingSlipSentAt)return `<span class="badge ok">Verzonden</span><br><small>${esc(format(o.packingSlipSentAt))}${o.packingSlipRecipient?' · '+esc(o.packingSlipRecipient):''}</small>`;
+ if(o.packingSlipFailureAt)return `<span class="badge bad">Verzending mislukt</span><br><small>${esc(format(o.packingSlipFailureAt))}${o.packingSlipRecipient?' · '+esc(o.packingSlipRecipient):''}</small>`;
  if(o.packingSlipDraftAt)return `<span class="badge" style="background:#fff2cf;color:#795500">Concept gemaakt</span><br><small>Nog bevestigen${o.packingSlipRecipient?' · '+esc(o.packingSlipRecipient):''}</small>`;
  return '<span class="badge bad">Niet verzonden</span>';
 }
