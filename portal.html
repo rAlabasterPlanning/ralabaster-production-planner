@@ -18,8 +18,17 @@
         <label>E-mailadres<input id="portalEmail" type="email" autocomplete="username" required></label>
         <label>Wachtwoord<input id="portalPassword" type="password" autocomplete="current-password" required></label>
         <button class="primary" type="submit">Inloggen</button>
-        <button class="link-button" id="portalMagicLink" type="button">Stuur mij een veilige inloglink</button>
+        <button class="link-button" id="portalMagicLink" type="button">Eenmalig inloggen zonder wachtwoord</button>
+        <button class="link-button" id="portalPasswordReset" type="button">Wachtwoord instellen of vergeten</button>
         <div id="portalLoginStatus" class="form-status" role="status"></div>
+      </form>
+      <form id="portalPasswordForm" hidden>
+        <h2>Maak uw wachtwoord aan</h2>
+        <p class="intro compact">Kies een persoonlijk wachtwoord van minimaal 8 tekens. Daarna komt u direct in uw klantportaal.</p>
+        <label>Nieuw wachtwoord<input id="portalNewPassword" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Herhaal wachtwoord<input id="portalNewPasswordConfirm" type="password" autocomplete="new-password" minlength="8" required></label>
+        <button class="primary" type="submit">Wachtwoord opslaan en doorgaan</button>
+        <div id="portalPasswordStatus" class="form-status" role="status"></div>
       </form>
     </section>
     <aside class="login-visual"><div><span>Natural stone</span><h2>Made with precision.<br>Finished by hand.</h2></div></aside>
@@ -42,6 +51,6 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/config.js?v=20260913-1"></script>
-  <script src="assets/customer-portal.js?v=20261007-1"></script>
+  <script src="assets/customer-portal.js?v=20261007-auth-2"></script>
 </body>
 </html>

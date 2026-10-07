@@ -11,6 +11,28 @@ test('customer portal exposes the complete customer flow',()=>{
  for(const rpc of ['portal_place_order','portal_request_product','portal_quote_decision'])assert.match(js,new RegExp(rpc));
  assert.match(js,/portal_customer_users/);
  assert.match(js,/portal_order_lines/);
+ assert.match(js,/portal_request_order_change/);
+});
+
+test('portal invitation and recovery lead to password creation',()=>{
+ const html=read('portal.html'),js=read('assets/customer-portal.js'),admin=read('supabase/functions/portal-admin/index.ts');
+ assert.match(html,/Maak uw wachtwoord aan/);
+ assert.match(html,/Wachtwoord instellen of vergeten/);
+ assert.match(js,/resetPasswordForEmail/);
+ assert.match(js,/PASSWORD_RECOVERY/);
+ assert.match(js,/updateUser\(\{password\}\)/);
+ assert.match(js,/shouldCreateUser:false/);
+ assert.match(admin,/portal\?mode=password/);
+});
+
+test('order change requests are isolated and submitted through a secured rpc',()=>{
+ const sql=read('supabase/migrations/20261007150000_portal_order_change_requests.sql'),js=read('assets/customer-portal.js'),admin=read('assets/customer-portal-admin-v1.js');
+ assert.match(sql,/enable row level security/i);
+ assert.match(sql,/customer_id=public\.portal_current_customer_id\(\)/i);
+ assert.match(sql,/security definer/i);
+ assert.match(sql,/status not in \('completed','cancelled'\)/i);
+ assert.match(js,/Wijziging aanvragen/);
+ assert.match(admin,/portal_order_change_requests/);
 });
 
 test('portal migration isolates customers and protects internal planner data',()=>{
