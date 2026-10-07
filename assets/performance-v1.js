@@ -246,12 +246,26 @@
       snapshot.pendingRecordDeletions=structuredClone(state.pendingRecordDeletions||{orders:[],tasks:[]});
       seedHashes(snapshot);cloudDirty=hash(state)!==hash(snapshot);scheduleLocalPersist();
       if(!cloudDirty)localStorage.removeItem(PENDING_KEY);else syncQueued=true;
+      delete window.__RALAB_LAST_SYNC_ERROR;
       cloudStatus='online';renderOnlineBadge();
     }catch(e){window.__RALAB_LAST_SYNC_ERROR=String(e?.message||e);cloudStatus='error';renderOnlineBadge();const badge=document.getElementById('onlineBadge');if(badge){badge.title=window.__RALAB_LAST_SYNC_ERROR;badge.style.cursor='help';badge.onclick=()=>alert('Supabase synchronisatiefout:\n\n'+window.__RALAB_LAST_SYNC_ERROR)}console.error(e)}
     finally{
       syncInFlight=false;
       if(syncQueued){syncQueued=false;setTimeout(saveNormalizedCloud,100)}
     }
+  }
+
+  async function flushCloudSave(timeoutMs=20000){
+    if(!supabaseClient||!cloudUser)throw new Error('Log eerst in bij Supabase.');
+    if(!normalizedReady){const loaded=await loadNormalizedCloud(true);if(!loaded)throw new Error('De actuele plannergegevens konden niet worden geladen.');}
+    const deadline=Date.now()+Math.max(1000,Number(timeoutMs)||20000);
+    while(syncInFlight||syncQueued||cloudDirty||localStorage.getItem(PENDING_KEY)){
+      if(Date.now()>=deadline)throw new Error('Niet alle wijzigingen zijn op tijd naar Supabase opgeslagen. Probeer het opnieuw.');
+      if(!syncInFlight&&(cloudDirty||localStorage.getItem(PENDING_KEY)))await saveNormalizedCloud();
+      if(window.__RALAB_LAST_SYNC_ERROR&&(cloudDirty||localStorage.getItem(PENDING_KEY)))throw new Error(window.__RALAB_LAST_SYNC_ERROR);
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }
+    return true;
   }
 
   async function loadArchivedOrders(page=0,pageSize=100,search=''){
@@ -296,11 +310,9 @@
     };
     switchView=function(v){currentView=v;document.querySelectorAll('section[id^="view-"]').forEach(x=>x.classList.add('hidden'));document.getElementById('view-'+v)?.classList.remove('hidden');document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));if(pendingViewFrame)cancelAnimationFrame(pendingViewFrame);pendingViewFrame=requestAnimationFrame(()=>{pendingViewFrame=0;render()})};
 
-    window.RALAB_PERFORMANCE={version:VERSION,invalidate,rebuild:()=>{invalidate();ensureIndexes()},getOrder,getOrderTasks,getActiveOrders:activeOrders,loadArchivedOrders,loadOrderBundle,isNormalized:()=>normalizedReady,markDeleted,cancelDeletion,ensureLoaded:()=>normalizedReady?Promise.resolve(true):loadNormalizedCloud(true),exactOrderAnalysis:window.RALAB_EXACT_ORDER_ANALYSIS};
+    window.RALAB_PERFORMANCE={version:VERSION,invalidate,rebuild:()=>{invalidate();ensureIndexes()},getOrder,getOrderTasks,getActiveOrders:activeOrders,loadArchivedOrders,loadOrderBundle,isNormalized:()=>normalizedReady,markDeleted,cancelDeletion,ensureLoaded:()=>normalizedReady?Promise.resolve(true):loadNormalizedCloud(true),flushCloudSave,exactOrderAnalysis:window.RALAB_EXACT_ORDER_ANALYSIS};
     installed=true;ensureIndexes();return true;
   }
   let tries=0;const timer=setInterval(()=>{tries++;if(install()||tries>100)clearInterval(timer)},100);
   const normTimer=setInterval(async()=>{if(!installed||normalizedReady||normalizedInitBusy)return;if(typeof supabaseClient!=='undefined'&&supabaseClient&&typeof cloudUser!=='undefined'&&cloudUser){const ok=await loadNormalizedCloud(true);if(ok)clearInterval(normTimer)}},350);
 })();
-
-
