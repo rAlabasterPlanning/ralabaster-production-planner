@@ -123,6 +123,14 @@ test('a pending quick order product description can be edited directly',async t=
  const input=d.querySelector('[data-needs-calculation-product]');assert.equal(input.value,'Eerste omschrijving');input.value='Aangepaste productomschrijving';d.querySelector('[data-save-needs-product]').click();await f.wait(80);
  assert.equal(f.state().orders.find(o=>o.id===added.id).product,'Aangepaste productomschrijving');assert.match(d.querySelector('.modalhead').textContent,/Aangepaste productomschrijving/);assert.deepEqual(f.errors,[]);
 });
+test('ordernummer is direct aanpasbaar zonder een order of taak te dupliceren',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document,alerts=[];w.alert=x=>alerts.push(String(x));
+ vm.runInContext("state.orders.push({id:'rename-order',orderNo:'OUD-001',product:'Lamp',customerName:'Klant',qty:10,active:true,status:'confirmed'},{id:'other-number',orderNo:'BESTAAT-002',product:'Schaal',customerName:'Klant',qty:5,active:true,status:'confirmed'});state.tasks.push({id:'rename-task',orderId:'rename-order',name:'Polijsten',status:'open',planSegments:[]})",f.ctx);w.RALAB_PERFORMANCE.invalidate();
+ w.RALAB_ERP.show('orderoverview');await f.wait(80);const orderCount=f.state().orders.length,taskCount=f.state().tasks.length;
+ let input=d.querySelector('[data-overview-order-no="rename-order"]');assert.ok(input);input.value='NIEUW-001';input.dispatchEvent(new w.Event('change',{bubbles:true}));await f.wait(80);
+ assert.equal(f.state().orders.find(x=>x.id==='rename-order').orderNo,'NIEUW-001');assert.equal(f.state().orders.length,orderCount);assert.equal(f.state().tasks.length,taskCount);assert.equal(f.state().tasks.find(x=>x.id==='rename-task').orderId,'rename-order');
+ input=d.querySelector('[data-overview-order-no="rename-order"]');input.value='BESTAAT-002';input.dispatchEvent(new w.Event('change',{bubbles:true}));await f.wait(50);assert.equal(f.state().orders.find(x=>x.id==='rename-order').orderNo,'NIEUW-001');assert.match(alerts.at(-1),/bestaat al/i);assert.deepEqual(f.errors,[]);
+});
 test('customer mode persists locally, protects details and keeps sale prices and quick orders',async t=>{
  const f=await fullApp(t),w=f.w,d=w.document;
  const style=d.createElement('style');style.textContent=fs.readFileSync(path.join(__dirname,'../assets/customer-mode.css'),'utf8');d.head.append(style);
