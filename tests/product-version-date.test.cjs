@@ -85,3 +85,20 @@ test('vaste productverkoopprijs wordt geladen en punt en komma werken in prijsve
  w.RALAB_MASTER.productForm('fixed-price-template');await f.wait(20);assert.equal(d.getElementById('mpSaleUnit').value,'149,95');d.getElementById('mpSaleUnit').value='151,75';d.getElementById('mpMatCost').value='13,25';w.RALAB_MASTER.saveProduct();
  const saved=f.state().productTemplates.find(x=>x.id==='fixed-price-template');assert.equal(saved.saleUnit,151.75);assert.equal(saved.manualSalePrice,151.75);assert.equal(saved.materialCost,13.25);assert.deepEqual(f.errors,[]);
 });
+
+test('multi-product totaal blijft direct juist na aantallen wijzigen en productwissels',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;
+ w.HTMLElement.prototype.scrollIntoView=()=>{};
+ d.querySelector('.navbtn[data-view="calculation"]').click();await f.wait(200);
+ change(w,d.getElementById('cName'),'Product A');change(w,d.getElementById('cQty'),'2');selectStep(w,d,'Schuren');d.getElementById('cuiLoadSteps').click();await f.wait(30);
+ let price=d.getElementById('cManualSalePrice');price.value='100';price.dispatchEvent(new w.Event('input',{bubbles:true}));
+ d.getElementById('cuiAddProduct').click();await f.wait(60);
+ change(w,d.getElementById('cName'),'Product B');change(w,d.getElementById('cQty'),'3');selectStep(w,d,'Polijsten');d.getElementById('cuiLoadSteps').click();await f.wait(30);
+ price=d.getElementById('cManualSalePrice');price.value='50';price.dispatchEvent(new w.Event('input',{bubbles:true}));await f.wait(30);
+ assert.match(d.getElementById('cCalcTotalSale').textContent,/350,00/);
+ d.querySelector('[data-cui-product="0"]').click();await f.wait(160);assert.equal(d.getElementById('cManualSalePrice').value,'100');
+ change(w,d.getElementById('cQty'),'4');await f.wait(50);assert.match(d.getElementById('cCalcTotalSale').textContent,/550,00/);
+ d.querySelector('[data-cui-product="1"]').click();await f.wait(160);assert.equal(d.getElementById('cManualSalePrice').value,'50');
+ change(w,d.getElementById('cQty'),'5');await f.wait(50);assert.match(d.getElementById('cCalcTotalSale').textContent,/650,00/);
+ d.querySelector('[data-cui-product="0"]').click();await f.wait(160);assert.equal(d.getElementById('cManualSalePrice').value,'100');assert.match(d.getElementById('cCalcTotalSale').textContent,/650,00/);assert.deepEqual(f.errors,[]);
+});
