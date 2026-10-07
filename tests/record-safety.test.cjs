@@ -79,7 +79,7 @@ test('an open quotation inbox refreshes after cloud loading and keeps filters',a
  assert.deepEqual(f.errors,[]);
 });
 test('quick order supports free text, sorts first, persists and links later',async t=>{
- const f=await fullApp(t),w=f.w,d=w.document;w.alert=()=>{};
+ const f=await fullApp(t),w=f.w,d=w.document,alerts=[];w.alert=x=>alerts.push(String(x));
  w.RALAB_ERP.show('orderoverview');await f.wait(60);const before=f.state();
  d.querySelector('[data-quick-order]').click();await f.wait(20);
  const newMode=d.querySelector('input[name="quickProductMode"][value="new"]');newMode.click();assert.equal(newMode.checked,true);assert.equal(d.getElementById('quickProduct').disabled,false);assert.equal(d.getElementById('quickExistingProduct').disabled,true);
@@ -89,11 +89,15 @@ test('quick order supports free text, sorts first, persists and links later',asy
  assert.ok(JSON.parse(w.localStorage.getItem('ralabaster_planner_v1')).orders.find(o=>o.id===added.id));
  assert.equal(w.RALAB_ORDER_CONTROLS.remainingOrders().some(o=>o.id===added.id),false);
  vm.runInContext("state.customers.push({id:'complete-customer',name:'Volledige klant'});",f.ctx);
- w.RALAB_ORDER_CALC.open(added.id);await f.wait(100);
- assert.match(d.querySelector('#ocCustomer').textContent,/Nieuwe klant uit mijn hoofd/);
- d.getElementById('ocCustomer').value='complete-customer';d.querySelector('[data-oc-add]').click();await f.wait(20);
- const name=d.querySelector('[data-oc-name]');name.value='Polijsten';name.dispatchEvent(new w.Event('change',{bubbles:true}));d.getElementById('ocQty').value='12';w.RALAB_ORDER_CALC.save(false,false);await f.wait(50);
- const complete=f.state().orders.find(o=>o.id===added.id);assert.equal(complete.customerId,'complete-customer');assert.equal(complete.customerName,'Volledige klant');assert.equal(complete.needsCalculation,false);assert.equal(complete.qty,12);assert.equal(f.state().orders.length,before.orders.length+1);assert.deepEqual(f.errors,[]);
+ w.RALAB_ORDER_CALC.open(added.id);await f.wait(700);
+ assert.equal(d.querySelector('#orderCalcEditor'),null);assert.ok(d.getElementById('quickCalcContext'),JSON.stringify({active:w.RALAB_QUICK_CALC?.activeOrderId,view:d.getElementById('view-calculation').textContent.slice(0,500),errors:f.errors}));assert.match(d.getElementById('quickCalcContext').textContent,/Nieuwe klant uit mijn hoofd/);assert.match(d.getElementById('quickCalcContext').textContent,/Eerst tekening bekijken/);
+ assert.equal(d.getElementById('cName').value,'Nieuwe lamp');assert.equal(d.getElementById('cQty').value,'1');assert.equal(d.getElementById('cOrder').value,added.orderNo);assert.equal(d.getElementById('cCustomer').value,'');
+ const customer=d.getElementById('cCustomer'),option=d.createElement('option');option.value='complete-customer';option.textContent='Volledige klant';customer.appendChild(option);customer.value='complete-customer';customer.dispatchEvent(new w.Event('change',{bubbles:true}));
+ d.getElementById('cQty').value='12';d.getElementById('cQty').dispatchEvent(new w.Event('change',{bubbles:true}));d.getElementById('cProductCustomerDate').value='2026-11-20';d.getElementById('cProductCustomerDate').dispatchEvent(new w.Event('change',{bubbles:true}));
+ const row=[...d.querySelectorAll('#view-calculation tbody tr')].find(x=>x.querySelector('td:nth-child(2) b')?.textContent.trim()==='Polijsten'),box=row.querySelector('[data-opcheck]');box.checked=true;box.dispatchEvent(new w.Event('change',{bubbles:true}));await f.wait(40);d.getElementById('cuiLoadSteps').click();await f.wait(60);assert.equal(w.RALAB_CALC_UI.products[0].ops[0]?.name,'Polijsten',JSON.stringify({checked:box.checked,alerts}));
+ w.RALAB_CALC.confirmPlan();await f.wait(100);
+ const complete=f.state().orders.find(o=>o.id===added.id);assert.equal(complete.customerId,'complete-customer');assert.equal(complete.customerName,'Volledige klant');assert.equal(complete.needsCalculation,false,JSON.stringify({alerts,state:f.state().orders.slice(-3),products:w.RALAB_CALC_UI.products}));assert.equal(complete.qty,12);assert.equal(f.state().orders.length,before.orders.length+1);assert.deepEqual(f.errors,[]);
+ assert.equal(complete.customerReadyDate,'2026-11-20');assert.ok(f.state().tasks.some(x=>x.orderId===added.id&&x.name==='Polijsten'));assert.equal(f.state().orders.filter(o=>o.orderNo===added.orderNo).length,1);
 });
 test('quick order matches an existing customer without creating duplicates',async t=>{
  const f=await fullApp(t),w=f.w,d=w.document;w.alert=()=>{};vm.runInContext("state.customers.push({id:'existing',name:'Ztahl'});",f.ctx);const count=f.state().customers.length;
