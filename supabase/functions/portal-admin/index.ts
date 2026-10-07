@@ -47,7 +47,7 @@ Deno.serve(async (req: Request) => {
     let invited = false;
     if (!account) {
       const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-        redirectTo: "https://ralabasterplanner.vercel.app/portal",
+        redirectTo: "https://ralabasterplanner.vercel.app/portal?mode=password",
         data: { portal_customer_id: customerId, contact_name: contactName },
       });
       if (error) throw error;
