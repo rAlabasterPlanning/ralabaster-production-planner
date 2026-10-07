@@ -2,8 +2,8 @@
 (()=>{
 const num=v=>{const n=Number(String(v??'').replace(',','.'));return Number.isFinite(n)?n:0};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let editingId=null,newVersion=false;
 const S=()=>{try{return state}catch{return null}},val=(v,key,legacy='')=>v[key]??(legacy?v[legacy]:'')??'';
+let editingId=null;
 function source(){return editingId?S()?.productTemplates?.find(x=>x.id===editingId):null}
 function inject(){
  const notes=document.getElementById('mpNotes');if(!notes||document.getElementById('mpStockCategory'))return;
@@ -14,14 +14,8 @@ function inject(){
 }
 function install(){
  const api=window.RALAB_MASTER;if(!api||api.__inventoryRequirementFields)return setTimeout(install,100);
- const open=api.productForm,baseSave=api.saveProduct;
- api.productForm=function(id,version){editingId=id||null;newVersion=!!version;const out=open.apply(this,arguments);setTimeout(inject,0);return out};
- api.saveProduct=function(){
-  const present=document.getElementById('mpStockCategory'),name=document.getElementById('mpName')?.value.trim(),fields=present?{stockCategory:present.value,requiredStockLengthMm:num(document.getElementById('mpRequiredLength').value),requiredStockWidthMm:num(document.getElementById('mpRequiredWidth').value),requiredStockThicknessMm:num(document.getElementById('mpRequiredThickness').value),requiredStockDiameterMm:num(document.getElementById('mpRequiredDiameter').value),stockAllowanceMm:num(document.getElementById('mpStockAllowance').value),requiredSemiFinishedType:document.getElementById('mpRequiredSemiType').value.trim()}:null;
-  const out=baseSave.apply(this,arguments);
-  if(fields){const rows=(S()?.productTemplates||[]).filter(x=>newVersion?String(x.name).toLowerCase()===String(name).toLowerCase():x.id===editingId||(editingId===null&&String(x.name).toLowerCase()===String(name).toLowerCase())).sort((a,b)=>(num(b.version)-num(a.version))||String(b.updated||b.created||'').localeCompare(String(a.updated||a.created||''))),target=rows[0];if(target){Object.assign(target,fields);try{save()}catch(e){console.error('Voorraadvereisten opslaan mislukt',e)}}}
-  return out;
- };
+ const open=api.productForm;
+ api.productForm=function(id){editingId=id||null;const out=open.apply(this,arguments);setTimeout(inject,0);return out};
  api.__inventoryRequirementFields=true;
 }
 install();
