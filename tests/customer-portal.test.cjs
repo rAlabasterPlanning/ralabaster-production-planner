@@ -14,6 +14,15 @@ test('customer portal exposes the complete customer flow',()=>{
  assert.match(js,/portal_request_order_change/);
 });
 
+test('customers can save language, document recipients and delivery preferences',()=>{
+ const html=read('portal.html'),js=read('assets/customer-portal.js'),sql=read('supabase/migrations/20261011195500_inventory_review_staff_movements_and_portal_preferences.sql');
+ assert.match(html,/data-view="preferences"/);
+ for(const name of ['invoice_email','packing_slip_email','order_confirmation_email','logistics_email','delivery_notes'])assert.match(js,new RegExp(name));
+ assert.match(js,/portal_update_preferences/);
+ assert.match(sql,/security definer/i);
+ assert.match(sql,/grant execute on function public\.portal_update_preferences/);
+});
+
 test('portal supports customer defaults and manual NL EN DE switching',()=>{
  const html=read('portal.html'),i18n=read('assets/customer-portal-i18n-v1.js'),commercial=read('assets/commercial.js'),sql=read('supabase/migrations/20261011194000_portal_language_and_request_types.sql');
  for(const code of ['nl','en','de'])assert.match(html,new RegExp(`value="${code}"`));
