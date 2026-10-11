@@ -23,6 +23,20 @@ test('customers can save language, document recipients and delivery preferences'
  assert.match(sql,/grant execute on function public\.portal_update_preferences/);
 });
 
+test('new orders use the customer assortment and the order list supports inline date requests',()=>{
+ const js=read('assets/customer-portal.js'),css=read('assets/customer-portal.css');
+ assert.match(js,/function renderNewOrder/);
+ assert.match(js,/unit_price/);
+ assert.match(js,/minimum_quantity/);
+ assert.match(js,/function renderOrderOverviewV2/);
+ assert.match(js,/Klaar gevraagd door u/);
+ assert.match(js,/Klaar vanuit productie/);
+ assert.match(js,/data-inline-change/);
+ assert.match(js,/portal_request_order_change/);
+ assert.match(js,/orders\.filter\(o=>o\.status!=='cancelled'\)/);
+ assert.match(css,/portal-order-list-head/);
+});
+
 test('portal supports customer defaults and manual NL EN DE switching',()=>{
  const html=read('portal.html'),i18n=read('assets/customer-portal-i18n-v1.js'),commercial=read('assets/commercial.js'),sql=read('supabase/migrations/20261011194000_portal_language_and_request_types.sql');
  for(const code of ['nl','en','de'])assert.match(html,new RegExp(`value="${code}"`));

@@ -84,3 +84,12 @@ test('inventory uses veins, pallet tare and a review-before-accept workflow',()=
  assert.match(sql,/inventory_staff_consume_internal/);
  assert.match(sql,/review_status:'pending'|review_status text/);
 });
+
+test('the original stock photo remains available beside the generated DXF',()=>{
+ const capture=read('supabase/functions/inventory-capture/index.ts'),review=read('assets/inventory-review-v1.js');
+ assert.match(capture,/photo_paths:photoPath\?\[photoPath\]/);
+ assert.match(capture,/contour_dxf/);
+ assert.match(review,/Originele foto openen/);
+ assert.match(review,/DXF-contour downloaden/);
+ assert.match(review,/createSignedUrl/);
+});
