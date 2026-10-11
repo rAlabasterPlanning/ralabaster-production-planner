@@ -74,7 +74,7 @@ test('planner contains portal management and role gate',()=>{
 
 test('planner lets staff review customer products one customer at a time',()=>{
  const html=read('index.html'),admin=read('assets/customer-portal-admin-v1.js');
- assert.match(html,/price-history-1/);
+ assert.match(html,/bulk-customer-save-1/);
  assert.match(admin,/Controlelijst/);
  assert.match(admin,/Klopt · volgende klant/);
  assert.match(admin,/data-portal-save-product/);
@@ -93,4 +93,13 @@ test('portal product linking recovers customer prices from commercial history',(
  assert.match(admin,/Omschrijving in klantportaal/);
  assert.match(admin,/interne productnotities worden niet automatisch getoond/);
  assert.doesNotMatch(admin,/t\.notes\|\|t\.material/);
+});
+
+test('all edited customer products can be saved in one action',()=>{
+ const admin=read('assets/customer-portal-admin-v1.js');
+ assert.match(admin,/function saveAllProducts/);
+ assert.match(admin,/productUpdateFromRow/);
+ assert.match(admin,/data-portal-save-all/);
+ assert.match(admin,/Alles opslaan · volgende klant/);
+ assert.match(admin,/Promise\.all\(records\.map/);
 });
