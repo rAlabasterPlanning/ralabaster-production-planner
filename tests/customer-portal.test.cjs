@@ -33,11 +33,14 @@ test('planner and customer portal use separate browser sessions',()=>{
 });
 
 test('portal follows the rAlabaster document style and hides inactive screens',()=>{
- const css=read('assets/customer-portal.css'),html=read('portal.html');
+ const css=read('assets/customer-portal.css'),html=read('portal.html'),logo=read('assets/logo-brand-v1.css');
  assert.match(css,/\[hidden\]\{display:none!important\}/);
  assert.match(css,/--ink:#292c31/);
  assert.doesNotMatch(css,/images\.unsplash\.com|--green:/);
  assert.match(html,/Natural stone\./);
+ assert.match(html,/logo-brand-v1\.css/);
+ assert.match(logo,/grayscale\(1\) invert\(1\)/);
+ assert.match(logo,/#portalLoginLogo\{width:min\(340px/);
 });
 
 test('order change requests are isolated and submitted through a secured rpc',()=>{
@@ -74,13 +77,24 @@ test('planner contains portal management and role gate',()=>{
 
 test('planner lets staff review customer products one customer at a time',()=>{
  const html=read('index.html'),admin=read('assets/customer-portal-admin-v1.js');
- assert.match(html,/bulk-customer-save-1/);
+ assert.match(html,/user-access-1/);
  assert.match(admin,/Controlelijst/);
  assert.match(admin,/Klopt · volgende klant/);
  assert.match(admin,/data-portal-save-product/);
  assert.match(admin,/Ontkoppelen/);
  assert.match(admin,/Nog niet gekoppelde producten/);
  assert.match(admin,/replace\(','\s*,\s*'\.'\)/);
+});
+
+test('portal administrators can block, reactivate and remove customer access',()=>{
+ const admin=read('assets/customer-portal-admin-v1.js'),edge=read('supabase/functions/portal-admin/index.ts');
+ assert.match(admin,/data-portal-user-action/);
+ assert.match(admin,/Tijdelijk blokkeren/);
+ assert.match(admin,/Weer activeren/);
+ assert.match(admin,/order- en aanvraaghistorie blijft bewaard/);
+ assert.match(edge,/\["block", "activate", "remove"\]/);
+ assert.match(edge,/ban_duration: active \? "none" : "876000h"/);
+ assert.match(edge,/from\("portal_customer_users"\)\.delete\(\)/);
 });
 
 test('portal product linking recovers customer prices from commercial history',()=>{
