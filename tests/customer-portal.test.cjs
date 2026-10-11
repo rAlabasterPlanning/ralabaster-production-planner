@@ -74,11 +74,23 @@ test('planner contains portal management and role gate',()=>{
 
 test('planner lets staff review customer products one customer at a time',()=>{
  const html=read('index.html'),admin=read('assets/customer-portal-admin-v1.js');
- assert.match(html,/change-alert-1/);
+ assert.match(html,/price-history-1/);
  assert.match(admin,/Controlelijst/);
  assert.match(admin,/Klopt · volgende klant/);
  assert.match(admin,/data-portal-save-product/);
  assert.match(admin,/Ontkoppelen/);
  assert.match(admin,/Nog niet gekoppelde producten/);
  assert.match(admin,/replace\(','\s*,\s*'\.'\)/);
+});
+
+test('portal product linking recovers customer prices from commercial history',()=>{
+ const admin=read('assets/customer-portal-admin-v1.js');
+ assert.match(admin,/planner_orders_v2/);
+ assert.match(admin,/function inferredPrice/);
+ assert.match(admin,/laatste order/);
+ assert.match(admin,/laatste offerte/);
+ assert.match(admin,/backfillMissingProductPrices/);
+ assert.match(admin,/Omschrijving in klantportaal/);
+ assert.match(admin,/interne productnotities worden niet automatisch getoond/);
+ assert.doesNotMatch(admin,/t\.notes\|\|t\.material/);
 });
