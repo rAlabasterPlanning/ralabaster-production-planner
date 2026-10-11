@@ -28,7 +28,29 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    if (body.action !== "invite") return json({ error: "Onbekende actie." }, 400);
+    const action = String(body.action || "");
+    if (["block", "activate", "remove"].includes(action)) {
+      const userId = String(body.user_id || "").trim();
+      if (!userId) return json({ error: "Gebruiker ontbreekt." }, 400);
+      const { data: member, error: memberError } = await admin.from("portal_customer_users").select("user_id,email").eq("user_id", userId).maybeSingle();
+      if (memberError) throw memberError;
+      if (!member) return json({ error: "Klantgebruiker niet gevonden." }, 404);
+      if (action === "remove") {
+        // Preserve orders and requests; remove the portal membership only.
+        const { error: deleteError } = await admin.from("portal_customer_users").delete().eq("user_id", userId);
+        if (deleteError) throw deleteError;
+        const { error: banError } = await admin.auth.admin.updateUserById(userId, { ban_duration: "876000h" });
+        if (banError) throw banError;
+        return json({ ok: true, action, email: member.email });
+      }
+      const active = action === "activate";
+      const { error: updateError } = await admin.from("portal_customer_users").update({ active, updated_at: new Date().toISOString() }).eq("user_id", userId);
+      if (updateError) throw updateError;
+      const { error: authError } = await admin.auth.admin.updateUserById(userId, { ban_duration: active ? "none" : "876000h" });
+      if (authError) throw authError;
+      return json({ ok: true, action, active, email: member.email });
+    }
+    if (action !== "invite") return json({ error: "Onbekende actie." }, 400);
     const customerId = String(body.customer_id || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
     const contactName = String(body.contact_name || "").trim();
@@ -55,6 +77,9 @@ Deno.serve(async (req: Request) => {
       invited = true;
     }
     if (!account) throw new Error("Klantaccount kon niet worden gemaakt.");
+
+    const { error: unbanError } = await admin.auth.admin.updateUserById(account.id, { ban_duration: "none" });
+    if (unbanError) throw unbanError;
 
     const { error: linkError } = await admin.from("portal_customer_users").upsert({
       user_id: account.id,

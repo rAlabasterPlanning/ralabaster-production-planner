@@ -19,6 +19,7 @@ test('mobile capture is a one-step-at-a-time wizard with simple measurements',()
  assert.match(js,/Dikte \(mm\)/);
  assert.doesNotMatch(js,/Dikte \/ lengte/);
  for(const label of ['Langste maat','Middelste maat','Kleinste maat'])assert.match(js,new RegExp(label));
+ assert.match(js,/grayscale\(1\) invert\(1\)/);
 });
 
 test('weight is calculated from dimensions and alabaster density',()=>{
