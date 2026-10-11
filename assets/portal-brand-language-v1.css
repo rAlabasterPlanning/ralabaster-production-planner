@@ -1,0 +1,6 @@
+.login-card{background:#fff}
+.login-topline{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+.login-topline .eyebrow{margin:0}
+.login-topline select,.account-menu select{border:1px solid var(--line);background:#fff;color:var(--ink);padding:8px 10px;border-radius:2px;font-weight:800}
+#portalLoginLogo,#portalLogo{background:#fff}
+@media(max-width:600px){.account-menu select{padding:7px}.login-topline{margin-bottom:14px}}

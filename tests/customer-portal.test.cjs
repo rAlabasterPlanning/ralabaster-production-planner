@@ -7,11 +7,36 @@ const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 
 test('customer portal exposes the complete customer flow',()=>{
  const html=read('portal.html'),js=read('assets/customer-portal.js');
- for(const label of ['Producten','Bestellingen','Offertes','Nieuw product'])assert.match(html,new RegExp(label));
- for(const rpc of ['portal_place_order','portal_request_product','portal_quote_decision'])assert.match(js,new RegExp(rpc));
+ for(const label of ['Producten','Bestellingen','Offertes','Nieuwe offerte','Nieuwe bestelling'])assert.match(html,new RegExp(label));
+ for(const rpc of ['portal_place_order','portal_request_new_product','portal_quote_decision'])assert.match(js,new RegExp(rpc));
  assert.match(js,/portal_customer_users/);
  assert.match(js,/portal_order_lines/);
  assert.match(js,/portal_request_order_change/);
+});
+
+test('portal supports customer defaults and manual NL EN DE switching',()=>{
+ const html=read('portal.html'),i18n=read('assets/customer-portal-i18n-v1.js'),commercial=read('assets/commercial.js'),sql=read('supabase/migrations/20261011194000_portal_language_and_request_types.sql');
+ for(const code of ['nl','en','de'])assert.match(html,new RegExp(`value="${code}"`));
+ assert.match(i18n,/ralab:portal-customer/);
+ assert.match(i18n,/reverse\[shown\]/);
+ assert.match(commercial,/ccPortalLanguage/);
+ assert.match(commercial,/syncCustomer/);
+ assert.match(sql,/preferred_language in \('nl','en','de'\)/i);
+});
+
+test('new product work is explicitly separated into quotation and order requests',()=>{
+ const js=read('assets/customer-portal.js'),sql=read('supabase/migrations/20261011194000_portal_language_and_request_types.sql');
+ assert.match(js,/renderRequest\('quote'\)/);
+ assert.match(js,/renderRequest\('order'\)/);
+ assert.match(js,/p_request_type:requestType/);
+ assert.match(sql,/request_type in \('quote','order'\)/i);
+ assert.match(sql,/revoke all on function public\.portal_request_new_product[\s\S]*from public,anon/i);
+});
+
+test('logo blends into its surface while retaining readable contrast',()=>{
+ const css=read('assets/logo-brand-v1.css');
+ assert.match(css,/contrast\(2\)/);
+ assert.match(css,/mix-blend-mode:multiply/);
 });
 
 test('portal invitation and recovery lead to password creation',()=>{

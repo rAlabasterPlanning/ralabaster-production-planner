@@ -1,11 +1,13 @@
 /* Exact rAlabaster artwork, presented as a light brand mark throughout the application. */
 .brand-logo,#portalLogo,#portalLoginLogo,#captureLogo{
   background:#fff;
-  filter:grayscale(1) invert(1) contrast(.45) brightness(1.6);
+  filter:grayscale(1) invert(1) contrast(2);
+  opacity:.7;
+  mix-blend-mode:multiply;
   object-fit:contain;
 }
 .brand-logo{height:52px!important;width:auto!important;min-width:160px}
-.brand{background:#fff;padding:5px 8px;border-radius:2px}
+.brand{background:#fff;padding:5px 8px;border-radius:2px;overflow:hidden}
 #portalLoginLogo{width:min(340px,82vw)!important;margin-bottom:52px!important}
 #portalLogo{width:175px!important}
 #captureLogo{width:220px!important;margin-bottom:34px!important}

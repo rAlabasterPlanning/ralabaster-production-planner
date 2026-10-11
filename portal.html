@@ -4,17 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>rAlabaster klantportaal</title>
-  <meta name="description" content="Bekijk offertes en bestellingen, herbestel producten en vraag nieuwe producten aan bij rAlabaster.">
+  <meta name="description" content="Bekijk offertes en bestellingen, herbestel producten en plaats nieuwe offerte- of bestelaanvragen bij rAlabaster.">
   <link rel="stylesheet" href="assets/customer-portal.css?v=20261011-brand-1">
-  <link rel="stylesheet" href="assets/logo-brand-v1.css?v=20261011-1">
+  <link rel="stylesheet" href="assets/logo-brand-v1.css?v=20261011-2">
+  <link rel="stylesheet" href="assets/portal-brand-language-v1.css?v=20261011-1">
 </head>
 <body>
   <div id="portalLogin" class="login-shell">
     <section class="login-card">
       <img id="portalLoginLogo" alt="rAlabaster" class="login-logo">
-      <p class="eyebrow">Klantportaal</p>
+      <div class="login-topline"><p class="eyebrow">Klantportaal</p><select data-portal-language aria-label="Language"><option value="nl">NL</option><option value="en">EN</option><option value="de">DE</option></select></div>
       <h1>Uw projecten, producten en bestellingen op één plek.</h1>
-      <p class="intro">Log in om uw assortiment te bekijken, opnieuw te bestellen, offertes te volgen of een nieuw product aan te vragen.</p>
+      <p class="intro">Log in om uw assortiment te bekijken, opnieuw te bestellen en nieuwe offerte- of bestelaanvragen te plaatsen.</p>
       <form id="portalLoginForm">
         <label>E-mailadres<input id="portalEmail" type="email" autocomplete="username" required></label>
         <label>Wachtwoord<input id="portalPassword" type="password" autocomplete="current-password" required></label>
@@ -43,15 +44,17 @@
         <button data-view="products">Producten</button>
         <button data-view="orders">Bestellingen</button>
         <button data-view="quotes">Offertes</button>
-        <button data-view="request">Nieuw product</button>
+        <button data-view="quote_request">Nieuwe offerte</button>
+        <button data-view="order_request">Nieuwe bestelling</button>
       </nav>
-      <div class="account-menu"><span id="portalCompany"></span><button id="portalLogout">Uitloggen</button></div>
+      <div class="account-menu"><select data-portal-language aria-label="Language"><option value="nl">NL</option><option value="en">EN</option><option value="de">DE</option></select><span id="portalCompany"></span><button id="portalLogout">Uitloggen</button></div>
     </header>
     <main id="portalMain"><div class="loading">Portaal wordt geladen…</div></main>
     <div id="portalToast" role="status"></div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/config.js?v=20260913-1"></script>
-  <script src="assets/customer-portal.js?v=20261011-auth-3"></script>
+  <script src="assets/customer-portal-i18n-v1.js?v=20261011-1"></script>
+  <script src="assets/customer-portal.js?v=20261011-request-language-1"></script>
 </body>
 </html>
