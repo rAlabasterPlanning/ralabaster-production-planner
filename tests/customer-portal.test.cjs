@@ -47,9 +47,20 @@ test('portal migration isolates customers and protects internal planner data',()
 test('planner contains portal management and role gate',()=>{
  const html=read('index.html'),admin=read('assets/customer-portal-admin-v1.js'),auth=read('assets/admin-auth.js');
  assert.match(html,/data-view="portaladmin"/);
- assert.match(admin,/Product aan deze klant koppelen/);
+ assert.match(admin,/Ontbrekend product koppelen/);
  assert.match(admin,/data-portal-convert/);
  assert.match(auth,/requirePlannerAdmin/);
  assert.match(auth,/CUSTOMER_SESSION/);
  assert.match(auth,/await client\.auth\.signOut\(\)/);
+});
+
+test('planner lets staff review customer products one customer at a time',()=>{
+ const html=read('index.html'),admin=read('assets/customer-portal-admin-v1.js');
+ assert.match(html,/customer-review-1/);
+ assert.match(admin,/Controlelijst/);
+ assert.match(admin,/Klopt · volgende klant/);
+ assert.match(admin,/data-portal-save-product/);
+ assert.match(admin,/Ontkoppelen/);
+ assert.match(admin,/Nog niet gekoppelde producten/);
+ assert.match(admin,/replace\(','\s*,\s*'\.'\)/);
 });
