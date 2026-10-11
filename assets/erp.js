@@ -215,8 +215,9 @@ function renderOrderOverview(){
  if(!init())return;
  const root=document.getElementById('view-orderoverview'),s=S();if(!root)return;
  const q=String(root.dataset.q||'').trim().toLowerCase();
- const all=(perf()?.getActiveOrders?perf().getActiveOrders():s.orders.filter(o=>o.active!==false&&o.status!=='completed'&&!o.deleted))
-   .filter(o=>!o.isGeneralWork&&!o.isManualTasks&&!o.deleted)
+ const isFinished=o=>o.active===false||['completed','closed','done','cancelled','deleted'].includes(String(o.status||'').toLowerCase())||!!o.deleted;
+ const all=(perf()?.getActiveOrders?perf().getActiveOrders():s.orders)
+   .filter(o=>!isFinished(o)&&!o.isGeneralWork&&!o.isManualTasks)
    .filter(o=>!q||[o.orderNo,o.customerName,o.product,o.project].join(' ').toLowerCase().includes(q))
    .slice().sort(orderSortForProduction);
  if(orderOverviewPinnedOrder){const positions=new Map(orderOverviewPinnedOrder.map((id,index)=>[id,index]));all.sort((a,b)=>{const ai=positions.has(a.id)?positions.get(a.id):Number.MAX_SAFE_INTEGER,bi=positions.has(b.id)?positions.get(b.id):Number.MAX_SAFE_INTEGER;return ai-bi||(ai===Number.MAX_SAFE_INTEGER?orderSortForProduction(a,b):0)})}
@@ -238,10 +239,18 @@ function renderOrderOverview(){
    <td data-label="Vroegst uitleveren" ${o.needsCalculation?'':'data-earliest-delivery="'+esc(o.id)+'"'}><span class="muted">${o.needsCalculation?'Na uitwerken':'Berekenen…'}</span></td>
    <td data-label="Uiterlijk starten">${(()=>{if(o.needsCalculation)return '<span class="muted">Na uitwerken</span>';const today=iso(),late=o.productionLatestWorkDate&&o.productionLatestWorkDate<today,due=o.productionLatestStartDate&&o.productionLatestStartDate<=today;if(late)return '<b>TE LAAT</b>';if(due)return '<b>DIRECT STARTEN</b>';if(o.productionLatestStartWeek&&o.productionLatestStartDate)return '<b>Week '+esc(String(o.productionLatestStartWeek).slice(-2))+'</b><div class="muted">'+esc(o.productionLatestStartDate)+'</div>';return '<b>Nog berekenen</b>'})()}</td>
    <td data-label="Volgende stap"><b>${o.needsCalculation?'Nog calculeren / aanvullen':esc(n.task?.name||'Gereed')}</b><div class="muted">${esc(n.task?.machine||'')}</div></td>
-   <td class="order-overview-actions"><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')">Open</button> ${o.needsCalculation?'':'<button class="btn small primary" type="button" data-closeout-order-button="'+esc(o.id)+'">Order afgerond</button>'}</td>
+   <td class="order-overview-actions"><button class="btn small" type="button" onclick="RALAB_ERP.openOrder('${o.id}')">Open</button> ${o.needsCalculation?`<button class="btn small danger" type="button" data-delete-quick-order="${esc(o.id)}">Verwijderen</button>`:'<button class="btn small primary" type="button" data-closeout-order-button="'+esc(o.id)+'">Order afgerond</button>'}</td>
  </tr>`}).join('')||'<tr><td colspan="8">Geen actieve orders.</td></tr>'}
  </tbody></table></div>`;
  setTimeout(refreshEarliestDeliveryDates,0);
+}
+function deleteQuickOrder(id){
+ const s=S(),o=s?.orders?.find(x=>x.id===id&&!x.deleted);if(!o||!o.needsCalculation)return false;
+ if(!confirm(`Snelle order ${o.orderNo||''} verwijderen?`))return false;
+ const stamp=new Date().toISOString();o.deleted=true;o.active=false;o.status='deleted';o.deletedAt=stamp;o.updatedAt=stamp;
+ for(const t of s.tasks||[])if(t.orderId===id&&!t.deleted){t.deleted=true;t.status='deleted';t.planSegments=[];t.updatedAt=stamp}
+ try{window.RALAB_PERFORMANCE?.markDeleted?.('orders',id);window.RALAB_PERFORMANCE?.invalidate?.();save()}catch(e){console.error(e);alert('De snelle order kon niet worden verwijderd.');return false}
+ renderOrderOverview();return true;
 }
 function orderDeadlineValue(o){return o?.communicatedDeadline||o?.maximumReadyDate||o?.deadline||'9999-12-31'}
 function orderPriority(o){const n=Number(o?.planningPriority);return n>=1&&n<=3?n:3}
@@ -510,6 +519,7 @@ document.addEventListener('change',e=>{const pref=e.target.closest?.('[data-orde
 document.addEventListener('keydown',e=>{const no=e.target.closest?.('#view-orderoverview [data-overview-order-no]');if(!no)return;if(e.key==='Enter'){e.preventDefault();no.blur()}else if(e.key==='Escape'){e.preventDefault();renderOrderOverview()}},true);
 document.addEventListener('pointerdown',e=>{const dl=e.target.closest?.('#view-orderoverview [data-overview-deadline]');if(!dl)return;e.preventDefault();e.stopPropagation();openDeadlineQuickPick(dl)},true);
 document.addEventListener('click',e=>{
+ const deleteQuick=e.target.closest?.('[data-delete-quick-order]');if(deleteQuick){e.preventDefault();deleteQuickOrder(deleteQuick.dataset.deleteQuickOrder);return}
  const seqPlan=e.target.closest?.('[data-plan-current-sequence]');if(seqPlan){e.preventDefault();planCurrentSequence(seqPlan);return}
  const saveProduct=e.target.closest?.('[data-save-needs-product]');if(saveProduct){e.preventDefault();saveNeedsCalculationProduct(saveProduct.dataset.saveNeedsProduct);return}
  const saveClose=e.target.closest?.('[data-order-save-close]');if(saveClose){e.preventDefault();saveAndCloseOrder(saveClose.dataset.orderSaveClose);return}
@@ -530,7 +540,7 @@ document.addEventListener('click',e=>{
  const toggle=e.target.closest?.('[data-order-task-toggle]');if(toggle){e.preventDefault();toggleOrderTaskDone(toggle.dataset.orderTaskToggle);return}
  const del=e.target.closest?.('[data-order-task-delete]');if(del){e.preventDefault();removeOrderTask(del.dataset.orderTaskDelete);return}
  const star=e.target.closest?.('#view-orders [data-priority-order], #view-orderoverview [data-priority-order]');if(!star||star.disabled)return;e.preventDefault();e.stopPropagation();setOrderPriority(star.dataset.priorityOrder,star.dataset.priorityValue)},true);
-window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,setOrderPriority,setOverviewOrderNo,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,setOrderTaskPreferred,setOrderTaskParallel,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask,copyOrder,confirmCopyOrder,nextStandardOrderNo,saveAndCloseOrder,saveNeedsCalculationProduct,addCustomerProductContract,removeCustomerProductContract,openContractProductionPrompt,createContractStockWork};
+window.RALAB_ERP={show,renderQuotes,renderOrders,renderOrderOverview,renderCompleted,renderProducts,renderCustomers,openCustomer,printCustomerOrders,addCustomer,quoteOrder,openOrder,orderConfirmation,deleteOrder,confirmDeleteOrder,deleteQuickOrder,setOrderPriority,setOverviewOrderNo,setOverviewDeadline,setOverviewDeadlineWeeks,setOverviewSequence,setOrderTaskDuration,setOrderTaskPreferred,setOrderTaskParallel,toggleOrderTaskDone,removeOrderTask,addOrderTask,moveOrderTask,copyOrder,confirmCopyOrder,nextStandardOrderNo,saveAndCloseOrder,saveNeedsCalculationProduct,addCustomerProductContract,removeCustomerProductContract,openContractProductionPrompt,createContractStockWork};
 const priorityStyle=document.createElement('style');priorityStyle.textContent='.order-priority{display:inline-flex;gap:1px;white-space:nowrap}.priority-star{appearance:none;border:0;background:transparent;color:#b8bfbb;font-size:25px;line-height:1;padding:2px;cursor:pointer;touch-action:manipulation}.priority-star.active{color:#d99a00}.priority-star:focus-visible{outline:2px solid #176b55;border-radius:4px}@media(max-width:700px){.priority-star{font-size:29px;padding:4px}}';document.head.appendChild(priorityStyle);
 const overviewMobileStyle=document.createElement('style');overviewMobileStyle.textContent='@media(max-width:700px){.order-overview-panel{overflow:visible!important;background:transparent!important;border:0!important;box-shadow:none!important}.order-overview-list{display:block;min-width:0!important}.order-overview-list thead{display:none}.order-overview-list tbody{display:grid;gap:12px}.order-overview-list tr{display:grid;grid-template-columns:1fr 1fr;background:#fff;border:1px solid #dfe4e2;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(20,35,30,.08)}.order-overview-list td{display:block;padding:10px 12px!important;border:0!important;min-width:0}.order-overview-list td:before{content:attr(data-label);display:block;margin-bottom:4px;color:#68716e;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.02em}.order-overview-list td:nth-child(3),.order-overview-list td:nth-child(7),.order-overview-list .order-overview-actions{grid-column:1/-1}.order-overview-list .order-overview-actions{display:flex;gap:8px;padding-top:12px!important;border-top:1px solid #e5e9e7!important;background:#f7f9f8}.order-overview-list .order-overview-actions:before{display:none}.order-overview-list .order-overview-actions .btn{min-height:42px;flex:1;white-space:normal}.order-overview-list input[type=date]{width:100%;min-width:0}.order-overview-list td:nth-child(5),.order-overview-list td:nth-child(6){font-size:13px}}';document.head.appendChild(overviewMobileStyle);
 setTimeout(()=>{if(!init())return;document.querySelectorAll('.erp-nav').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();show(b.dataset.view)}));},1200);
