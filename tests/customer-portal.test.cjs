@@ -23,6 +23,21 @@ test('portal invitation and recovery lead to password creation',()=>{
  assert.match(js,/updateUser\(\{password\}\)/);
  assert.match(js,/shouldCreateUser:false/);
  assert.match(admin,/portal\?mode=password/);
+ assert.match(js,/authMode='';[\s\S]*updateUser\(\{password\}\)/);
+});
+
+test('planner and customer portal use separate browser sessions',()=>{
+ const portal=read('assets/customer-portal.js'),admin=read('assets/admin-auth.js');
+ assert.match(portal,/storageKey:'ralabaster-customer-auth-v1'/);
+ assert.match(admin,/storageKey:'ralabaster-planner-auth-v1'/);
+});
+
+test('portal follows the rAlabaster document style and hides inactive screens',()=>{
+ const css=read('assets/customer-portal.css'),html=read('portal.html');
+ assert.match(css,/\[hidden\]\{display:none!important\}/);
+ assert.match(css,/--ink:#292c31/);
+ assert.doesNotMatch(css,/images\.unsplash\.com|--green:/);
+ assert.match(html,/Natural stone\./);
 });
 
 test('order change requests are isolated and submitted through a secured rpc',()=>{
@@ -33,6 +48,9 @@ test('order change requests are isolated and submitted through a secured rpc',()
  assert.match(sql,/status not in \('completed','cancelled'\)/i);
  assert.match(js,/Wijziging aanvragen/);
  assert.match(admin,/portal_order_change_requests/);
+ assert.match(admin,/data-portal-pending-changes/);
+ assert.match(admin,/Opslaan en klant informeren/);
+ assert.match(admin,/admin_response/);
 });
 
 test('portal migration isolates customers and protects internal planner data',()=>{
@@ -56,7 +74,7 @@ test('planner contains portal management and role gate',()=>{
 
 test('planner lets staff review customer products one customer at a time',()=>{
  const html=read('index.html'),admin=read('assets/customer-portal-admin-v1.js');
- assert.match(html,/customer-review-1/);
+ assert.match(html,/change-alert-1/);
  assert.match(admin,/Controlelijst/);
  assert.match(admin,/Klopt · volgende klant/);
  assert.match(admin,/data-portal-save-product/);
