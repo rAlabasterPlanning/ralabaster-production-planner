@@ -65,7 +65,22 @@ test('staff capture link is scoped and token protected',()=>{
 test('photo analysis returns an explicitly approximate contour for DXF',()=>{
  const api=read('api/inventory-photo-analysis.mjs'),js=read('assets/inventory-capture.js');
  assert.match(api,/outlinePoints/);
- assert.match(api,/zonder te doen alsof deze maatvast is/);
+ assert.match(api,/Output\.object/);
+ assert.match(api,/A4 of rechthoekig vel/);
  assert.match(js,/LWPOLYLINE/);
  assert.match(js,/STONE_CONTOUR/);
+});
+
+test('inventory uses veins, pallet tare and a review-before-accept workflow',()=>{
+ const html=read('voorraad-invoer.html'),capture=read('assets/inventory-capture.js'),review=read('assets/inventory-review-v1.js'),ops=read('assets/inventory-capture-operations-v1.js'),sql=read('supabase/migrations/20261011195500_inventory_review_staff_movements_and_portal_preferences.sql');
+ assert.match(capture,/Aders \(%\)/);
+ assert.doesNotMatch(capture,/Transparant \(%\)/);
+ assert.match(html,/Gewicht lege pallet/);
+ assert.match(capture,/entered-tare/);
+ assert.match(review,/Steekproef aanvragen/);
+ assert.match(review,/Gecontroleerde verschillen/);
+ assert.match(review,/Verwijderen \/ afboeken/);
+ assert.match(ops,/Steen pakken voor order/);
+ assert.match(sql,/inventory_staff_consume_internal/);
+ assert.match(sql,/review_status:'pending'|review_status text/);
 });
