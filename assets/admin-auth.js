@@ -64,7 +64,7 @@ async function boot(){
  if(!CFG.supabaseUrl||!CFG.supabasePublishableKey||!window.supabase){
   const g=gateHtml();g.querySelector('#ralabAuthError').textContent='Login kan niet worden gestart: Supabase-configuratie ontbreekt.';return;
  }
- const client=window.supabase.createClient(CFG.supabaseUrl,CFG.supabasePublishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+ const client=window.supabase.createClient(CFG.supabaseUrl,CFG.supabasePublishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'ralabaster-planner-auth-v1'}});
  window.RALAB_ADMIN_AUTH={client};
  let bootMessage='';
  try{
