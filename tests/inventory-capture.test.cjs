@@ -11,6 +11,16 @@ test('mobile inventory capture contains the six requested steps',()=>{
  assert.match(html,/capture="environment"/);
 });
 
+test('mobile capture is a one-step-at-a-time wizard with simple measurements',()=>{
+ const js=read('assets/inventory-capture.js');
+ assert.match(js,/function setupWizard/);
+ assert.match(js,/Stap \$\{currentStep\} van 6/);
+ assert.match(js,/Volgende →/);
+ assert.match(js,/Dikte \(mm\)/);
+ assert.doesNotMatch(js,/Dikte \/ lengte/);
+ for(const label of ['Langste maat','Middelste maat','Kleinste maat'])assert.match(js,new RegExp(label));
+});
+
 test('weight is calculated from dimensions and alabaster density',()=>{
  const js=read('assets/inventory-capture.js');
  assert.match(js,/Math\.PI\*\(diameter\/2\)\*\*2\*height/);
