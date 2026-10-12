@@ -242,3 +242,7 @@ After approval, implement directly through the connected tools with minimal manu
 - Offline commands retain UUIDs in a durable local queue; validation conflicts require review. Pending actions are visibly unconfirmed until accepted by Supabase. Database-backed clocks survive reload; multiple devices poll every 15 seconds.
 - Existing hourly/daily backups now include production ledgers. Restoring planner snapshots does not delete production audit history.
 - Tests: `production-floor.test.cjs`, `production-floor-db.sql` (transactional rollback fixture), `production-floor-browser.cjs` (Playwright with synthetic RPCs, TV/iPad/phone).
+
+## Completion/deadline sync protection (2026-10-12)
+
+Pending startup must not unconditionally merge cached operational rows over newer cloud revisions. `mergeOperationalRows` preserves authoritative completion/deadline/progress groups using the existing read baseline. Archived order IDs are fetched separately to exclude cached active copies. Deadline writes carry `deadlineWriteBase` matching the read revision; the database rejects fresh restamps from obsolete clients. Returned authoritative server fields replace a rejected attempted patch if the live values have not changed during the request. Completed orders require explicit `reopenedAt` and `reopenReason` to reopen; a browser sync is never a reopening action. For incident repair, restore individual proven fields from the latest good per-record snapshot, not the full snapshot.
