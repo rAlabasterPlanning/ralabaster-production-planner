@@ -1,3 +1,4 @@
 .empty-choice,.weight-choices{grid-template-columns:1fr 1fr!important;margin-top:15px}
 .weight-result hr{width:100%;border:0;border-top:1px solid var(--line);margin:10px 0}
 @media(max-width:520px){.empty-choice,.weight-choices{grid-template-columns:1fr!important}}
+#staffModeBar{display:flex;align-items:center;gap:12px;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid var(--line)}#staffModeBar .secondary{width:auto;margin:0;padding:10px 12px}.staff-success{padding:13px;background:#e4ebe6;color:#294b36;font-weight:800;margin-top:14px}#staffError,#staffStatus{color:#9b342d;line-height:1.5;margin-top:14px}
