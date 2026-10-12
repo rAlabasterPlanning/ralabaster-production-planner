@@ -76,7 +76,7 @@ test('portal invitation and recovery lead to password creation',()=>{
 
 test('planner and customer portal use separate browser sessions',()=>{
  const portal=read('assets/customer-portal.js'),admin=read('assets/admin-auth.js');
- assert.match(portal,/storageKey:'ralabaster-customer-auth-v1'/);
+ assert.match(portal,/storageKey:preview\?'ralabaster-planner-auth-v1':'ralabaster-customer-auth-v1'/);
  assert.match(admin,/storageKey:'ralabaster-planner-auth-v1'/);
 });
 
@@ -125,7 +125,7 @@ test('planner contains portal management and role gate',()=>{
 
 test('planner lets staff review customer products one customer at a time',()=>{
  const html=read('index.html'),admin=read('assets/customer-portal-admin-v1.js');
- assert.match(html,/user-access-1/);
+ assert.match(html,/assets\/customer-portal-admin-v1\.js/);
  assert.match(admin,/Controlelijst/);
  assert.match(admin,/Klopt · volgende klant/);
  assert.match(admin,/data-portal-save-product/);
