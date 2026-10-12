@@ -1,3 +1,10 @@
+# 2026-10-12 — Bescherming tegen teruggezette afsluitingen en deadlines
+
+- Pending browsercache overschrijft geen nieuwere deadline-/afsluitgegevens bij het opstarten; compacte archieflijst voorkomt dat afgesloten orders terugkomen.
+- Deadlinewijzigingen vergelijken de exacte gelezen revisie; alleen een nieuwe tijdstempel kan oude waarden niet meer als nieuwe deadline doorzetten. Bij conflicten neemt de browser de bevestigde serverwaarde over.
+- Database houdt afgesloten orders afgesloten tenzij expliciet een nieuwe heropening met reden is aangeleverd.
+- Gerichte herstelactie: 10 afsluitingen en 12 aantoonbaar teruggezette deadlines hersteld uit veldhistorie; geen volledige snapshot teruggezet. Een extra herstelpunt is gemaakt vóór de reparatie.
+
 # 2026-10-12 — Productievloer en live tijdregistratie
 
 - Nieuwe grote productiepagina in rAlabaster-stijl, medewerkers links en fysieke werkplekken rechts; responsive voor tv, iPad en telefoon.

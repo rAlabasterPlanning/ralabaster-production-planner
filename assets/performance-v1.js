@@ -72,16 +72,20 @@
       const metaReq=supabaseClient.from('planner_shared_state').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).maybeSingle();
       const orderReq=fetchPaged((a,b)=>supabaseClient.from('planner_orders_v2').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).eq('deleted',false).eq('active',true).order('deadline',{ascending:true,nullsFirst:false}).range(a,b));
       const taskReq=fetchPaged((a,b)=>supabaseClient.from('planner_tasks_v2').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).eq('deleted',false).eq('order_active',true).range(a,b));
-      const [metaRes,orderRows,taskRows]=await Promise.all([metaReq,orderReq,taskReq]);if(metaRes.error)throw metaRes.error;
+      const archiveReq=fetchPaged((a,b)=>supabaseClient.from('planner_orders_v2').select('order_id').eq('workspace_id',WORKSPACE_ID).eq('active',false).eq('deleted',false).range(a,b));
+      const [metaRes,orderRows,taskRows,archivedRows]=await Promise.all([metaReq,orderReq,taskReq,archiveReq]);
+      const archivedIds=new Set(archivedRows.map(r=>r.order_id).filter(Boolean));if(metaRes.error)throw metaRes.error;
       const meta=metaRes.data?.data||{};
       const incomingQuotes=Array.isArray(meta.quotes)?meta.quotes:[];
       const remoteState={...state,...meta,orders:orderRows.map(r=>r.data),tasks:taskRows.map(r=>r.data)};
       const pending=localStorage.getItem(PENDING_KEY);
       if(pending||cloudDirty){
         // A compact/local cache is never an authoritative list of deletions.
-        const local=state;
+        const local={...state,orders:state.orders.filter(o=>!archivedIds.has(o.id)),tasks:state.tasks.filter(t=>!archivedIds.has(t.orderId))};
+        const mergedOrders=mergeOperationalRows(remoteState.orders,local.orders,lastOrderSnapshots,[[DEADLINE_FIELDS,'deadlineUpdatedAt'],[ORDER_COMPLETION_FIELDS,'orderCompletionUpdatedAt']]);
+        const mergedTasks=mergeOperationalRows(remoteState.tasks,local.tasks,lastTaskSnapshots,[[TASK_PROGRESS_FIELDS,'taskProgressUpdatedAt']]);
         seedHashes(remoteState);
-        state={...remoteState,...mergeMetadata(meta,local,cloudMetadata,!normalizedReady),orders:mergeRows(remoteState.orders,local.orders),tasks:mergeRows(remoteState.tasks,local.tasks),pendingRecordDeletions:local.pendingRecordDeletions,quotes:normalizedReady?mergeQuoteChanges(incomingQuotes,local.quotes||[],cloudQuotes):mergeRows(incomingQuotes,local.quotes||[])};
+        state={...remoteState,...mergeMetadata(meta,local,cloudMetadata,!normalizedReady),orders:mergedOrders,tasks:mergedTasks,pendingRecordDeletions:local.pendingRecordDeletions,quotes:normalizedReady?mergeQuoteChanges(incomingQuotes,local.quotes||[],cloudQuotes):mergeRows(incomingQuotes,local.quotes||[])};
         cloudDirty=true;
       }else{
         state=remoteState;seedHashes();
@@ -118,6 +122,18 @@
   function mergeRows(remote,local){
     return [...new Map([...(remote||[]),...(local||[])].map(x=>[x.id,x])).values()];
   }
+  function mergeOperationalRows(remote,local,baseline,groups){
+    const byId=new Map(remote.map(r=>[r.id,r]));
+    for(const row of local){const server=byId.get(row.id);if(!server){byId.set(row.id,row);continue}const before=baseline.get(row.id),merged={...server};
+      // Only actual edits since the read baseline may override current cloud fields.
+      // An existing row from an old cache is not a fresh edit to price, product or notes.
+      if(before)for(const k of new Set([...Object.keys(before),...Object.keys(row)])){const localChanged=hash(row[k]??null)!==hash(before[k]??null),serverChanged=hash(server[k]??null)!==hash(before[k]??null);if(localChanged&&!serverChanged){if(Object.prototype.hasOwnProperty.call(row,k))merged[k]=structuredClone(row[k]);else delete merged[k]}}
+      for(const [fields,revision] of groups){const serverChanged=!before||fields.some(k=>hash(server[k]??null)!==hash(before[k]??null));const localChanged=!before||fields.some(k=>hash(row[k]??null)!==hash(before[k]??null));
+        const winner=serverChanged?(!localChanged||String(row[revision]||'')<=String(server[revision]||'')?server:row):localChanged?row:server;
+        for(const k of [...fields,revision]){if(Object.prototype.hasOwnProperty.call(winner,k))merged[k]=structuredClone(winner[k]);else delete merged[k]}
+      }byId.set(row.id,merged);
+    }return [...byId.values()];
+  }
   function identifiedRows(list){return Array.isArray(list)&&list.every(x=>x&&typeof x==='object'&&x.id)}
   function mergeMetadata(remote,local,baseline={},initial=false){
     const result=Object.fromEntries(Object.entries(remote).filter(([key])=>!OPERATIONAL_KEYS.has(key)));
@@ -150,7 +166,7 @@
     for(const o of source.orders||[]){
       const before=baseline.get(o.id);
       if(!before){if(DEADLINE_FIELDS.some(k=>o[k]))o.deadlineUpdatedAt=o.deadlineUpdatedAt||now;continue}
-      if(DEADLINE_FIELDS.some(k=>hash(o[k]??null)!==hash(before[k]??null))&&String(o.deadlineUpdatedAt||'')===String(before.deadlineUpdatedAt||''))o.deadlineUpdatedAt=now;
+      if(DEADLINE_FIELDS.some(k=>hash(o[k]??null)!==hash(before[k]??null))){o.deadlineWriteBase=String(before.deadlineUpdatedAt||'');if(String(o.deadlineUpdatedAt||'')===String(before.deadlineUpdatedAt||''))o.deadlineUpdatedAt=now;}
     }
     stampRecordChanges(source.orders,baseline,ORDER_COMPLETION_FIELDS,'orderCompletionUpdatedAt',now);
   }
@@ -159,7 +175,7 @@
   }
   function acceptSavedDeadlines(savedRows,snapshot){
     const snapById=new Map((snapshot.orders||[]).map((o,i)=>[o.id,i])),liveById=new Map((state.orders||[]).map(o=>[o.id,o]));
-    for(const row of savedRows||[]){const server=row?.data;if(!server?.id)continue;const i=snapById.get(server.id);if(i!==undefined)snapshot.orders[i]=structuredClone(server);const live=liveById.get(server.id);if(!live)continue;for(const [fields,revision] of [[DEADLINE_FIELDS,'deadlineUpdatedAt'],[ORDER_COMPLETION_FIELDS,'orderCompletionUpdatedAt']])if(String(live[revision]||'')<=String(server[revision]||''))for(const k of [...fields,revision]){if(Object.prototype.hasOwnProperty.call(server,k))live[k]=structuredClone(server[k]);else delete live[k]}}
+    for(const row of savedRows||[]){const server=row?.data;if(!server?.id)continue;const i=snapById.get(server.id),attempted=i!==undefined?snapshot.orders[i]:null;if(i!==undefined)snapshot.orders[i]=structuredClone(server);const live=liveById.get(server.id);if(!live)continue;for(const [fields,revision] of [[DEADLINE_FIELDS,'deadlineUpdatedAt'],[ORDER_COMPLETION_FIELDS,'orderCompletionUpdatedAt']])if(String(live[revision]||'')<=String(server[revision]||'')||(attempted&&[...fields,revision].every(k=>hash(live[k]??null)===hash(attempted[k]??null))))for(const k of [...fields,revision]){if(Object.prototype.hasOwnProperty.call(server,k))live[k]=structuredClone(server[k]);else delete live[k]}}
   }
   function acceptSavedTaskProgress(savedRows,snapshot){
     const snapById=new Map((snapshot.tasks||[]).map((t,i)=>[t.id,i])),liveById=new Map((state.tasks||[]).map(t=>[t.id,t]));

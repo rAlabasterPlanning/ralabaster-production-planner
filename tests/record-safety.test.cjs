@@ -1,7 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const {fullApp}=require('./full-app-fixture.cjs');
 function safety(){
- const source=fs.readFileSync(path.join(__dirname,'../assets/performance-v1.js'),'utf8').replace('  let tries=0;', '  window.testSafety={seedHashes,collectChanges,mergeRows,mergeQuoteChanges,preserveMissing,markDeleted,cancelDeletion,loadNormalizedCloud,saveNormalizedCloud};\n  let tries=0;');
+ const source=fs.readFileSync(path.join(__dirname,'../assets/performance-v1.js'),'utf8').replace('  let tries=0;', '  window.testSafety={seedHashes,collectChanges,mergeRows,mergeOperationalRows,acceptSavedDeadlines,mergeQuoteChanges,preserveMissing,markDeleted,cancelDeletion,loadNormalizedCloud,saveNormalizedCloud};\n  let tries=0;');
  const values=new Map(),ctx=vm.createContext({window:{},state:{orders:[{id:'old',active:true,status:'confirmed'}],tasks:[{id:'task',orderId:'old',status:'open',planSegments:[{date:'2026-10-01',start:'08:15',minutes:30,employee:'Ralph'}]}]},localStorage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},KEY:'cache',WORKSPACE_ID:'ralabaster',structuredClone,setInterval:()=>1,clearInterval:()=>{},setTimeout:()=>1,clearTimeout:()=>{},requestAnimationFrame:fn=>fn(),console,isExternalTask:()=>false,isDryTask:()=>false,renderOnlineBadge:()=>{},cloudUser:{id:'user'},cloudStatus:'online',cloudLoading:false});
  vm.runInContext(source.replace('mergeQuoteChanges,preserveMissing','mergeQuoteChanges,mergeMetadata,preserveMissing'),ctx);ctx.window.testSafety.seedHashes();return ctx;
 }
@@ -167,4 +167,27 @@ test('confirmed quotation deletion registers an explicit intent for each line',a
  vm.runInContext("state.quotes=[{id:'guard-1',quoteNo:'SAFE-001',customerId:'',name:'Lamp',qty:2,saleUnit:25},{id:'guard-2',quoteNo:'SAFE-001',customerId:'',name:'Lamp 2',qty:3,saleUnit:30}]",f.ctx);
  w.RALAB_DOCS.openQuote('SAFE-001');await f.wait(30);d.querySelector('[data-delete-quote]').click();await f.wait(30);
  assert.equal(f.state().quotes.length,0);assert.deepEqual(f.state().quoteDeletionIntents.map(x=>x.id),['guard-1','guard-2']);assert.ok(f.state().quoteDeletionIntents.every(x=>Number.isFinite(Date.parse(x.at))));assert.deepEqual(f.errors,[]);
+});
+
+
+test('pending cache cannot overwrite newer deadlines or resurrect archived orders',async()=>{
+ const c=safety();c.state.orders=[{id:'remote',active:true,status:'confirmed',deadline:'2026-10-01',deadlineUpdatedAt:'2026-10-01T00:00:00Z'},{id:'closed',active:true,status:'confirmed'}];c.state.tasks=[{id:'old-task',orderId:'closed',status:'open'}];c.localStorage.setItem('ralabaster_planner_pending_v1','pending');
+ const remote={id:'remote',active:true,status:'confirmed',deadline:'2026-12-31',communicatedDeadline:'2026-12-31',deadlineUpdatedAt:'2026-10-12T18:15:00Z'};
+ c.supabaseClient={from:table=>{let archived=false;const q={select:()=>q,eq:(k,v)=>{if(k==='active'&&v===false)archived=true;return q},order:()=>q,range:()=>Promise.resolve({data:table==='planner_orders_v2'?archived?[{order_id:'closed'}]:[{data:remote}]:[],error:null}),maybeSingle:()=>Promise.resolve({data:{data:{normalizedVersion:2},updated_at:'stamp'},error:null})};return q}};
+ await c.window.testSafety.loadNormalizedCloud();assert.equal(c.state.orders.length,1);assert.equal(c.state.orders[0].deadline,'2026-12-31');assert.equal(c.state.tasks.length,0);assert.equal((await c.window.testSafety.collectChanges('2026-10-12T19:00:00Z')).changedOrders.length,0);
+});
+test('a rejected fresh restamp accepts the authoritative returned deadline',()=>{
+ const c=safety(),attempt={id:'old',active:true,status:'confirmed',deadline:'2026-10-01',deadlineUpdatedAt:'2026-10-12T19:00:00Z'},server={id:'old',active:true,status:'confirmed',deadline:'2026-12-31',deadlineUpdatedAt:'2026-10-12T18:15:00Z'};
+ c.state.orders=[structuredClone(attempt)];const snapshot={orders:[structuredClone(attempt)]};c.window.testSafety.acceptSavedDeadlines([{data:server}],snapshot);assert.equal(c.state.orders[0].deadline,'2026-12-31');
+});
+test('real local deadline edits carry the exact read revision for compare-and-set',async()=>{
+ const c=safety();c.state.orders[0].deadline='2026-10-15';c.state.orders[0].deadlineUpdatedAt='2026-10-01T00:00:00Z';c.window.testSafety.seedHashes();c.state.orders[0].deadline='2026-12-31';const result=await c.window.testSafety.collectChanges('2026-10-12T19:00:00Z');assert.equal(result.changedOrders[0].data.deadlineWriteBase,'2026-10-01T00:00:00Z');
+});
+
+
+test('cached product, price and notes cannot overwrite data entered today',()=>{
+ const c=safety(),remote=[{id:'order',product:'Today product',saleUnit:75,note:'Today note'}],cached=[{id:'order',product:'Old product',saleUnit:50,note:'Old note'}];
+ let merged=c.window.testSafety.mergeOperationalRows(remote,cached,new Map(),[]);assert.equal(merged[0].product,'Today product');assert.equal(merged[0].saleUnit,75);assert.equal(merged[0].note,'Today note');
+ const baseline=new Map([['order',structuredClone(cached[0])]]);merged=c.window.testSafety.mergeOperationalRows(remote,cached,baseline,[]);assert.equal(merged[0].saleUnit,75);
+ const before={id:'order',note:'Before'},local={id:'order',note:'Actual local edit'};merged=c.window.testSafety.mergeOperationalRows([before],[local],new Map([['order',before]]),[]);assert.equal(merged[0].note,'Actual local edit');
 });
