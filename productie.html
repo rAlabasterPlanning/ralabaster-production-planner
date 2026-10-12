@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>rAlabaster · Productievloer</title>
+<link rel="stylesheet" href="assets/production-floor.css?v=20261012-1">
+</head>
+<body>
+<header class="floor-header">
+ <a class="floor-brand" href="/"><img alt="rAlabaster" id="floorLogo"><span>rAlabaster</span></a>
+ <div class="floor-heading"><span class="eyebrow">ATELIER · LIVE PRODUCTIE</span><h1>Productievloer</h1></div>
+ <div class="floor-header-right"><div id="floorTime" class="header-clock">--:--</div><span id="floorConnection" role="status">Verbinden…</span></div>
+ <button class="quiet-button" id="floorReport">Dagoverzicht</button><button class="quiet-button" id="floorFullscreen" aria-label="Volledig scherm"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
+</header>
+<main id="floorApp">
+ <div class="floor-instruction"><div><span class="step-number">1</span> Kies je naam <span class="step-arrow">→</span> <span class="step-number">2</span> Kies een werkplek <span class="step-arrow">→</span> <span class="step-number">3</span> Start je werk</div><span id="floorPause"></span></div>
+ <div id="floorWarning" class="floor-warning" hidden role="alert"></div>
+ <div class="floor-layout"><aside class="employee-sidebar"><h2>Medewerkers</h2><div id="floorEmployees"></div><div id="floorEmployeeActions"></div></aside><section class="workplace-area" aria-label="Machines en werkplekken"><div class="workplace-heading"><h2 id="floorPrompt">Kies links je naam</h2><span id="floorActiveCount"></span></div><div id="floorWorkplaces" class="workplace-grid"></div></section></div>
+ <section id="floorOverview" hidden></section>
+</main>
+<div id="floorModal"></div><div id="floorToast" role="status" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/config.js"></script><script src="assets/admin-auth.js?v=20261011-session-split-1"></script>
+<script src="assets/production-core.js?v=20261012-1"></script><script src="assets/production-floor.js?v=20261012-1"></script>
+</body></html>

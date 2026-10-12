@@ -230,3 +230,15 @@ Before making changes:
 The user prefers that substantive code/system changes are not made until the proposed change has been explained and they explicitly say something equivalent to `doe`, `bouwen`, `ja`, `let's go`, etc.
 
 After approval, implement directly through the connected tools with minimal manual steps for the user.
+
+## 2026-10-12 — Live production floor
+
+- `/productie` is the shared production screen: employees left, physical workplaces in cards, live session timers; `/productie?overzicht=1` opens the automatic day/week KPI report. Same existing Vercel project, same planner-admin auth storage key. Never expose operational data without the existing admin authorization.
+- `assets/production-core.js` contains Amsterdam timezone/break calculations, workplace matching and deterministic reporting; `production-floor.js` handles the dedicated screen without loading the main planning engine.
+- Normalized production tables: `production_sessions`, `production_phases`, `production_labor`, `production_attendance`, `production_events`, `production_task_baselines`. RLS is admin-only, workspace restricted; events append-only. Public RPCs are security invoker. Commands are transactional/idempotent and serialized to prevent two operators occupying one machine.
+- Automatic labor breaks 10:00–10:15 and 12:15–12:45. Machine/stoppage clocks are independent. Concurrent engaged assignments share labor equally; total employee time is counted once. Shift-end caps prevent overnight accumulation and mark forgotten registrations for review. Friday follows existing Ralph-only schedule; explicit overtime is supported.
+- Good/scrap/rework are incremental per operation; good counts and allocated labor update existing task progress with authoritative revision timestamps. Baselines retain the original estimate and preserve progress registered via other screens. A whole operation completes only on explicit confirmation; orders are not automatically closed.
+- KPI finish dates are explicitly indicative (extra hours / 7.5 hours per weekday above the existing planned finish), not full factory replanning. No automatic schedule writes. Per-operation counts must not be interpreted as finished end-product totals.
+- Offline commands retain UUIDs in a durable local queue; validation conflicts require review. Pending actions are visibly unconfirmed until accepted by Supabase. Database-backed clocks survive reload; multiple devices poll every 15 seconds.
+- Existing hourly/daily backups now include production ledgers. Restoring planner snapshots does not delete production audit history.
+- Tests: `production-floor.test.cjs`, `production-floor-db.sql` (transactional rollback fixture), `production-floor-browser.cjs` (Playwright with synthetic RPCs, TV/iPad/phone).

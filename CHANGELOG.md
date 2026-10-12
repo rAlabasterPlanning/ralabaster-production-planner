@@ -1,3 +1,11 @@
+# 2026-10-12 — Productievloer en live tijdregistratie
+
+- Nieuwe grote productiepagina in rAlabaster-stijl, medewerkers links en fysieke werkplekken rechts; responsive voor tv, iPad en telefoon.
+- Meerdere projecten/machines per medewerker, automatische pauzes, storingen/wachten, overnemen, grote aantalleninvoer, uitval/nabewerking en dagafsluiting.
+- Betrouwbare onafhankelijke machine- en medewerkerregistratie met servertransacties, idempotente wachtrij, revisiebescherming en append-only logboek.
+- Automatisch dag/weekoverzicht met arbeidsuren, productie, uitval, storingen, ontbrekende registratie en expliciet indicatieve orderprognoses; CSV-export en gelogde aantallencorrecties.
+- Productieregistraties opgenomen in bestaande dagelijkse/uurbackups.
+
 # 2026-10-07 — Snelle order: bestaand of nieuw product
 
 - **+ Snelle order** toont nu een duidelijke keuze tussen een bestaand product en een nieuw product.
