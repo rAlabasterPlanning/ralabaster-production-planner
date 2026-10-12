@@ -22,3 +22,5 @@ main{padding:20px 26px 28px}.floor-instruction{display:flex;align-items:center;j
 .session-line .session-state{display:inline-block;border-radius:5px;padding:4px 7px;font-weight:700;letter-spacing:.6px}.session-line.production .session-state{background:#e6f4ed;color:var(--production)}.session-line.setup .session-state{background:#e8f0fb;color:var(--setup)}.session-line.waiting .session-state{background:#fff1dc;color:var(--waiting)}.session-line.downtime .session-state{background:#fbe8e4;color:var(--red)}.expired .session-line .session-state{background:#fff1dc;color:var(--waiting)}
 .employee-button.active{border-left-color:var(--production)}.employee-button.active small{color:var(--production)}.employee-button.pause{border-left-color:var(--waiting)}.order-card .order-active{color:var(--production)}.risk-badge.ok{background:#e6f4ed;color:var(--production)}
 @media(max-width:700px){.floor-status-legend{gap:8px 14px;font-size:11px}}
+
+.workplace-outage{margin:12px 0;padding:12px;background:#fbe8e4;border-radius:8px;color:var(--red);line-height:1.5}.workplace-outage>*{display:block}.workplace-outage span{font-size:14px}.workplace-outage small{font-size:12px}
