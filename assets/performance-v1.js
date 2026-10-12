@@ -124,9 +124,13 @@
   }
   function mergeOperationalRows(remote,local,baseline,groups){
     const byId=new Map(remote.map(r=>[r.id,r]));
-    for(const row of local){const server=byId.get(row.id);if(!server){byId.set(row.id,row);continue}const before=baseline.get(row.id),merged={...server,...row};
+    for(const row of local){const server=byId.get(row.id);if(!server){byId.set(row.id,row);continue}const before=baseline.get(row.id),merged={...server};
+      // Only actual edits since the read baseline may override current cloud fields.
+      // An existing row from an old cache is not a fresh edit to price, product or notes.
+      if(before)for(const k of new Set([...Object.keys(before),...Object.keys(row)])){const localChanged=hash(row[k]??null)!==hash(before[k]??null),serverChanged=hash(server[k]??null)!==hash(before[k]??null);if(localChanged&&!serverChanged){if(Object.prototype.hasOwnProperty.call(row,k))merged[k]=structuredClone(row[k]);else delete merged[k]}}
       for(const [fields,revision] of groups){const serverChanged=!before||fields.some(k=>hash(server[k]??null)!==hash(before[k]??null));const localChanged=!before||fields.some(k=>hash(row[k]??null)!==hash(before[k]??null));
-        if(serverChanged&&(!localChanged||String(row[revision]||'')<=String(server[revision]||'')))for(const k of [...fields,revision]){if(Object.prototype.hasOwnProperty.call(server,k))merged[k]=structuredClone(server[k]);else delete merged[k]}
+        const winner=serverChanged?(!localChanged||String(row[revision]||'')<=String(server[revision]||'')?server:row):localChanged?row:server;
+        for(const k of [...fields,revision]){if(Object.prototype.hasOwnProperty.call(winner,k))merged[k]=structuredClone(winner[k]);else delete merged[k]}
       }byId.set(row.id,merged);
     }return [...byId.values()];
   }

@@ -183,3 +183,11 @@ test('a rejected fresh restamp accepts the authoritative returned deadline',()=>
 test('real local deadline edits carry the exact read revision for compare-and-set',async()=>{
  const c=safety();c.state.orders[0].deadline='2026-10-15';c.state.orders[0].deadlineUpdatedAt='2026-10-01T00:00:00Z';c.window.testSafety.seedHashes();c.state.orders[0].deadline='2026-12-31';const result=await c.window.testSafety.collectChanges('2026-10-12T19:00:00Z');assert.equal(result.changedOrders[0].data.deadlineWriteBase,'2026-10-01T00:00:00Z');
 });
+
+
+test('cached product, price and notes cannot overwrite data entered today',()=>{
+ const c=safety(),remote=[{id:'order',product:'Today product',saleUnit:75,note:'Today note'}],cached=[{id:'order',product:'Old product',saleUnit:50,note:'Old note'}];
+ let merged=c.window.testSafety.mergeOperationalRows(remote,cached,new Map(),[]);assert.equal(merged[0].product,'Today product');assert.equal(merged[0].saleUnit,75);assert.equal(merged[0].note,'Today note');
+ const baseline=new Map([['order',structuredClone(cached[0])]]);merged=c.window.testSafety.mergeOperationalRows(remote,cached,baseline,[]);assert.equal(merged[0].saleUnit,75);
+ const before={id:'order',note:'Before'},local={id:'order',note:'Actual local edit'};merged=c.window.testSafety.mergeOperationalRows([before],[local],new Map([['order',before]]),[]);assert.equal(merged[0].note,'Actual local edit');
+});
