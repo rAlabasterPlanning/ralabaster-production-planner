@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>rAlabaster · Productievloer</title>
-<link rel="stylesheet" href="assets/production-floor.css?v=20261012-status-colors-1">
+<link rel="stylesheet" href="assets/production-floor.css?v=20261012-workplaces-1">
 </head>
 <body>
 <header class="floor-header">
@@ -16,11 +16,11 @@
  <div class="floor-instruction"><div><span class="step-number">1</span> Kies je naam <span class="step-arrow">→</span> <span class="step-number">2</span> Kies een werkplek <span class="step-arrow">→</span> <span class="step-number">3</span> Kies je order</div><span id="floorPause"></span></div>
  <div class="floor-status-legend" aria-label="Statuskleuren"><span class="legend-production">Productie</span><span class="legend-setup">Instellen</span><span class="legend-waiting">Wachten / achterstand</span><span class="legend-downtime">Storing / niet ingeklokt</span></div>
  <div id="floorWarning" class="floor-warning" hidden role="alert"></div>
- <div class="floor-layout"><aside class="employee-sidebar"><h2>Medewerkers</h2><div id="floorEmployees"></div><div id="floorEmployeeActions"></div></aside><section class="workplace-area" aria-label="Machines en werkplekken"><div class="workplace-heading"><h2 id="floorPrompt">Kies links je naam</h2><span id="floorActiveCount"></span></div><div id="floorWorkplaces" class="workplace-grid"></div></section><aside class="order-sidebar"><h2>Orders</h2><p id="floorOrderPrompt">Kies je naam en een machine</p><input id="floorOrderSearch" class="order-search" placeholder="Zoek order of product…" aria-label="Zoek order of product"><div id="floorOrders" class="order-list"></div></aside></div>
+ <div class="floor-layout"><aside class="employee-sidebar"><h2>Medewerkers</h2><div id="floorEmployees"></div><div id="floorEmployeeActions"></div></aside><section class="workplace-area" aria-label="Machines en werkplekken"><div class="workplace-heading"><h2 id="floorPrompt">Kies links je naam</h2><span id="floorActiveCount"></span></div><div id="floorWorkplaceActions"></div><div id="floorWorkplaces" class="workplace-grid"></div></section><aside class="order-sidebar"><h2>Orders</h2><p id="floorOrderPrompt">Kies je naam en een machine</p><input id="floorOrderSearch" class="order-search" placeholder="Zoek order of product…" aria-label="Zoek order of product"><div id="floorOrders" class="order-list"></div></aside></div>
  <section id="floorOverview" hidden></section>
 </main>
 <div id="floorModal"></div><div id="floorToast" role="status" hidden></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="assets/config.js"></script><script src="assets/admin-auth.js?v=20261011-session-split-1"></script>
-<script src="assets/production-core.js?v=20261012-status-colors-1"></script><script src="assets/production-floor.js?v=20261012-status-colors-1"></script>
+<script src="assets/production-core.js?v=20261012-workplaces-1"></script><script src="assets/production-floor.js?v=20261012-workplaces-1"></script>
 </body></html>

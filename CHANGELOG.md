@@ -438,3 +438,8 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
 - Keep rAlabaster gray/white surfaces, system typography and neutral controls; distinguish production green, setup blue, waiting amber and downtime/missing clock-in red.
 - Add a compact status legend and per-session colored labels/timers, including shared workplaces with multiple phases.
 - Verified existing browser registration journeys on TV, iPad and phone.
+
+## 2026-10-12 — Filter work by workplace and persist machine outages
+- Orders filter by open compatible route work; Mori 1 work remains available on Mori 2 and 3, independently of setup placement and pending predecessors. Backend also checks compatibility.
+- Added long-lived workplace incidents: reason, details, reporter, begin/end and immutable audit. Machine cards show blockage; starting/resuming is blocked until release. Active labor pauses; an incident survives day close and includes scheduled backups.
+- Tested filtering and rollback-only incident workflow, including idempotency and blocked start/resume.
