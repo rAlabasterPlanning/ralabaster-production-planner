@@ -33,7 +33,7 @@ test('new orders use the customer assortment and the order list supports inline 
  assert.match(js,/Klaar vanuit productie/);
  assert.match(js,/data-inline-change/);
  assert.match(js,/portal_request_order_change/);
- assert.match(js,/orders\.filter\(o=>o\.status!=='cancelled'\)/);
+ assert.match(js,/RALAB_ORDER_TOOLS\?\.select\(orders\)/);
  assert.match(css,/portal-order-list-head/);
 });
 
