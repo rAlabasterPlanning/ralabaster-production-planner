@@ -433,3 +433,8 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
 - Added stage quantity remaining, productive pace and indicative daily goals, including historical counts and multiple Mori machines.
 - Report order-level labor/counts without implying measured route completion; no automatic order archive.
 - Restored gray/white palette and system typography. Verified unit calculations, rollback-only database workflow, and browser journeys on 1920px TV, 1024px iPad and 390px phone.
+
+## 2026-10-12 — Floor status colors
+- Keep rAlabaster gray/white surfaces, system typography and neutral controls; distinguish production green, setup blue, waiting amber and downtime/missing clock-in red.
+- Add a compact status legend and per-session colored labels/timers, including shared workplaces with multiple phases.
+- Verified existing browser registration journeys on TV, iPad and phone.
