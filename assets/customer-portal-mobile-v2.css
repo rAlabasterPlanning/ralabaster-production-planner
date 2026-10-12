@@ -1,4 +1,10 @@
 .portal-order-picker,.portal-order-list{max-width:100%;overflow:hidden}
+@media(max-width:600px){#portalNav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;overflow:visible}#portalNav button{white-space:normal;text-align:left;padding:10px}}
+.field,.panel,.portal-order-product>*{min-width:0;overflow-wrap:anywhere}
+#portalPreferencesForm .field label:has(input[type=checkbox]){display:flex;align-items:flex-start;gap:10px;line-height:1.5;cursor:pointer}
+#portalPreferencesForm input[type=checkbox]{display:inline-block;width:18px;height:18px;flex:0 0 18px;margin:2px 0 0;padding:0;accent-color:var(--ink)}
+#portalPreferencesForm .actions{align-items:center}
+@media(max-width:700px){.field input,.field select,.field textarea{font-size:16px}.btn,#portalNav button{min-height:44px}#portalPreferencesForm{padding:16px}#portalPreferencesForm .form-grid{grid-template-columns:1fr}#portalPreferencesForm .field.full{grid-column:1}#portalPreferencesForm .actions .btn{width:100%}.portal-order-number{flex-wrap:wrap}.completed-order-card>div{min-width:0}.portal-order-picker-head{display:none}#portalNav{flex-basis:100%;min-width:0}.account-menu{flex-wrap:wrap}.request-line{grid-template-columns:minmax(0,1fr) 80px}.order-control{flex-wrap:wrap}}
 .portal-order-picker-head,.portal-order-picker-row{grid-template-columns:minmax(0,1fr) 135px 90px 110px}
 .portal-order-list-head,.portal-order-row{grid-template-columns:minmax(0,1.35fr) minmax(0,.7fr) minmax(0,.7fr) minmax(0,1fr)}
 .portal-order-row>*{min-width:0}.portal-inline-change{display:grid;grid-template-columns:minmax(0,1fr) auto}.portal-inline-change .btn{white-space:normal}
