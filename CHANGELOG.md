@@ -443,3 +443,9 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
 - Orders filter by open compatible route work; Mori 1 work remains available on Mori 2 and 3, independently of setup placement and pending predecessors. Backend also checks compatibility.
 - Added long-lived workplace incidents: reason, details, reporter, begin/end and immutable audit. Machine cards show blockage; starting/resuming is blocked until release. Active labor pauses; an incident survives day close and includes scheduled backups.
 - Tested filtering and rollback-only incident workflow, including idempotency and blocked start/resume.
+
+## 2026-10-12 — Consumable inventory and next work proposals
+- Added ten disc variants (P80/120/180/240/320 in Ø90/150), stock entry, minimums, deliveries, recounts and price-at-use. No guessed stock or insert types.
+- Added consumption to quantities, stopping, day close and setup completion, with atomic/idempotent deductions and immutable per-order/workplace logs. Scrap kg records do not double-book stone inventory.
+- Explicit workplace completion updates the corresponding operation only after enough good output; propose next work without automatic start.
+- Validated stock/deduction/rollback/retry/revision conflict/day-close/completion SQL fixture and TV/iPad/phone browser flow including minimum warnings and next-operation proposal.
