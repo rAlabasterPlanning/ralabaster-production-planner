@@ -1,0 +1,6 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const source=fs.readFileSync(path.join(__dirname,'../assets/inventory-review-v1.js'),'utf8');
+const approve=source.slice(source.indexOf('async function approve('),source.indexOf('async function recount('));
+function fixture(saved){const calls=[],button={disabled:false},api={items:[],saveItem:async()=>{calls.push('save');return saved},load:async()=>calls.push('load')},context={CSS:{escape:x=>x},document:{querySelector:q=>q.includes('data-inv-approve')?button:{}},inv:()=>api,db:()=>({rpc:async()=>{calls.push('approve');return {}}}),window:{closeModal:()=>{}},toast:()=>{},loadRecounts:async()=>{},setTimeout};vm.createContext(context);vm.runInContext(approve,context);return {context,calls,button};}
+test('accepting an edited stock count saves edits before approving it',async()=>{const f=fixture(true);await f.context.approve('item');assert.deepEqual(f.calls,['save','approve','load']);assert.equal(f.button.disabled,false)});
+test('a failed save leaves the count unapproved and allows retry',async()=>{const f=fixture(false);await f.context.approve('item');assert.deepEqual(f.calls,['save']);assert.equal(f.button.disabled,false)});
