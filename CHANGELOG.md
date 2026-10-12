@@ -426,3 +426,10 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
   definitief en de AI bestuurt geen machines.
 
 
+
+## 2026-10-12 — Simpler floor registration and rAlabaster gray styling
+- Added employees/machines/orders three-column screen with order search and direct order-level registration.
+- Show pending predecessor tasks; either skip unchanged or explicitly confirm completed tasks with revision validation and audit trail.
+- Added stage quantity remaining, productive pace and indicative daily goals, including historical counts and multiple Mori machines.
+- Report order-level labor/counts without implying measured route completion; no automatic order archive.
+- Restored gray/white palette and system typography. Verified unit calculations, rollback-only database workflow, and browser journeys on 1920px TV, 1024px iPad and 390px phone.
