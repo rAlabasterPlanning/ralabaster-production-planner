@@ -14,7 +14,7 @@ function configuration(order,w,snapshot){
  return{production:tasks.filter(t=>!setup(t)).map(resolve),setup:tasks.filter(setup).map(resolve)};
 }
 function liveRow(s,snapshot,at){
- const row={order_id:s.order_id,workplace_name:s.workplace_name,task_id:s.task_id,good:n(s.good),scrap:n(s.scrap),started_at:s.started_at,last_at:s.ended_at||s.started_at,production:0,setup:0,downtime:0,waiting:0,labor_production:0,labor_setup:0,labor_downtime:0,labor_waiting:0};
+ const row={order_id:s.order_id,workplace_name:s.workplace_name,task_id:s.task_id,good:n(s.good),scrap:n(s.scrap),progress_percent:s.progress_percent,progress_mode:s.progress_mode,started_at:s.started_at,last_at:s.ended_at||s.started_at,production:0,setup:0,downtime:0,waiting:0,labor_production:0,labor_setup:0,labor_downtime:0,labor_waiting:0};
  for(const p of C.phasesFor(s,snapshot,at)){
   row[p.phase]+=p.minutes;
   for(const l of snapshot.labor||[]){if(l.superseded_at||!l.session_ids.includes(s.id))continue;
@@ -25,7 +25,7 @@ function liveRow(s,snapshot,at){
  }
  return row;
 }
-function rows(snapshot,at){return[...(snapshot.openingBalances||[]).map(b=>({task_id:b.task_id,order_id:b.order_id,workplace_name:b.workplace_name,good:n(b.good_offset),scrap:n(b.scrap_offset),production:n(b.minutes_offset),labor_production:n(b.minutes_offset),setup:0,downtime:0,waiting:0,started_at:b.cutoff,last_at:b.cutoff,is_opening:true})),...(snapshot.costHistory||[]),...(snapshot.sessions||[]).filter(s=>!s.ended_at||!snapshot.costHistory).map(s=>{const measured=(snapshot.checkpointContext||[]).find(x=>x.session_id===s.id)?.last_report_at;return liveRow(s,snapshot,measured?Math.min(+new Date(at),+new Date(measured)):snapshot.checkpointContext?+new Date(s.started_at):at)})]}
+function rows(snapshot,at){const addProgress=row=>{const p=(snapshot.taskProgress||[]).find(x=>x.order_id===row.order_id&&(!row.task_id||x.task_id===row.task_id)&&C.canonical(x.workplace_name)===C.canonical(row.workplace_name));return p?{...row,progress_percent:p.percent,progress_mode:p.mode}:row};return[...(snapshot.openingBalances||[]).map(b=>({task_id:b.task_id,order_id:b.order_id,workplace_name:b.workplace_name,good:n(b.good_offset),scrap:n(b.scrap_offset),production:n(b.minutes_offset),labor_production:n(b.minutes_offset),setup:0,downtime:0,waiting:0,started_at:b.cutoff,last_at:b.cutoff,is_opening:true})),...(snapshot.costHistory||[]),...(snapshot.sessions||[]).filter(s=>!s.ended_at||!snapshot.costHistory).map(s=>{const measured=(snapshot.checkpointContext||[]).find(x=>x.session_id===s.id)?.last_report_at;return liveRow(s,snapshot,measured?Math.min(+new Date(at),+new Date(measured)):snapshot.checkpointContext?+new Date(s.started_at):at)})].map(addProgress)}
 function monitor(orderId,w,snapshot,at){
  const order=(snapshot.costOrders||snapshot.orders||[]).find(o=>o.id===orderId),data=rows(snapshot,at).filter(x=>x.order_id===orderId&&C.canonical(x.workplace_name)===C.canonical(w.name));
  const result={orderId,orderNo:order?.orderNo||'',good:0,scrap:0,actualMinutes:0,actualPerPiece:null,plannedPerPiece:null,percent:null,status:'unknown',note:'Calculatietijd ontbreekt'};
@@ -44,6 +44,7 @@ function monitor(orderId,w,snapshot,at){
   setupSeen+=n(row.setup);
   result.good+=n(row.good);result.scrap+=n(row.scrap);
  }
+ const estimated=data.find(row=>row.task_id===prod.task.id&&row.progress_mode==='percent');if(estimated){result.status='pending';result.note=`Voortgang geschat op ${n(estimated.progress_percent)}%`;return result;}
  if(result.good<=0){result.status='pending';result.note=setupSeen&&!result.actualMinutes?'Instellen · wacht op aantallen':'Wacht op aantallen';return result;}
  if(result.actualMinutes<=0){result.note='Werkelijke productietijd ontbreekt';return result;}
  result.actualPerPiece=result.actualMinutes/result.good;

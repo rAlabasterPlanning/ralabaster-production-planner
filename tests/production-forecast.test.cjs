@@ -20,3 +20,10 @@ test('opening totals replace legacy baseline in pace and forecast, including alr
  a.equal(pace.good,100);a.equal(pace.scrap,5);a.equal(pace.actualMinutes,500);a.equal(pace.percent,25);
  const result=F.forecast('o','t',s,Date.parse('2026-10-13T08:00Z'));a.equal(result.actual,500);a.equal(result.remaining,2000);a.equal(result.total,2500);
 });
+test('estimated percentage uses elapsed productive time for the remaining task forecast',()=>{
+ const s=base();s.taskProgress=[{task_id:'t',order_id:'o',workplace_name:w.name,mode:'percent',percent:40,revision:1}];
+ const f=F.forecast('o','t',s,at(720)),current=f.details.find(x=>x.taskId==='t');
+ a.equal(current.progress,40);a.equal(current.remaining,360);a.equal(current.measuredPace,true);
+ a.match(F.compact({id:'s',order_id:'o',task_id:'t',workplace_name:w.name},w,s,at(720)),/6 u/);
+ a.equal(F.progressFor({order_id:'o',task_id:'t'},w,s).percent,40);
+});

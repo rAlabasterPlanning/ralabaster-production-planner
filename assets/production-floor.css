@@ -99,3 +99,5 @@ main{padding:20px 26px 28px}.floor-instruction{display:flex;align-items:center;j
 /* The open session owns every action on its machine card. */
 .floor-worker .machine-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.floor-worker .machine-actions .machine-details{grid-column:1/-1;min-height:40px;font-size:16px}.floor-worker .machine-actions button{font-size:19px;min-height:54px}
 .floor-worker .session-clock{white-space:nowrap;flex-shrink:0}
+.machine-mini-forecast{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 12px;margin:12px 0 2px;padding:11px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);align-items:baseline}.machine-mini-forecast span{font-size:14px;color:var(--muted)}.machine-mini-forecast b{font-size:18px;text-align:right;white-space:nowrap}.machine-mini-forecast small{grid-column:1/-1;font-size:12px;color:#285b39;margin-top:-2px}
+.progress-choice{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin:0 0 16px!important}.progress-choice small{display:block;color:var(--muted);font-weight:400;margin-top:6px}
