@@ -6,6 +6,7 @@
 
   function go(view){
     try{
+      if(view==='acquisition'&&window.RALAB_ACQUISITION_LOADER?.open){window.RALAB_ACQUISITION_LOADER.open();return true}
       if(['workplaces','tooling'].includes(view)&&window.RALAB_WORKPLACES?.show){window.RALAB_WORKPLACES.show(view);return true}
       if(['dashboard','quotes','orders','orderoverview','completed','products','customers'].includes(view)&&window.RALAB_ERP?.show){
         window.RALAB_ERP.show(view);

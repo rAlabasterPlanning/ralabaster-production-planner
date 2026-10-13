@@ -5,6 +5,13 @@ Productie: https://ralabasterplanner.vercel.app
 
 Dit bestand is het vaste overdrachtslogboek voor de planner. Het blijft in de repository staan wanneer een ChatGPT-gesprek onvolledig wordt geladen.
 
+## Acquisitie openen en logo hersteld (13 oktober 2026)
+
+- Headernavigatie opent de lazy acquisitiemodule rechtstreeks; de bestaande touch-router onderschept niet meer de initialisatie.
+- Via Meer en directe link gecontroleerd met de werkelijke dynamisch geladen module, aparte databasequeries en een weergegeven eerste inrichtingsstap.
+- Het originele witte logo op grijze achtergrond wordt zonder omkerend filter getoond. Mobiel geen botsende minimum-/maximumbreedte en geen afsnijding.
+- Gerichte navigatie-, inrichting- en logobrontests slagen. De brede oude interactiesuite heeft 11 bestaande afwijkingen; alle 11 zijn ook zonder deze wijziging gereproduceerd. Geen wijzigingen aan productieplanning gedaan.
+
 ## Acquisitie — aparte module, gepubliceerd (13 oktober 2026)
 
 - Publicatie expliciet goedgekeurd door Ralph. Live via GitHub/Vercel (commit e277db3).

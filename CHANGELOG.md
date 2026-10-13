@@ -1,3 +1,8 @@
+## 13 oktober 2026 — Acquisitienavigatie en logo
+- Leeg acquisitiescherm hersteld door de module rechtstreeks vanuit de touch-router te openen.
+- Opnieuw proberen en directe-linkinitialisatie toegevoegd aan de lazy loader.
+- Origineel wit-op-grijs logo en volledige mobiele verhouding hersteld.
+
 ## 13 oktober 2026 — Acquisitie als zelfstandig onderdeel
 - Opgeslagen inrichting in tien stappen, read-only klantanalyse, tien-prospectselectie en feedback.
 - Eigen opslag, opvolging, sample-/offerteaanvragen en privé-upload; geen automatische vermenging met plannerklanten of offertes.
