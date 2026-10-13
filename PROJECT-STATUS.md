@@ -5,6 +5,14 @@ Productie: https://ralabasterplanner.vercel.app
 
 Dit bestand is het vaste overdrachtslogboek voor de planner. Het blijft in de repository staan wanneer een ChatGPT-gesprek onvolledig wordt geladen.
 
+## Acquisitie — berichtvoorbeelden en goedkeuring (13 oktober 2026)
+
+- Tab Berichten en inrichting Toon & talen: bewerkbare onderwerpen/basisteksten en echte mailopmaak, desktop en telefoon.
+- Dezelfde HTML-renderer wordt gebruikt voor preview en Graph-verzending. Origineel logo, goedgekeurde productvoorbeelden, staffels en ondertekening.
+- Verzenden vereist aparte expliciete goedkeuring van alle berichttypen. Tekst-, aanbod-, voorwaarden-, afzender- en layoutwijzigingen maken die goedkeuring ongeldig.
+- AI past alleen de persoonlijke openingsalinea aan. Niet-beoordeelde talen vallen terug op de beoordeelde Engelse basis.
+- Bekijk-/goedkeuracties versturen niets en raken uitsluitend de aparte acquisitie-inrichting.
+
 ## Acquisitie openen en logo hersteld (13 oktober 2026)
 
 - Headernavigatie opent de lazy acquisitiemodule rechtstreeks; de bestaande touch-router onderschept niet meer de initialisatie.

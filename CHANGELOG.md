@@ -1,3 +1,8 @@
+## 13 oktober 2026 — Berichten eerst bekijken
+- Berichten met gedeelde HTML-opmaak, bewerkbare basisteksten en desktop-/telefoonpreview.
+- Aparte goedkeuring vereist voor automatische verzending; wijzigingen blokkeren verzending tot opnieuw goedgekeurd.
+- Persoonlijke opening blijft variabel; overige tekst en mailopmaak volgen de bekeken basis.
+
 ## 13 oktober 2026 — Acquisitienavigatie en logo
 - Leeg acquisitiescherm hersteld door de module rechtstreeks vanuit de touch-router te openen.
 - Opnieuw proberen en directe-linkinitialisatie toegevoegd aan de lazy loader.

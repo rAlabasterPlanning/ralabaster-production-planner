@@ -14,6 +14,14 @@ Na commerciële inrichting kan een beheerder een onderbouwde wereldwijde zoekron
 
 Er worden maximaal tien nieuwe bedrijven per Amsterdamse dag opgeslagen. Een achterblijvende selectie krijgt bij de volgende ronde nieuw onderzoek. Geen kwaliteitsverlaging of verzonnen aanvulling. Oude onbeoordeelde prospects blijven beschikbaar. Dubbele websites en eerder gevonden/bestaande bedrijfsnamen worden uitgesloten.
 
+## Berichten vooraf bekijken en goedkeuren
+
+Tab Berichten en stap Toon & talen tonen de daadwerkelijke gedeelde HTML-layout: origineel logo, tekst, eigen openbaar aanbod met staffels, projectknop en ondertekening. Desktop-/telefoonweergave via een sandboxed iframe. Basisteksten en onderwerpen zijn bewerkbaar. De voorbeeldontvanger is fictief; bekijken en goedkeuren verstuurt niets.
+
+Alle benodigde introductie-, opvolg-, interesse-, sample-, offerte- en samplefeedbackteksten moeten beschikbaar zijn. Een beheerder bevestigt expliciet dat de berichten en opmaak zijn bekeken. Goedkeuring wordt met revisiecontrole opgeslagen. De runtime vergelijkt de volledige goedgekeurde basis met de huidige teksten, aanbod, voorwaarden, ondertekening en layoutversie. Een wijziging blokkeert nieuwe verzendingen tot hernieuwde goedkeuring, ook als de oude verzendschakelaar nog aanstond.
+
+De basisversie is Engels; niet-beoordeelde vertalingen worden niet automatisch verstuurd. De aanhef wordt ingevuld. AI schrijft alleen de korte feitelijke persoonlijke opening van de introductie; de goedgekeurde basisteksten worden niet vrij herschreven. De mailrenderer is dezelfde code voor preview en daadwerkelijke Graph HTML-berichten.
+
 ## Eenmalige technische activering
 
 De bestaande plannerdeployment is `https://ralabasterplanner.vercel.app`. De huidige Vercel connector kan deze deployment niet vinden in het aangesloten team; technische accountprovisioning kan daardoor niet uit deze sessie worden uitgevoerd. Configureer uitsluitend in de juiste hostingomgeving, nooit in frontend, chat, broncode of wizard-data:
