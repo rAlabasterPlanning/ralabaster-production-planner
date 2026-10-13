@@ -4,7 +4,7 @@ Prospects, beoordelingen, gesprekken, aanvragen en sampleverzendingen staan uits
 
 ## Publicatiestatus
 
-Code gebouwd en gecontroleerd; nog niet gepubliceerd. De automatische goedkeuringscontrole heeft de push naar de publieke main-branch afgewezen wegens ontbrekende expliciete publicatietoestemming. Er is geen alternatieve publicatieroute gebruikt. De nieuwe, lege acquisition-opslag bestaat al; bestaande plannerrecords zijn niet veranderd.
+Publicatie expliciet goedgekeurd door Ralph op 13 oktober 2026. Code gepubliceerd via de gekoppelde GitHub-app; Vercel bevestigt een geslaagde productiebuild voor e277db3. Navigatie en nieuwe bestanden zijn op de productie-URL gecontroleerd. De acquisition-opslag is ingericht en getest; bestaande plannerrecords zijn niet veranderd. Account- en scheduleractivering blijft nog open.
 
 ## Gebruik
 

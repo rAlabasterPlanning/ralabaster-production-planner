@@ -5,11 +5,11 @@ Productie: https://ralabasterplanner.vercel.app
 
 Dit bestand is het vaste overdrachtslogboek voor de planner. Het blijft in de repository staan wanneer een ChatGPT-gesprek onvolledig wordt geladen.
 
-## Acquisitie — aparte module, nog niet gepubliceerd (13 oktober 2026)
+## Acquisitie — aparte module, gepubliceerd (13 oktober 2026)
 
-- Gebouwd in lokale commit; publicatie naar de publieke hoofdbranch geblokkeerd door automatische goedkeuringscontrole.
+- Publicatie expliciet goedgekeurd door Ralph. Live via GitHub/Vercel (commit e277db3).
 - Nieuwe databaseopslag is toegepast en getest; bestaande plannergegevens zijn niet gewijzigd.
-- Na publicatie: Meer → Acquisitie, met tien opgeslagen inrichtingsstappen, klantanalyse, prospectbeoordeling en eigen opvolging/aanvragen.
+- Meer → Acquisitie, met tien opgeslagen inrichtingsstappen, klantanalyse, prospectbeoordeling en eigen opvolging/aanvragen.
 - Eigen acquisition-tabellen; bestaande klanten/orders alleen lezen. Geen automatische omzetting naar plannerklant, calculatie, offerte, portaalaccount of productieorder. Ralph maakt die zelf.
 - Brongebonden wereldwijde zoekfunctie via bestaande AI Gateway; feedback en huidige klantprofielen sturen de selectie. Expliciet goedgekeurd aanbod met echte staffels.
 - Outlook OAuth en serveropvolging voorbereid; automatisch verzenden blijft uit tot commerciële inrichting, mailbox en scheduler zijn aangesloten en getest.
