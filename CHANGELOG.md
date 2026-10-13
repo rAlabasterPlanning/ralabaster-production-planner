@@ -1,3 +1,9 @@
+## 13 oktober 2026 — Acquisitie als zelfstandig onderdeel
+- Opgeslagen inrichting in tien stappen, read-only klantanalyse, tien-prospectselectie en feedback.
+- Eigen opslag, opvolging, sample-/offerteaanvragen en privé-upload; geen automatische vermenging met plannerklanten of offertes.
+- Wereldwijde brongebonden AI-research en Microsoft-mailpipeline; activering pas na aanbod- en accountinrichting.
+- Sociale berichten en scheduler expliciet als nog te koppelen weergegeven.
+
 ## 2026-10-13 — Duidelijke productiepagina en startstand voor lopend werk
 
 Grotere actieve machinekaarten, directe aantallenknop en één herinneringsmelding; detailprognoses en overige acties achter Details. Startstand/telling verbindt reeds uitgevoerd werk met de app: totale productietijd, aantallen en uitval sluiten gecontroleerd aan op de bestaande registraties. Nieuwe tellingen boeken alleen het verschil. Tempo, voortgang en orderprognose nemen deze startstand mee zonder de oude baseline dubbel te tellen.
