@@ -1,3 +1,9 @@
+## 2026-10-13 — Voorbereid: productietijdafwijking per machine
+
+De machinekaarten tonen de afwijking van gemiddelde productieminuten per goed stuk tegenover de calculatie. 4 minuten begroot versus 5 werkelijk toont +25% rood; 3 werkelijk toont −25% groen. Beide minutenwaarden staan erbij. Live en historische registraties tellen mee. Ontbrekende aantallen/tijden tonen geen percentage. Publicatie goedgekeurd door Ralph op 13 oktober 2026.
+
+
+
 # 2026-10-12 — Bescherming tegen teruggezette afsluitingen en deadlines
 
 - Pending browsercache overschrijft geen nieuwere deadline-/afsluitgegevens bij het opstarten; compacte archieflijst voorkomt dat afgesloten orders terugkomen.

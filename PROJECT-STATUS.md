@@ -1,9 +1,20 @@
 # rAlabaster Planner – actuele projectstatus
 
-Laatst bijgewerkt: 30 september 2026  
+Laatst bijgewerkt: 13 oktober 2026
 Productie: https://ralabasterplanner.vercel.app
 
 Dit bestand is het vaste overdrachtslogboek voor de planner. Het blijft in de repository staan wanneer een ChatGPT-gesprek onvolledig wordt geladen.
+
+## Voorbereid: tijdafwijking per machine (13 oktober 2026)
+
+- Publicatie goedgekeurd door Ralph op 13 oktober 2026; klaar voor livegang.
+- Ralph corrigeerde de gewenste meting: gemiddelde productietijd per goed stuk tegenover de calculatietijd, weergegeven als ondertekende afwijking.
+- 4 min begroot / 5 min werkelijk = +25% rood; 4 min begroot / 3 min werkelijk = −25% groen; gelijk = 0% neutraal.
+- De machinekaart toont beide minutenwaarden, order en gemeld goed aantal. Live en achteraf ingevoerde productie worden meegenomen, inclusief afgesloten historie ouder dan 30 dagen.
+- Instellen, storing, wachten en gereedschap beïnvloeden dit cyclustijdpercentage niet. Handwerk gebruikt verdeelde productieve medewerkeruren.
+- Ontbrekende aantallen of tijden blijven expliciet onbekend. Bedragen en tarieven zijn niet nodig voor deze meting.
+- Read-only RPC production_cost_snapshot is al aanwezig en levert de benodigde berekende route en historie. Het registreren blijft ongewijzigd.
+- Verificatie: 20 rekentests en browserflows op tv/iPad/telefoon; eerdere databasecontrole onder authenticated in een teruggerolde transactie.
 
 ## Live en gecontroleerd
 
