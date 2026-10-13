@@ -492,3 +492,9 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
 - Added `Werk achteraf invoeren`: previous date, employee, workplace, order, start/end or net-hour helper, quantities, stones used and supplies. Can supplement an existing registration without repeating its hours.
 - Attribute counts/consumption to the historical day while preserving entry-time audit; avoid double labor for simultaneous assignments and double deductions before a later stock count. Keep live clocks, archives and route completion unchanged.
 - Verified rollback-only SQL covering idempotency, overlaps, original/superseded labor, stock count baselines, archived orders and today's live clocks; browser flow on TV/iPad/phone and historic-day report calculation test.
+
+## 2026-10-13 — Unipile voor apart acquisitietraject
+- LinkedIn en Instagram koppelen, opnieuw koppelen en ontkoppelen via Unipile Hosted Auth.
+- Onderbouwde profielselectie, goedgekeurde chatteksten, LinkedIn-uitnodiging/acceptatie en sample-/offerte-intake.
+- Gedeelde pauze/berichtgoedkeuring, sociale dagplafonds en reactiegestuurde stop.
+- Integratie blijft uit tot accountcredentials, scheduler, berichtgoedkeuring en activatie gereed zijn.

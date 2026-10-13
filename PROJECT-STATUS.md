@@ -107,3 +107,10 @@ Publicatie goedgekeurd door Ralph op 13 oktober 2026.
 ## Open punt
 
 - OneDrive eenmalig koppelen voor automatische externe back-upkopieën.
+
+### 2026-10-13 — Unipile sociale acquisitie
+- LinkedIn/Instagram Hosted Auth, reconnect en ontkoppelen toegevoegd aan de geïsoleerde acquisitiemodule.
+- Afzonderlijke uitnodigings-/chatvoorbeelden met expliciete goedkeuring; kanalen wijzigen maakt die goedkeuring ongeldig.
+- Sociale opvolging met LinkedIn-acceptatie, intake-links, reply/opt-out, dagplafonds en blokkering van ambigue dubbele verzendingen.
+- Database providerconstraint uitgebreid; RLS en plannerklanten blijven ongewijzigd.
+- Nog niet operationeel: Unipile-proefaccount/DSN/API-key, bestaande serversecrets en echte scheduler moeten worden ingesteld. Huidige Vercel connector geeft 404 voor dit project. Geen live uitnodiging/chat verzonden.

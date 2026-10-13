@@ -12,8 +12,8 @@
   const root=document.getElementById('view-acquisition');if(!root)return;
   root.innerHTML='<div class="panel" style="padding:24px">Acquisitie laden…</div>';
   loading=(async()=>{
-   if(!document.querySelector('[data-acquisition-styles]')){const css=document.createElement('link');css.rel='stylesheet';css.href='assets/acquisition.css?v=20261013-3';css.dataset.acquisitionStyles='';document.head.appendChild(css);}
-   for(const file of ['acquisition-core.js','acquisition-messages.js','acquisition.js'])await new Promise((ok,no)=>{const script=document.createElement('script');script.src='assets/'+file+'?v=20261013-3';script.onload=ok;script.onerror=()=>no(new Error(file+' kon niet laden'));document.body.appendChild(script);});
+   if(!document.querySelector('[data-acquisition-styles]')){const css=document.createElement('link');css.rel='stylesheet';css.href='assets/acquisition.css?v=20261013-4';css.dataset.acquisitionStyles='';document.head.appendChild(css);}
+   for(const file of ['acquisition-core.js','acquisition-messages.js','acquisition.js'])await new Promise((ok,no)=>{const script=document.createElement('script');script.src='assets/'+file+'?v=20261013-4';script.onload=ok;script.onerror=()=>no(new Error(file+' kon niet laden'));document.body.appendChild(script);});
    if(!window.RALAB_ACQUISITION)throw new Error('Acquisitiemodule kon niet starten');
    await window.RALAB_ACQUISITION.open();
   })().catch(()=>{

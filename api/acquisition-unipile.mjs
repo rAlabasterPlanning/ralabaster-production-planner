@@ -1,0 +1,2 @@
+import { authNotification } from './_acquisition-unipile.mjs';
+export default async function handler(req,res){res.setHeader('Cache-Control','no-store');if(req.method!=='POST')return res.status(405).json({error:'Alleen POST.'});try{if(JSON.stringify(req.body||{}).length>10000)return res.status(413).json({error:'Melding te groot.'});return res.json(await authNotification(req))}catch{return res.status(400).json({error:'Accountmelding niet verwerkt. Start de koppeling opnieuw vanuit Acquisitie.'})}}
