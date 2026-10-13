@@ -35,12 +35,11 @@ main{padding:20px 26px 28px}.floor-instruction{display:flex;align-items:center;j
 .machine-pace>span{font-size:12px;font-weight:700}
 .machine-pace>strong{font-size:30px;line-height:1.1;font-variant-numeric:tabular-nums}
 .machine-pace>small{font-size:12px;line-height:1.4;overflow-wrap:anywhere}
-.machine-pace.under{background:#e3efe6;border-color:#82a78b;color:#245436}
-.machine-pace.on{background:#edf0e9;border-color:#b0bcaa;color:#3d513a}
-.machine-pace.over{background:#f8e4df;border-color:#cf9688;color:#823a2e}
+.machine-pace.under,.machine-pace.on,.machine-pace.over{background:#f4f4ef;border-color:#c7c7c2;color:#333}
+.machine-pace.under>strong{color:#245436}.machine-pace.over>strong{color:#a83429}
 .machine-pace.pending,.machine-pace.unknown{background:#eeede8;color:#686862}
-/* Full machine signal; operational phase remains separately labeled. */
-.workplace-card.pace-green{background:#e6f1e8;border-color:#79a98a}.workplace-card.pace-orange{background:#fff0d7;border-color:#d59c3f}.workplace-card.pace-red{background:#fbe0dc;border-color:#ca6a5d}.workplace-card.downtime{border-top:6px solid #9a3229}
+/* Keep machine cards calm; only the large deviation percentage carries the pace signal. */
+.workplace-card.pace-green,.workplace-card.pace-orange,.workplace-card.pace-red{background:#fff;border-color:var(--line)}.workplace-card.downtime{border-top:6px solid #9a3229}
 .order-forecast{display:grid;gap:5px;margin-top:10px;border-top:1px solid #bcbcb4;padding-top:10px;white-space:normal}.order-forecast span,.order-forecast small{font-size:12px;overflow-wrap:anywhere}.order-forecast b{font-size:18px}.time-over{color:#913c31}.time-under{color:#285b39}
 .floor-reminders:not([hidden]){display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#fff1d8;border:2px solid #d59c3f;border-radius:10px;padding:12px;margin:12px 0}.reminder-button{border:1px solid #c88b24;border-radius:7px;padding:12px;background:white;text-align:left;font:inherit;cursor:pointer}
 .registration-due:after{content:'● Tussenstand bijwerken';display:block;margin-top:12px;color:#845710;font-weight:800;animation:registration-pulse 2s ease-in-out infinite}@keyframes registration-pulse{50%{opacity:.45}}@media(prefers-reduced-motion:reduce){.registration-due:after{animation:none}}
