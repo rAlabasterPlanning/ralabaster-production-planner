@@ -449,3 +449,8 @@ Relevant: `assets/app.part03.txt`, `assets/planning-week-proposal-v1.js`, `asset
 - Added consumption to quantities, stopping, day close and setup completion, with atomic/idempotent deductions and immutable per-order/workplace logs. Scrap kg records do not double-book stone inventory.
 - Explicit workplace completion updates the corresponding operation only after enough good output; propose next work without automatic start.
 - Validated stock/deduction/rollback/retry/revision conflict/day-close/completion SQL fixture and TV/iPad/phone browser flow including minimum warnings and next-operation proposal.
+
+## 2026-10-13 — Enter yesterday's production
+- Added `Werk achteraf invoeren`: previous date, employee, workplace, order, start/end or net-hour helper, quantities, stones used and supplies. Can supplement an existing registration without repeating its hours.
+- Attribute counts/consumption to the historical day while preserving entry-time audit; avoid double labor for simultaneous assignments and double deductions before a later stock count. Keep live clocks, archives and route completion unchanged.
+- Verified rollback-only SQL covering idempotency, overlaps, original/superseded labor, stock count baselines, archived orders and today's live clocks; browser flow on TV/iPad/phone and historic-day report calculation test.
