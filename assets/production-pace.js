@@ -25,7 +25,7 @@ function liveRow(s,snapshot,at){
  }
  return row;
 }
-function rows(snapshot,at){return[...(snapshot.costHistory||[]),...(snapshot.sessions||[]).filter(s=>!s.ended_at||!snapshot.costHistory).map(s=>liveRow(s,snapshot,at))]}
+function rows(snapshot,at){return[...(snapshot.costHistory||[]),...(snapshot.sessions||[]).filter(s=>!s.ended_at||!snapshot.costHistory).map(s=>{const measured=(snapshot.checkpointContext||[]).find(x=>x.session_id===s.id)?.last_report_at;return liveRow(s,snapshot,measured?Math.min(+new Date(at),+new Date(measured)):snapshot.checkpointContext?+new Date(s.started_at):at)})]}
 function monitor(orderId,w,snapshot,at){
  const order=(snapshot.costOrders||snapshot.orders||[]).find(o=>o.id===orderId),data=rows(snapshot,at).filter(x=>x.order_id===orderId&&C.canonical(x.workplace_name)===C.canonical(w.name));
  const result={orderId,orderNo:order?.orderNo||'',good:0,scrap:0,actualMinutes:0,actualPerPiece:null,plannedPerPiece:null,percent:null,status:'unknown',note:'Calculatietijd ontbreekt'};
@@ -35,7 +35,7 @@ function monitor(orderId,w,snapshot,at){
  if(config.production.length!==1)return result;
  const prod=config.production[0];
  if(prod.minutes<=0)return result;
- result.plannedPerPiece=prod.minutes/n(order.qty);
+ result.taskId=prod.task.id;result.plannedPerPiece=prod.minutes/n(order.qty);
  let setupSeen=0;
  for(const row of data){
   // Setup, waiting, breakdowns, tools and monetary rates do not alter cycle time.
@@ -67,7 +67,7 @@ function markup(w,snapshot,at){
  if(!items.length)return '<div class="machine-pace unknown"><span>Tijd per stuk t.o.v. calculatie</span><small>Nog geen productie geregistreerd</small></div>';
  const minutes=x=>Number(x).toLocaleString('nl-NL',{maximumFractionDigits:2});
  const percent=x=>(x>0?'+':x<0?'−':'')+Math.abs(x).toLocaleString('nl-NL',{maximumFractionDigits:1})+'%';
- return items.map(m=>`<div class="machine-pace ${m.status}" title="Gemiddelde geregistreerde productietijd per goed stuk voor deze order op deze machine, vergeleken met de calculatie. Instellen, storing, wachten en gereedschapskosten vallen buiten de productietijd."><span>Tijd per stuk${m.last?' · laatste order':''}</span><strong>${m.percent===null?'—':percent(m.percent)}</strong><small>${m.actualPerPiece===null?'':`${minutes(m.actualPerPiece)} min werkelijk · ${minutes(m.plannedPerPiece)} min begroot`}</small><small>${esc(m.orderNo)} · ${esc(m.note)}</small><small>${m.percent===null?'':`${m.good} goed · gemiddelde${m.good<5?' · voorlopig':''}`}</small></div>`).join('');
+ return items.map(m=>`<div class="machine-pace ${m.status}" title="Gemiddelde geregistreerde productietijd per goed stuk voor deze order op deze machine, vergeleken met de calculatie. Instellen, storing, wachten en gereedschapskosten vallen buiten de productietijd."><span>Tijd per stuk${m.last?' · laatste order':''}</span><strong>${m.percent===null?'—':percent(m.percent)}</strong><small>${m.actualPerPiece===null?'':`${minutes(m.actualPerPiece)} min werkelijk · ${minutes(m.plannedPerPiece)} min begroot`}</small><small>${esc(m.orderNo)} · ${esc(m.note)}</small><small>${m.percent===null?'':`${m.good} goed · gemiddelde${snapshot.checkpointContext?' · laatste telling':''}${m.good<5?' · voorlopig':''}`}</small></div>`).join('');
 }
-const api={monitor,forWorkplace,markup,liveRow};root.RALAB_PRODUCTION_PACE=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+const api={monitor,forWorkplace,markup,liveRow,rows};root.RALAB_PRODUCTION_PACE=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

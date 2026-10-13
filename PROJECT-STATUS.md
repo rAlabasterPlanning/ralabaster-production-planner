@@ -5,9 +5,9 @@ Productie: https://ralabasterplanner.vercel.app
 
 Dit bestand is het vaste overdrachtslogboek voor de planner. Het blijft in de repository staan wanneer een ChatGPT-gesprek onvolledig wordt geladen.
 
-## Voorbereid: tijdafwijking per machine (13 oktober 2026)
+## Tijdafwijking per machine (13 oktober 2026)
 
-- Publicatie goedgekeurd door Ralph op 13 oktober 2026; klaar voor livegang.
+- Gepubliceerd op 13 oktober 2026 (commit 6a35758).
 - Ralph corrigeerde de gewenste meting: gemiddelde productietijd per goed stuk tegenover de calculatietijd, weergegeven als ondertekende afwijking.
 - 4 min begroot / 5 min werkelijk = +25% rood; 4 min begroot / 3 min werkelijk = −25% groen; gelijk = 0% neutraal.
 - De machinekaart toont beide minutenwaarden, order en gemeld goed aantal. Live en achteraf ingevoerde productie worden meegenomen, inclusief afgesloten historie ouder dan 30 dagen.
@@ -15,6 +15,17 @@ Dit bestand is het vaste overdrachtslogboek voor de planner. Het blijft in de re
 - Ontbrekende aantallen of tijden blijven expliciet onbekend. Bedragen en tarieven zijn niet nodig voor deze meting.
 - Read-only RPC production_cost_snapshot is al aanwezig en levert de benodigde berekende route en historie. Het registreren blijft ongewijzigd.
 - Verificatie: 20 rekentests en browserflows op tv/iPad/telefoon; eerdere databasecontrole onder authenticated in een teruggerolde transactie.
+
+## Uitbreiding werkvloer: orderprognose en meetmomenten
+
+Publicatie goedgekeurd door Ralph op 13 oktober 2026.
+
+- Per machine: huidige taakafwijking, opgetelde tijdwinst/uitloop van eerdere taken en verwachte totale ordertijd tegenover voorcalculatie.
+- Machinekleur: groen volgens norm of sneller, oranje bij uitloop tot 20%, rood vanaf 20%. Ontbrekende registratie krijgt apart een signaal.
+- Begrote taken van 4 tot 8 uur: meetmoment halverwege de productietijd. Meerdaagse taken: rond middag en voor einde werkdag. Pauzes tellen niet als productietijd.
+- Registratiepop-up vraagt cumulatieve aantallen, uitval en verbruik. De server boekt alleen het verschil; herhaalde opslag en dagafsluiting tellen niets dubbel.
+- Prognose gebruikt werkelijk bestede tijd, resterende productie op gemeten tempo en normen voor latere taken. Onvolledige gegevens worden zichtbaar vermeld.
+- Verificatie: 30 rekentests, browserflows op tv/iPad/telefoon en teruggerolde databasecontrole voor totalen, voorraadverschillen, herhaalde opslag en stale invoer.
 
 ## Live en gecontroleerd
 

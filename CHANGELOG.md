@@ -1,3 +1,13 @@
+## 2026-10-13 — Orderprognose en automatische tussenstanden op de werkvloer
+
+- Iedere machine toont het gemeten tempo, gewonnen/verloren tijd van eerdere taken en de verwachte totale ordertijd inclusief resterende bewerkingen. Historische productie en parallelle machines worden eenmaal meegenomen; onbekende route-/tijdgegevens worden expliciet gemarkeerd.
+- Tempo blijft gekoppeld aan het laatste telmoment. Ongetelde kloktijd maakt een machine niet vanzelf rood; bestede tijd loopt wel door zonder resterend werk dubbel te voorspellen.
+- Machinekaarten: groen bij volgens calculatie/sneller, oranje bij een positieve afwijking onder 20%, rood vanaf 20%. Het exacte getekende percentage blijft zichtbaar.
+- Taken vanaf 4 t/m 8 begrote uren: halverwege de productie-uren een herinnering, zonder pauzes/storingen. Meerdaagse taken: rond 12:15 en 15 minuten voor einde dienst. Nabije telmomenten worden samengevoegd; onbeantwoorde meldingen blijven zichtbaar en de pop-up herinnert na 15 minuten opnieuw.
+- Tussenstanden en dagafsluiting vragen totalen sinds de start van de huidige registratie, inclusief goed/uitval/nabewerken, stenen en gereedschappen. De database boekt alleen verschillen, bewaart het oorspronkelijke logboek en weigert verouderde invoer. Eerdere dagen blijven in de orderberekening.
+- Knop Werkplaatsscherm (of /productie?scherm): lopende en geblokkeerde machines centraal; terug naar Invoermodus voor werkkeuze. Herinneringen bedekken het hele overzicht niet.
+- Verificatie: 30 berekeningstests; tv/iPad/telefoon voor herinneringen, kleuren, cumulatieve invoer, voorraadverschillen, dagafsluiting en schermmodus; databaseproef binnen rollback voor herhaalde verzoeken en conflicten; bestaande werkvloer- en achterafregistratiebrowserflows behouden.
+
 ## 2026-10-13 — Voorbereid: productietijdafwijking per machine
 
 De machinekaarten tonen de afwijking van gemiddelde productieminuten per goed stuk tegenover de calculatie. 4 minuten begroot versus 5 werkelijk toont +25% rood; 3 werkelijk toont −25% groen. Beide minutenwaarden staan erbij. Live en historische registraties tellen mee. Ontbrekende aantallen/tijden tonen geen percentage. Publicatie goedgekeurd door Ralph op 13 oktober 2026.

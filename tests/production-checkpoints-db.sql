@@ -1,0 +1,23 @@
+begin;
+select set_config('request.jwt.claims',(select jsonb_build_object('sub',user_id,'role','authenticated')::text from public.portal_admins limit 1),true);
+set local role authenticated;
+insert into public.planner_orders_v2(workspace_id,order_id,order_no,active,status,data) values('ralabaster','__checkpoint_order__','CHECKPOINT-TEST',true,'confirmed','{"id":"__checkpoint_order__","qty":100,"product":"TEST"}');
+do $$declare sid uuid:=gen_random_uuid();req uuid:=gen_random_uuid();m uuid;payload jsonb;result jsonb;begin
+ insert into public.production_sessions(id,employee,workplace_id,workplace_name,workplace_type,order_id,operation,phase,started_at,auto_end) values(sid,'Shaffi','__checkpoint_workplace__','Checkpoint test machine','machine','__checkpoint_order__','Orderwerk','production',now()-interval '1 hour',now()+interval '1 hour');
+ insert into public.production_phases(session_id,phase,started_at) values(sid,'production',now()-interval '1 hour');
+ result:=public.production_material_command(gen_random_uuid(),'{"action":"create","name":"TEST tool","sku":"__checkpoint_tool__","unit":"stuks","category":"tool","minimum":5,"quantity":20}');m:=(result->>'material_id')::uuid;
+ payload:=jsonb_build_object('employee','Shaffi','session_id',sid,'action','counts','good',20,'scrap',2,'rework',0,'stone_used_pieces',22,'stone_used_kg',10,'stone_loss_kg',1,'reason','Steenbreuk','expected',jsonb_build_object('good',0,'scrap',0,'rework',0,'stone_used_pieces',0,'stone_used_kg',0,'stone_loss_kg',0),'materials',jsonb_build_array(jsonb_build_object('material_id',m,'quantity',3,'expected',0,'kind','used')));
+ perform public.production_checkpoint(req,payload);perform public.production_checkpoint(req,payload);
+ if (select good from public.production_sessions where id=sid)<>20 then raise exception 'retry duplicated';end if;
+ if (select stock from public.production_materials where id=m)<>17 then raise exception 'stock duplicated';end if;
+ begin perform public.production_checkpoint(gen_random_uuid(),payload);raise exception 'stale accepted';exception when others then if sqlerrm='stale accepted' then raise;end if;end;
+ payload:=payload||jsonb_build_object('good',25,'scrap',2,'stone_used_pieces',27,'stone_used_kg',12,'expected',jsonb_build_object('good',20,'scrap',2,'rework',0,'stone_used_pieces',22,'stone_used_kg',10,'stone_loss_kg',1),'materials',jsonb_build_array(jsonb_build_object('material_id',m,'quantity',4,'expected',3,'kind','used')));
+ perform public.production_checkpoint(gen_random_uuid(),payload);
+ if (select good from public.production_sessions where id=sid)<>25 then raise exception 'total was added instead of delta';end if;
+ if (select stock from public.production_materials where id=m)<>16 then raise exception 'material total added instead of delta';end if;
+ if (select stone_used_pieces from public.production_sessions where id=sid)<>27 then raise exception 'stone total missing';end if;
+ if not exists(select 1 from jsonb_array_elements(public.production_monitor_snapshot()->'checkpointContext')x where x->>'session_id'=sid::text and x->>'last_report_at' is not null) then raise exception 'report timestamp not exposed';end if;
+ if (select count(*) from public.production_events where session_id=sid and action='counts')<>2 then raise exception 'wrong audit count';end if;
+end$$;
+select 'checkpoint totals, stock deltas, idempotence, stale rejection and snapshot timestamp passed' as result;
+rollback;
