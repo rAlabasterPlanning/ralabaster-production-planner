@@ -11,8 +11,8 @@ function forecast(orderId,currentTaskId,snapshot,at){const o=(snapshot.costOrder
  let planned=0,actual=0,remaining=0,earlierDelta=0,missing=!!snapshot.costUnavailable||!!unassigned,earlierMissing=false,measured=0;const current=tasks.find(t=>t.id===currentTaskId);
  const details=tasks.map(t=>{const g=groups.get(t.id),b=(snapshot.baselines||[]).find(x=>x.task_id===t.id),base=plan(t,o,snapshot);planned+=base;if(base<=0)missing=true;
  // Planner actual includes synchronized floor labor. Only add its independent baseline once.
- const logged=g.production+g.setup+g.downtime+g.waiting,legacy=b?n(b.actual):logged?0:n(t.actual),used=logged+legacy+n(g.unreported);actual+=used;
- const good=Math.max(g.good+(b?n(b.good):0),n(t.doneQty)),left=Math.max(0,n(o.qty)-good),isSetup=setup(t);
+ const logged=g.production+g.setup+g.downtime+g.waiting,seeded=(snapshot.openingBalances||[]).some(x=>x.task_id===t.id),legacy=seeded?0:b?n(b.actual):logged?0:n(t.actual),used=logged+legacy+n(g.unreported);actual+=used;
+ const good=seeded?Math.max(0,g.good):Math.max(g.good+(b?n(b.good):0),n(t.doneQty)),left=Math.max(0,n(o.qty)-good),isSetup=setup(t);
  let rest=done(t)?0:isSetup?Math.max(0,base-g.setup):n(o.qty)>0?base*left/n(o.qty):base;
  if(!done(t)&&!isSetup&&g.good>0&&g.production>0){rest=Math.max(0,left*g.production/g.good-n(g.unreportedProduction));measured++}
  remaining+=rest;if(current&&n(t.seq)<n(current.seq)){if(done(t)){if(!used){earlierMissing=true;missing=true;}else earlierDelta+=used-base}else{const earned=isSetup?Math.min(g.setup,base):n(o.qty)>0?base*Math.min(good,n(o.qty))/n(o.qty):0;earlierDelta+=used-earned}}

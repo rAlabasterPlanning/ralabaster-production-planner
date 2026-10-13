@@ -47,3 +47,52 @@ main{padding:20px 26px 28px}.floor-instruction{display:flex;align-items:center;j
 #checkpointError{color:#913c31;font-weight:700}
 .floor-reminder-popup{position:fixed;right:24px;bottom:24px;z-index:100;max-width:min(440px,calc(100vw - 32px));pointer-events:none}.floor-reminder-popup .floor-dialog{pointer-events:auto;max-height:65dvh;box-shadow:0 8px 36px #0004;border:2px solid #d59c3f}.floor-reminder-popup .floor-dialog-body{max-height:48dvh;overflow:auto}
 .floor-wall .employee-sidebar,.floor-wall .order-sidebar,.floor-wall .floor-instruction{display:none}.floor-wall .floor-layout{display:block}.floor-wall .workplace-grid{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}.floor-wall .workplace-card:has(.workplace-idle):not(.downtime){display:none}.floor-wall .workplace-card{padding:18px}.floor-wall .workplace-heading{margin-top:12px}.floor-wall .session-clock{font-size:30px}.floor-wall .session-person{font-size:15px}.floor-wall .order-progress{display:none}.floor-wall .floor-pace-legend{margin:8px 0}.floor-wall .floor-header{flex-wrap:wrap}.floor-wall .order-forecast b{font-size:21px}
+
+/* Production-first screen: large active cards, compact free stations, details on request. */
+.floor-worker .floor-layout{display:flex;flex-direction:column;gap:18px;margin-top:18px}
+.floor-worker .employee-sidebar{border:0;padding:0;order:0}
+.floor-worker .employee-sidebar h2{font-size:15px;letter-spacing:0;text-transform:none;margin:0 0 8px}
+.floor-worker #floorEmployees{display:flex;gap:10px;flex-wrap:wrap}
+.floor-worker .employee-button{width:auto;min-height:54px;padding:10px 18px;margin:0;flex:1;min-width:110px}
+.floor-worker .employee-button strong{font-size:23px;margin:0}
+.floor-worker .employee-button small,.floor-worker .employee-projects{display:none}
+.floor-worker #floorEmployeeActions{display:flex;gap:10px;margin-top:8px}
+.floor-worker #floorEmployeeActions button{width:auto;margin:0}
+.floor-worker .workplace-area{order:1;min-width:0}
+.floor-worker .order-sidebar{display:none;order:2;border:0;padding:16px;background:#fff;border-radius:12px}
+.floor-worker.choosing-order .order-sidebar{display:block}
+.floor-worker .workplace-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.floor-worker .workplace-card{padding:22px;min-height:0;border-width:2px;box-shadow:none;overflow-wrap:anywhere}
+.machine-title{display:flex;justify-content:space-between;align-items:center;gap:10px;background:none;border:0;padding:0;color:inherit;width:100%;text-align:left}
+.machine-title strong{font-size:32px!important;line-height:1.1}.machine-title span{font-size:14px;color:#4f5963}
+.session-person{font-size:24px!important;margin-top:16px}.session-product{font-size:24px;font-weight:750;line-height:1.25;margin:5px 0;overflow-wrap:anywhere}
+.floor-worker .session-description{font-size:17px}.session-progress{display:flex;gap:12px;align-items:baseline;margin-top:16px;flex-wrap:wrap}
+.session-progress strong{font-size:36px!important}.session-progress span{font-size:16px}
+.session-timing{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:12px 0;color:#4b565d}
+.floor-worker .session-clock{font-size:22px;margin:0;letter-spacing:0}.floor-worker .session-state{font-size:17px;text-transform:none;letter-spacing:0}
+.machine-actions{display:grid;grid-template-columns:1fr;gap:10px;margin-top:16px}.machine-actions button{font-size:21px;min-height:58px}
+.floor-worker .machine-pace{padding:0;border:0;background:none;margin-top:20px;gap:6px}
+.floor-worker .machine-pace strong{font-size:48px!important}.floor-worker .machine-pace span{font-size:17px}.floor-worker .machine-pace small{font-size:19px}
+.floor-worker .machine-pace small:nth-of-type(2),.floor-worker .machine-pace small:nth-of-type(3){display:none}
+.floor-worker .machine-free{background:#fff;border:1px solid #ccd2d7;padding:18px}
+.floor-worker .machine-free [data-pace-workplace]{display:none}.floor-worker .machine-free .machine-title strong{font-size:23px!important}
+.floor-worker .floor-instruction,.floor-worker .floor-status-legend{display:none}.floor-worker .floor-pace-legend{font-size:16px;margin:0 0 12px}
+.floor-worker .floor-reminders:not([hidden]){display:grid;grid-template-columns:1fr;gap:8px;padding:16px;border-width:2px}
+.floor-worker .floor-reminders strong{font-size:23px}.floor-worker .floor-reminders>span{font-size:18px}.floor-worker .floor-reminders>div{display:flex;gap:10px;flex-wrap:wrap}
+.floor-worker .reminder-button{font-size:19px;font-weight:750;min-height:52px}
+.floor-worker .registration-due:after{display:none}.floor-worker .registration-due .machine-register{background:#8c5500;box-shadow:0 0 0 3px #efbc62;animation:registration-pulse 3s ease-in-out infinite}
+.floor-worker .floor-header{min-height:92px;padding:14px 24px;gap:14px}.floor-worker .floor-heading h1{font-size:25px}.floor-worker .floor-brand{width:110px;height:54px}.floor-worker .quiet-button{min-height:46px;font-size:15px;padding:10px}
+.floor-worker .workplace-heading h2{font-size:28px;font-weight:750}.floor-worker .workplace-heading>span{font-size:17px}
+.floor-wall .employee-sidebar,.floor-wall .order-sidebar{display:none!important}
+@media(max-width:1100px){.floor-worker .workplace-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.machine-title strong{font-size:28px!important}.floor-worker .workplace-card{padding:18px}}
+@media(max-width:700px){.floor-worker .workplace-grid{grid-template-columns:1fr}.floor-worker .floor-header{padding:12px}.floor-worker #floorEmployees{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.floor-worker .employee-button{min-width:0}.floor-worker .workplace-card{padding:18px}.machine-title strong{font-size:30px!important}.floor-worker .machine-pace strong{font-size:44px!important}}
+@media(prefers-reduced-motion:reduce){.floor-worker .registration-due .machine-register{animation:none}}
+
+.floor-menu{position:relative}.floor-menu summary{cursor:pointer;padding:12px 18px;border:1px solid #89929b;border-radius:8px;font-size:18px;font-weight:700;list-style:none}.floor-menu[open]>div{position:absolute;top:calc(100% + 8px);right:0;z-index:90;background:#39434b;padding:12px;border-radius:10px;box-shadow:0 6px 22px #0003;display:grid;gap:8px;width:250px}.floor-menu button{width:100%;text-align:left}
+.opening-known{background:#e9eef2;padding:14px;margin:14px 0;border-radius:8px;font-size:17px;line-height:1.5}#openingError{color:#a83429;font-weight:700}
+
+.floor-worker .workplace-grid{align-items:start}
+
+@media(max-width:700px){.floor-dialog:has(#openingTitle) .floor-input-grid{grid-template-columns:1fr}.floor-dialog:has(#openingTitle) label{font-size:16px}}
+
+.floor-wall .machine-free:not(.downtime){display:none}

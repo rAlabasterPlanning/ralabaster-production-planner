@@ -25,7 +25,7 @@ function liveRow(s,snapshot,at){
  }
  return row;
 }
-function rows(snapshot,at){return[...(snapshot.costHistory||[]),...(snapshot.sessions||[]).filter(s=>!s.ended_at||!snapshot.costHistory).map(s=>{const measured=(snapshot.checkpointContext||[]).find(x=>x.session_id===s.id)?.last_report_at;return liveRow(s,snapshot,measured?Math.min(+new Date(at),+new Date(measured)):snapshot.checkpointContext?+new Date(s.started_at):at)})]}
+function rows(snapshot,at){return[...(snapshot.openingBalances||[]).map(b=>({task_id:b.task_id,order_id:b.order_id,workplace_name:b.workplace_name,good:n(b.good_offset),scrap:n(b.scrap_offset),production:n(b.minutes_offset),labor_production:n(b.minutes_offset),setup:0,downtime:0,waiting:0,started_at:b.cutoff,last_at:b.cutoff,is_opening:true})),...(snapshot.costHistory||[]),...(snapshot.sessions||[]).filter(s=>!s.ended_at||!snapshot.costHistory).map(s=>{const measured=(snapshot.checkpointContext||[]).find(x=>x.session_id===s.id)?.last_report_at;return liveRow(s,snapshot,measured?Math.min(+new Date(at),+new Date(measured)):snapshot.checkpointContext?+new Date(s.started_at):at)})]}
 function monitor(orderId,w,snapshot,at){
  const order=(snapshot.costOrders||snapshot.orders||[]).find(o=>o.id===orderId),data=rows(snapshot,at).filter(x=>x.order_id===orderId&&C.canonical(x.workplace_name)===C.canonical(w.name));
  const result={orderId,orderNo:order?.orderNo||'',good:0,scrap:0,actualMinutes:0,actualPerPiece:null,plannedPerPiece:null,percent:null,status:'unknown',note:'Calculatietijd ontbreekt'};

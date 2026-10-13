@@ -1,3 +1,9 @@
+## 2026-10-13 — Duidelijke productiepagina en startstand voor lopend werk
+
+Grotere actieve machinekaarten, directe aantallenknop en één herinneringsmelding; detailprognoses en overige acties achter Details. Startstand/telling verbindt reeds uitgevoerd werk met de app: totale productietijd, aantallen en uitval sluiten gecontroleerd aan op de bestaande registraties. Nieuwe tellingen boeken alleen het verschil. Tempo, voortgang en orderprognose nemen deze startstand mee zonder de oude baseline dubbel te tellen.
+
+Gecontroleerd met 31 rekentests, browserflows op tv/iPad/telefoon en een teruggerolde databasecontrole.
+
 ## 2026-10-13 — Orderprognose en automatische tussenstanden op de werkvloer
 
 - Iedere machine toont het gemeten tempo, gewonnen/verloren tijd van eerdere taken en de verwachte totale ordertijd inclusief resterende bewerkingen. Historische productie en parallelle machines worden eenmaal meegenomen; onbekende route-/tijdgegevens worden expliciet gemarkeerd.

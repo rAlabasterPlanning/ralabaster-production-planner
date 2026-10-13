@@ -13,3 +13,10 @@ test('three independently operated machines keep separate reminders and colors',
 
 test('live spent time advances but forecast does not double count unreported production',()=>{const s=active(800);s.checkpointContext[0].last_report_at=at(655);const first=F.forecast('o','t',s,at(655)),later=F.forecast('o','t',s,at(715));a.equal(later.actual-first.actual,60);a.equal(later.remaining-first.remaining,-60);a.equal(later.total,first.total)});
 test('a breakdown does not trigger a halfway productive-hours reminder early',()=>{const s=active(240);s.checkpointContext=[];s.phases=[{session_id:'s',phase:'production',started_at:at(495),ended_at:at(555)},{session_id:'s',phase:'downtime',started_at:at(555),ended_at:at(615)},{session_id:'s',phase:'production',started_at:at(615)}];a.equal(F.reminders(s,at(630)).length,0);a.equal(F.reminders(s,at(675)).length,1)});
+
+test('opening totals replace legacy baseline in pace and forecast, including already logged floor work once',()=>{
+ const s={orders:[{id:'o',qty:500,orderNo:'TEST'}],tasks:[{id:'t',orderId:'o',seq:1,name:'Draaien',machine:'Mori ZL15 #1',estimate:2000,actual:800,doneQty:150,status:'partial'}],workplaces:[{id:'m',name:'Mori ZL15 #1',type:'machine'}],costHistory:[{order_id:'o',task_id:null,workplace_name:'Mori ZL15 #1',good:40,scrap:2,production:200}],openingBalances:[{task_id:'t',order_id:'o',workplace_name:'Mori ZL15 #1',good_offset:60,scrap_offset:3,minutes_offset:300,cutoff:'2026-10-13T08:00Z'}],baselines:[{task_id:'t',good:100,actual:800,estimate:2000}],sessions:[],phases:[],labor:[]};
+ const pace=require('../assets/production-pace.js').monitor('o',s.workplaces[0],s,Date.parse('2026-10-13T08:00Z'));
+ a.equal(pace.good,100);a.equal(pace.scrap,5);a.equal(pace.actualMinutes,500);a.equal(pace.percent,25);
+ const result=F.forecast('o','t',s,Date.parse('2026-10-13T08:00Z'));a.equal(result.actual,500);a.equal(result.remaining,2000);a.equal(result.total,2500);
+});

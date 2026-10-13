@@ -16,6 +16,16 @@ Dit bestand is het vaste overdrachtslogboek voor de planner. Het blijft in de re
 - Read-only RPC production_cost_snapshot is al aanwezig en levert de benodigde berekende route en historie. Het registreren blijft ongewijzigd.
 - Verificatie: 20 rekentests en browserflows op tv/iPad/telefoon; eerdere databasecontrole onder authenticated in een teruggerolde transactie.
 
+## Productiepagina en startstanden (13 oktober 2026)
+
+- Actieve machines bovenaan, grote product/medewerker/voortgang, directe knop Aantallen doorgeven. Vrije machines compact; orders verschijnen bij werkkeuze.
+- Orderprognose en verdere acties staan onder Details & acties. Beheerfuncties staan onder Meer.
+- Registratieherinneringen staan als één duidelijke inline melding en markeren de knop bij de machine.
+- Meer → Startstand / telling (of Details bij een machine) legt totale productietijd, goed gemaakte stuks en uitval vast per machine/bewerking, inclusief werk van vóór de invoering.
+- De database bewaart een gecontroleerde aansluiting op bestaande registraties, met wijzigingshistorie en bescherming tegen dubbele opslag/verouderde invoer. Volgende tellingen sluiten aan op de startstand.
+- Tempo, voortgang en orderprognose nemen de startstand mee; oude plannerbaseline wordt voor die bewerking niet nogmaals toegevoegd.
+- Verificatie: 31 rekentests, uitgebreide browserflows op tv/iPad/telefoon en teruggerolde databasecontrole voor startstand, vervolgtelling, herhaalde opslag en concurrentie.
+
 ## Uitbreiding werkvloer: orderprognose en meetmomenten
 
 Publicatie goedgekeurd door Ralph op 13 oktober 2026.
