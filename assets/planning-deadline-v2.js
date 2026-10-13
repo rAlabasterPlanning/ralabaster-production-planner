@@ -67,13 +67,13 @@ function freeWindows(date,emp,key,excludeIds,allowSaturday,allowPeter,currentTas
 function allocateInternal(t,earliestAt,opts={}){
  const allowSaturday=!!opts.allowSaturday,allowPeter=!!opts.allowPeter,excludeIds=opts.excludeIds||new Set([t.id]);
  const ralphOnly=ralphOnlyTask(t),explicitOverride=String(t.taskEmployeeOverride||''),explicitRalph=!ralphOnly&&explicitOverride==='Ralph',rawPreferred=explicitOverride||opts.preferredEmployee||t.employee||null,preferred=rawPreferred;
- let base=(ralphOnly||explicitRalph)?['Ralph']:['Kaan','Lance','Shaffi'];if(allowPeter&&!ralphOnly&&!explicitRalph)base.push('Peter');
+ let base=(ralphOnly||explicitRalph)?['Ralph']:['Kaan','Lance','Shaffi','Youri'];if(allowPeter&&!ralphOnly&&!explicitRalph)base.push('Peter');
  base=window.RALAB_WORKPLACES?.candidateEmployees?.(t,base)||base;
  if(!ralphOnly&&!explicitRalph)base=base.filter(x=>x!=='Ralph');
  if(ralphOnly||explicitRalph)base=['Ralph'];
  let employees=[...new Set(base)];
  if(preferred&&employees.includes(preferred))employees=opts.lockEmployee?[preferred]:[preferred,...employees.filter(x=>x!==preferred)];
- if(!employees.length)employees=(ralphOnly||explicitRalph)?['Ralph']:['Kaan','Lance','Shaffi'];
+ if(!employees.length)employees=(ralphOnly||explicitRalph)?['Ralph']:['Kaan','Lance','Shaffi','Youri'];
  let need=Math.max(0,Number(t.estimate)||0);if(need===0){t.planSegments=[];t.date=dtDate(earliestAt);return earliestAt}
  let d=dtDate(earliestAt),firstDay=true,segs=[],guard=0,selectedMachine=t.assignedMachine||null;
  while(need>0&&guard++<240){let best=null;const machines=selectedMachine?[selectedMachine]:machineOptions(t);for(const machine of machines){const key=cleanMachine(machine).toLowerCase();for(const [rank,emp] of employees.entries()){for(const w of freeWindows(d,emp,key,excludeIds,allowSaturday,allowPeter,t)){let a=w[0],z=w[1];if(firstDay)a=Math.max(a,min(dtTime(earliestAt)));const free=z-a;if(free<=0||(free<MIN_USEFUL_BLOCK&&need>free))continue;if(!best||a<best.a||(a===best.a&&(rank<best.rank||(rank===best.rank&&free>best.free))))best={emp,a,z,free,machine,rank}}}}
@@ -85,7 +85,7 @@ function pairSetupWithExecution(setup,run,earliestAt,opts={}){
  const sd=Math.max(1,Number(setup.estimate)||30),exclude=new Set([setup.id,run.id]);let d=dtDate(earliestAt),guard=0;
  const runRalphOnly=ralphOnlyTask(run),setupRalphOnly=ralphOnlyTask(setup);
  let preferredRun=runRalphOnly?'Ralph':(run.taskEmployeeOverride||((opts.preferredEmployee&&opts.preferredEmployee!=='Ralph')?opts.preferredEmployee:(run.employee&&run.employee!=='Ralph'?run.employee:null)));
- let base=runRalphOnly?['Ralph']:['Kaan','Lance','Shaffi'];if(opts.allowPeter&&!runRalphOnly)base.push('Peter');
+ let base=runRalphOnly?['Ralph']:['Kaan','Lance','Shaffi','Youri'];if(opts.allowPeter&&!runRalphOnly)base.push('Peter');
  base=window.RALAB_WORKPLACES?.candidateEmployees?.(run,base)||base;if(!runRalphOnly)base=base.filter(x=>x!=='Ralph');
  let employees=preferredRun&&base.includes(preferredRun)?[preferredRun,...base.filter(x=>x!==preferredRun)]:base;
  const machines=run.assignedMachine?[run.assignedMachine]:machineOptions(run);
@@ -132,7 +132,7 @@ function chooseFlowEmployee(o,ts,opts={}){
  if(first.employee&&first.employee!=='Ralph')return first.employee;
  if(first.preferredEmployee&&first.preferredEmployee!=='Ralph')return first.preferredEmployee;
  if(ralphOnlyTask(first))return'Ralph';
- let candidates=['Kaan','Lance','Shaffi'];if(opts.allowPeter)candidates.push('Peter');
+ let candidates=['Kaan','Lance','Shaffi','Youri'];if(opts.allowPeter)candidates.push('Peter');
  candidates=window.RALAB_WORKPLACES?.candidateEmployees?.(first,candidates)||candidates;candidates=candidates.filter(x=>x!=='Ralph');
  return candidates[0]||'Kaan';
 }

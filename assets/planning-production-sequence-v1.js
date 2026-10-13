@@ -66,7 +66,7 @@ function row(o){
       <label>Volgorde</label>
       <input class="input prod-seq-input" type="number" min="1" step="1" placeholder="auto" value="${esc(seq)}" data-prod-seq-input="${esc(o.id)}" inputmode="numeric">
     </div>
-    <label class="prod-seq-owner"><span>Medewerker</span><select class="input" data-prod-owner="${esc(o.id)}"><option value="" ${!o.productionEmployeeOverride?'selected':''}>Auto</option><option value="Kaan" ${o.productionEmployeeOverride==='Kaan'?'selected':''}>Kaan</option><option value="Lance" ${o.productionEmployeeOverride==='Lance'?'selected':''}>Lance</option><option value="Shaffi" ${o.productionEmployeeOverride==='Shaffi'?'selected':''}>Shaffi</option><option value="Peter" ${o.productionEmployeeOverride==='Peter'?'selected':''}>Peter</option></select></label>
+    <label class="prod-seq-owner"><span>Medewerker</span><select class="input" data-prod-owner="${esc(o.id)}"><option value="" ${!o.productionEmployeeOverride?'selected':''}>Auto</option><option value="Kaan" ${o.productionEmployeeOverride==='Kaan'?'selected':''}>Kaan</option><option value="Lance" ${o.productionEmployeeOverride==='Lance'?'selected':''}>Lance</option><option value="Shaffi" ${o.productionEmployeeOverride==='Shaffi'?'selected':''}>Shaffi</option><option value="Youri" ${o.productionEmployeeOverride==='Youri'?'selected':''}>Youri</option><option value="Peter" ${o.productionEmployeeOverride==='Peter'?'selected':''}>Peter</option></select></label>
     <div class="prod-seq-main">
       <b>${esc(o.orderNo||'Order')} · ${esc(o.product||'')}</b>
       <span>${esc(customer)}${customer?' · ':''}deadline ${esc(deadline)}${ready?' · verwacht '+esc(ready):''}</span>

@@ -9,7 +9,7 @@ const OPS=[
  ['Schuren',26,0,'unit'],['Polijsten',26,0,'unit'],['Assemblage',11,0,'unit'],['Inpakken',11,0,'unit'],['INTERN - Algemeen',11,0,'unit'],['Zagen (Wiseco)',16,0,'unit'],['Waterjetten (extern)',0,20160,'external'],
  ['Gildemeister - Instellen',60,30,'batch'],['Gildemeister',20.5,0,'unit'],['Steen inkopen Spanje (extern)',0,50400,'external']
 ].map((x,i)=>({id:'op'+i,name:x[0],rate:x[1],minutes:x[2],mode:x[3],externalBatch:0,externalUnit:0}));
-const STAFFELS=[1,10,25,50,100,250,500,1000], EMP=['Ralph','Peter','Kaan','Lance','Shaffi'];
+const STAFFELS=[1,10,25,50,100,250,500,1000], EMP=['Ralph','Peter','Kaan','Lance','Shaffi','Youri'];
 let calc={id:null,customerId:'',project:'',name:'',orderNo:'',qty:100,materialMode:'unit',materialCost:0,marginMode:'factor',marginValue:3,deadline:'',ops:[]},simulation=null;
 const num=v=>{const n=Number(String(v??'').replace(',','.'));return Number.isFinite(n)?n:0},euro=n=>new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(Number(n)||0), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const iso=d=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)},addDays=(s,n)=>{const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);return iso(d)},tm=s=>{const[a,b]=(s||'00:00').split(':').map(Number);return a*60+b},mt=x=>String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0');

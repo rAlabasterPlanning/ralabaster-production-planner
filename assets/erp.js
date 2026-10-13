@@ -331,7 +331,7 @@ async function openOrder(id){
    <div style="display:flex;align-items:center;gap:4px"><b style="min-width:22px">${i+1}.</b><button class="btn small" type="button" data-order-task-move="${esc(t.id)}" data-move-dir="-1" ${i===0?'disabled':''} title="Omhoog">↑</button><button class="btn small" type="button" data-order-task-move="${esc(t.id)}" data-move-dir="1" ${i===ts.length-1?'disabled':''} title="Omlaag">↓</button></div>
    <div><b>${esc(t.name||'Taak')}</b><div class="muted">${esc(t.machine||'')}${t.employee?' · '+esc(t.employee):''}${t.date?' · '+esc(t.date):''}</div></div>
    <label style="display:flex;align-items:center;gap:5px"><input class="input" style="width:72px" type="number" min="1" step="1" data-order-task-duration="${esc(t.id)}" value="${Math.max(1,Math.round(Number(t.estimate)||1))}"><span class="muted">min</span></label>
-   <select class="input" data-order-task-preferred="${esc(t.id)}" title="Voorkeursmedewerker"><option value="">Geen voorkeur</option>${['Ralph','Peter','Kaan','Lance','Shaffi'].map(x=>`<option value="${x}" ${x===(t.preferredEmployee||'')?'selected':''}>${x}</option>`).join('')}</select>
+   <select class="input" data-order-task-preferred="${esc(t.id)}" title="Voorkeursmedewerker"><option value="">Geen voorkeur</option>${['Ralph','Peter','Kaan','Lance','Shaffi','Youri'].map(x=>`<option value="${x}" ${x===(t.preferredEmployee||'')?'selected':''}>${x}</option>`).join('')}</select>
    <select class="input" data-order-task-parallel="${esc(t.id)}" title="Parallelgroep"><option value="">Niet parallel</option>${['A','B','C','D'].map(x=>`<option value="${x}" ${x===(t.parallelGroupId||'')?'selected':''}>Parallel ${x}</option>`).join('')}</select>
    <button class="btn small ${done?'':'primary'}" type="button" data-order-task-toggle="${esc(t.id)}">${done?'Heropenen':'Klaar'}</button>
    <button class="btn small" type="button" data-order-task-delete="${esc(t.id)}">Verwijderen</button>
@@ -344,7 +344,7 @@ async function openOrder(id){
    <input class="input" data-new-order-task-name placeholder="Taaknaam">
    <input class="input" list="orderTaskMachineList" data-new-order-task-machine placeholder="Werkplek / machine">
    <label style="display:flex;align-items:center;gap:5px"><input class="input" type="number" min="1" step="1" value="30" data-new-order-task-duration style="width:76px"><span class="muted">min</span></label>
-   <select class="input" data-new-order-task-preferred><option value="">Geen voorkeur</option>${['Ralph','Peter','Kaan','Lance','Shaffi'].map(x=>`<option value="${x}">${x}</option>`).join('')}</select>
+   <select class="input" data-new-order-task-preferred><option value="">Geen voorkeur</option>${['Ralph','Peter','Kaan','Lance','Shaffi','Youri'].map(x=>`<option value="${x}">${x}</option>`).join('')}</select>
    <select class="input" data-new-order-task-parallel><option value="">Niet parallel</option>${['A','B','C','D'].map(x=>`<option value="${x}">Parallel ${x}</option>`).join('')}</select>
    <button class="btn primary" type="button" data-add-order-task="${esc(o.id)}">+ Toevoegen</button>
  </div><datalist id="orderTaskMachineList">${machineList}</datalist></div>

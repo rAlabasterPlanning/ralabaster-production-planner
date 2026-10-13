@@ -3,7 +3,7 @@
 const VERSION='20260925-9',clone=x=>JSON.parse(JSON.stringify(x));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const S=()=>{try{return state}catch(_){return null}};
-const employees=()=>typeof EMPLOYEES!=='undefined'?EMPLOYEES:['Ralph','Peter','Kaan','Lance','Shaffi'];
+const employees=()=>typeof EMPLOYEES!=='undefined'?EMPLOYEES:['Ralph','Peter','Kaan','Lance','Shaffi','Youri'];
 let proposal=null;
 const taskSegmentsOf=t=>Array.isArray(t?.planSegments)?t.planSegments:[];
 const taskById=id=>proposal?.draft?.tasks?.find(t=>t.id===id);

@@ -2,7 +2,7 @@
 // Kleine wijzigingen zoals medewerkers, werktijden en standaard doorlooptijden kunnen hier.
 window.RALAB_CONFIG = {
   appVersion: 11,
-  employees: ['Ralph','Peter','Kaan','Lance','Shaffi'],
+  employees: ['Ralph','Peter','Kaan','Lance','Shaffi','Youri'],
   schedule: {
     monThu: { start: '08:15', end: '16:30' },
     friday: { Ralph: { start: '08:15', end: '15:00' } },

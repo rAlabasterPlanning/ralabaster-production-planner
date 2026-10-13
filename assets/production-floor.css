@@ -95,3 +95,7 @@ main{padding:20px 26px 28px}.floor-instruction{display:flex;align-items:center;j
 @media(max-width:700px){.floor-dialog:has(#openingTitle) .floor-input-grid{grid-template-columns:1fr}.floor-dialog:has(#openingTitle) label{font-size:16px}}
 
 .floor-wall .machine-free:not(.downtime){display:none}
+
+/* The open session owns every action on its machine card. */
+.floor-worker .machine-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.floor-worker .machine-actions .machine-details{grid-column:1/-1;min-height:40px;font-size:16px}.floor-worker .machine-actions button{font-size:19px;min-height:54px}
+.floor-worker .session-clock{white-space:nowrap;flex-shrink:0}

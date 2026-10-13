@@ -1,7 +1,7 @@
 // rAlabaster workplekstamdata, onderhoud, gereedschap en machine-KPI's.
 (()=>{
 const VERSION='20260921-1';
-const EMPLOYEES=['Ralph','Peter','Kaan','Lance','Shaffi'];
+const EMPLOYEES=['Ralph','Peter','Kaan','Lance','Shaffi','Youri'];
 const DEFAULTS=[
  ['Technisch uitwerken','manual',0],['Verpakking bestellen','manual',30],['Materiaal bestellen','manual',11],['Alabaster klaarzetten','manual',11],
  ['Zagerij Ermelo (extern)','external',0],['Ruw materiaal boren','machine',61],['Doppen lijmen','manual',11],['Droogruimte','wait',0],
@@ -28,13 +28,13 @@ function ensure(){
  s.toolCostEntries=Array.isArray(s.toolCostEntries)?s.toolCostEntries:[];
  let changed=false;
  for(const [name,type,hourlyCost] of DEFAULTS){if(s.workplaces.some(w=>w.name===name))continue;s.workplaces.push({id:uid('wp'),name,type,hourlyCost,targetRate:0,setupMinutes:/instellen/i.test(name)?30:0,weeklyCapacity:type==='machine'?40:0,preferredEmployees:/instellen/i.test(name)?['Ralph']:[],alternativeIds:[],active:type!=='external'&&type!=='wait',notes:'',created:new Date().toISOString()});changed=true}
- if(Number(s.workplacePreferenceDefaultsVersion||0)<2){for(const w of s.workplaces){if((/^Mori\b/i.test(w.name)&&!/instellen/i.test(w.name))||/^Polijsten$/i.test(w.name))w.preferredEmployees=['Shaffi','Peter']}s.workplacePreferenceDefaultsVersion=2;changed=true}
+ if(Number(s.workplacePreferenceDefaultsVersion||0)<2){for(const w of s.workplaces){if((/^Mori\b/i.test(w.name)&&!/instellen/i.test(w.name))||/^Polijsten$/i.test(w.name))w.preferredEmployees=['Shaffi','Youri','Peter']}s.workplacePreferenceDefaultsVersion=2;changed=true}
  if(changed)persist();return true;
 }
 function all(){return ensure()?S().workplaces:[]}
 function get(name){const key=String(name||'').trim().toLowerCase();return all().find(w=>w.name.trim().toLowerCase()===key)||null}
 function rateFor(name,fallback=0){const w=get(name);return w&&Number.isFinite(Number(w.hourlyCost))?num(w.hourlyCost):num(fallback)}
-function candidateEmployees(task,fallback=[]){const w=get(task?.assignedMachine||task?.machine||task?.name),preferred=(w?.preferredEmployees||[]).filter(Boolean),base=[...preferred,...fallback];return [...new Set(base)].filter(Boolean)}
+function candidateEmployees(task,fallback=[]){const w=get(task?.assignedMachine||task?.machine||task?.name),preferred=(w?.preferredEmployees||[]).flatMap(e=>e==='Shaffi'?['Shaffi','Youri']:[e]).filter(Boolean),base=[...preferred,...fallback];return [...new Set(base)].filter(Boolean)}
 function dateRange(key){const now=new Date(),local=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10),start=new Date(now),end=new Date(now);if(key==='week'){const dow=(start.getDay()+6)%7;start.setDate(start.getDate()-dow);end.setTime(start.getTime());end.setDate(end.getDate()+6)}else if(key==='year'){start.setMonth(0,1);end.setMonth(11,31)}else{start.setDate(1);end.setMonth(end.getMonth()+1,0)}return{start:local(start),end:local(end)}}
 function taskMinutes(t,start,end){let n=0;for(const g of t.planSegments||[])if(g.date>=start&&g.date<=end)n+=num(g.minutes);return n}
 function daysInclusive(a,b){return Math.max(1,Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/86400000)+1)}

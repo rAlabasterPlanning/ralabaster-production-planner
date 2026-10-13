@@ -1,7 +1,7 @@
 // Shared deterministic production calculations. No DOM, no persistence side effects.
 (function(root){
 'use strict';
-const EMPLOYEES=['Ralph','Peter','Kaan','Lance','Shaffi'];
+const EMPLOYEES=['Ralph','Peter','Kaan','Lance','Shaffi','Youri'];
 const dtf=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Amsterdam',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
 function local(at){const p=Object.fromEntries(dtf.formatToParts(new Date(at)).map(x=>[x.type,x.value]));return{day:`${p.year}-${p.month}-${p.day}`,minute:+p.hour*60+(+p.minute),second:+p.second}}
 function wall(day,minute){let n=Date.parse(day+'T00:00:00Z')+minute*60000;for(let i=0;i<3;i++){const p=local(n),asUTC=Date.parse(p.day+'T00:00:00Z')+(p.minute*60+p.second)*1000;n+=Date.parse(day+'T00:00:00Z')+minute*60000-asUTC}return n}

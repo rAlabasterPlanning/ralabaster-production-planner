@@ -315,7 +315,7 @@ function renderWeekCapacitySummaries(root){
    const title=block.querySelector(':scope > h3');if(!title)continue;
    const dates=[...new Set([...block.querySelectorAll('[data-plan-date]')].map(x=>x.dataset.planDate).filter(Boolean))].sort();if(!dates.length)continue;
    const key=weekKey(dates[0]);let capacity=0,exact=0,reservedRemaining=0;
-   const employees=['Ralph','Peter','Kaan','Lance','Shaffi'];
+   const employees=['Ralph','Peter','Kaan','Lance','Shaffi','Youri'];
    for(const date of dates)for(const emp of employees){try{capacity+=Math.max(0,Number(employeeCapacity(date,emp,parse(date).getDay()===6))||0)}catch(_){}}
    for(const t of s?.tasks||[])for(const g of Array.isArray(t.planSegments)?t.planSegments:[])if(g?.date&&weekKey(g.date)===key)exact+=Number(g.minutes)||0;
    for(const o of s?.orders||[])for(const r of o.weekCapacityReservations||[])if(r.week===key)reservedRemaining+=Math.max(0,(Number(r.minutes)||0)-exactMinutesForWeek(o.id,key));

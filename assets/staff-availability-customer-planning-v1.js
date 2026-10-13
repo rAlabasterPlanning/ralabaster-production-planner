@@ -3,7 +3,7 @@
 const VERSION='20260911-1';
 const ABSENCE_ORDER='__staff_absence__';
 const GENERAL_ORDER='__workshop_general__';
-const EMPLOYEES_LOCAL=['Ralph','Peter','Kaan','Lance','Shaffi'];
+const EMPLOYEES_LOCAL=['Ralph','Peter','Kaan','Lance','Shaffi','Youri'];
 const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ymd=s=>String(s||'').replaceAll('-','');

@@ -138,7 +138,7 @@ function parallelOrderStart(o,fallback=''){
 function balancedEmployee(o,employeeCursor,assignmentCount,baseStart=''){
  const manual=String(o?.productionEmployeeOverride||'').trim();
  if(manual)return manual;
- const people=['Kaan','Lance','Shaffi'];
+ const people=['Kaan','Lance','Shaffi','Youri'];
  return people.slice().sort((a,b)=>{
    const ca=employeeCursor[a]||baseStart||'',cb=employeeCursor[b]||baseStart||'';
    if(ca!==cb)return ca.localeCompare(cb);
@@ -148,7 +148,7 @@ function balancedEmployee(o,employeeCursor,assignmentCount,baseStart=''){
  })[0];
 }
 function fillCapacityByPhase(candidateOrders,opts,p){
- const people=['Kaan','Lance','Shaffi'],baseStart=opts.planningStart||'',cursor={},count={};
+ const people=['Kaan','Lance','Shaffi','Youri'],baseStart=opts.planningStart||'',cursor={},count={};
  for(const emp of people){cursor[emp]=baseStart;count[emp]=0}
  const ordered=candidateOrders.slice();
  for(const original of ordered){

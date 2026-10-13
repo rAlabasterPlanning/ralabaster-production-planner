@@ -1,6 +1,6 @@
 
 const CFG=window.RALAB_CONFIG||{};
-const EMPLOYEES=CFG.employees||['Ralph','Peter','Kaan','Lance','Shaffi'];
+const EMPLOYEES=CFG.employees||['Ralph','Peter','Kaan','Lance','Shaffi','Youri'];
 const KEY='ralabaster_planner_v1';
 const ONLINE_KEY='ralabaster_online_config_v1';
 let state=loadState();

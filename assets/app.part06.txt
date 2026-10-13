@@ -42,7 +42,7 @@ function remainingInternalOrderMinutes(orderId){
 function openMoveOrderEmployee(id){
  const t=state.tasks.find(x=>x.id===id),o=t&&order(t.orderId);if(!o)return;
  const cur=o.productionEmployeeOverride||'';
- showModal(`<div class="modalhead"><h3>Complete order naar medewerker · ${esc(o.orderNo||'')}</h3></div><div class="modalbody"><p>Alle nog niet gestarte normale productietaken van <b>${esc(o.product||'')}</b> worden voortaan bij deze hoofdmedewerker gepland.</p><div class="field"><label>Hoofdmedewerker productie</label><select id="moveOrderEmployee" class="input"><option value="" ${!cur?'selected':''}>Auto</option><option value="Kaan" ${cur==='Kaan'?'selected':''}>Kaan</option><option value="Lance" ${cur==='Lance'?'selected':''}>Lance</option><option value="Shaffi" ${cur==='Shaffi'?'selected':''}>Shaffi</option><option value="Peter" ${cur==='Peter'?'selected':''}>Peter</option></select></div><div class="notice" style="margin-top:12px">Ralph-only taken blijven bij Ralph. Gestarte en afgeronde taken worden niet verplaatst.</div></div><div class="modalfoot"><button class="btn" onclick="openTask('${id}')">Terug</button><div class="spacer"></div><button class="btn primary" onclick="applyMoveOrderEmployee('${o.id}')">Toewijzen</button></div>`);
+ showModal(`<div class="modalhead"><h3>Complete order naar medewerker · ${esc(o.orderNo||'')}</h3></div><div class="modalbody"><p>Alle nog niet gestarte normale productietaken van <b>${esc(o.product||'')}</b> worden voortaan bij deze hoofdmedewerker gepland.</p><div class="field"><label>Hoofdmedewerker productie</label><select id="moveOrderEmployee" class="input"><option value="" ${!cur?'selected':''}>Auto</option><option value="Kaan" ${cur==='Kaan'?'selected':''}>Kaan</option><option value="Lance" ${cur==='Lance'?'selected':''}>Lance</option><option value="Shaffi" ${cur==='Shaffi'?'selected':''}>Shaffi</option><option value="Youri" ${cur==='Youri'?'selected':''}>Youri</option><option value="Peter" ${cur==='Peter'?'selected':''}>Peter</option></select></div><div class="notice" style="margin-top:12px">Ralph-only taken blijven bij Ralph. Gestarte en afgeronde taken worden niet verplaatst.</div></div><div class="modalfoot"><button class="btn" onclick="openTask('${id}')">Terug</button><div class="spacer"></div><button class="btn primary" onclick="applyMoveOrderEmployee('${o.id}')">Toewijzen</button></div>`);
 }
 function applyMoveOrderEmployee(orderId){
  const o=order(orderId),emp=document.getElementById('moveOrderEmployee')?.value||'';if(!o)return;
@@ -68,7 +68,7 @@ function applyMoveOrderWeek(orderId){
  save();closeModal();render();alert((o.orderNo||'Order')+' is doorgeschoven naar '+v.replace('-W',' week ')+'.');
 }
 function employeeOptions(selected='',includeRalph=false,includeAuto=true){
- const xs=[];if(includeAuto)xs.push(['','Auto']);for(const e of (includeRalph?['Ralph','Kaan','Lance','Shaffi','Peter']:['Kaan','Lance','Shaffi','Peter']))xs.push([e,e]);
+ const xs=[];if(includeAuto)xs.push(['','Auto']);for(const e of (includeRalph?['Ralph','Kaan','Lance','Shaffi','Youri','Peter']:['Kaan','Lance','Shaffi','Youri','Peter']))xs.push([e,e]);
  return xs.map(([v,l])=>`<option value="${esc(v)}" ${selected===v?'selected':''}>${esc(l)}</option>`).join('');
 }
 function openTaskRestEmployee(id){
