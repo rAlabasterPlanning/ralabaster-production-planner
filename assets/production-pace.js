@@ -39,7 +39,7 @@ function monitor(orderId,w,snapshot,at){
  let setupSeen=0;
  for(const row of data){
   // Setup, waiting, breakdowns, tools and monetary rates do not alter cycle time.
-  if(row.task_id&&row.task_id!==prod.task.id)continue;
+  if(row.task_id&&row.task_id!==prod.task.id){const setupLinked=config.setup.some(x=>x.task.id===row.task_id),hasProduction=n(row.good)>0||n(w.type==='machine'?row.production:row.labor_production)>0;if(!setupLinked||!hasProduction)continue}
   result.actualMinutes+=n(w.type==='machine'?row.production:row.labor_production);
   setupSeen+=n(row.setup);
   result.good+=n(row.good);result.scrap+=n(row.scrap);
