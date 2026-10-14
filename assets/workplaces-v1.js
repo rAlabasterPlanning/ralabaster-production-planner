@@ -8,7 +8,7 @@ const DEFAULTS=[
  ['Mori - Instellen','machine',60],['Mori ZL15 #1','machine',20.5],['Mori ZL15 #2','machine',20.5],['Mori SL25','machine',20.5],
  ['Teach-In draaibank - instellen','machine',40],['Teach-In Draaibank (RALAB)','machine',41],['Reichenbacher - Instellen','machine',30],['Reichenbacher','machine',26],
  ['KUKA KR210 - Instellen','machine',30],['KUKA KR210','machine',41],['Kawasaki Boorrobot','machine',11],['Kolomboormachine','machine',11],
- ['Schuren','manual',26],['Polijsten','manual',26],['Assemblage','manual',11],['Inpakken','manual',11],['INTERN - Algemeen','manual',11],
+ ['Schuren & polijsten','manual',26],['Assemblage','manual',11],['Inpakken','manual',11],['INTERN - Algemeen','manual',11],
  ['Zagen (Wiseco)','machine',16],['Waterjetten (extern)','external',0],['Gildemeister - Instellen','machine',60],['Gildemeister','machine',20.5],['Steen inkopen Spanje (extern)','external',0]
 ];
 const S=()=>{try{return state}catch(_){return null}};
@@ -27,8 +27,10 @@ function ensure(){
  s.toolItems=Array.isArray(s.toolItems)?s.toolItems:[];
  s.toolCostEntries=Array.isArray(s.toolCostEntries)?s.toolCostEntries:[];
  let changed=false;
+ const finishing=s.workplaces.filter(w=>/^(Schuren|Polijsten|Schuren & polijsten)$/i.test(String(w.name||'').trim()));
+ if(finishing.length&&(finishing.length!==1||finishing[0].name!=='Schuren & polijsten')){const keeper=finishing.find(w=>/^Schuren & polijsten$/i.test(w.name))||finishing[0],ids=new Set(finishing.map(w=>w.id));keeper.name='Schuren & polijsten';keeper.type='manual';keeper.hourlyCost=26;keeper.active=true;keeper.preferredEmployees=[...new Set(finishing.flatMap(w=>w.preferredEmployees||[]).concat(['Shaffi','Youri','Peter']))];s.workplaces=s.workplaces.filter(w=>w===keeper||!ids.has(w.id));changed=true}
  for(const [name,type,hourlyCost] of DEFAULTS){if(s.workplaces.some(w=>w.name===name))continue;s.workplaces.push({id:uid('wp'),name,type,hourlyCost,targetRate:0,setupMinutes:/instellen/i.test(name)?30:0,weeklyCapacity:type==='machine'?40:0,preferredEmployees:/instellen/i.test(name)?['Ralph']:[],alternativeIds:[],active:type!=='external'&&type!=='wait',notes:'',created:new Date().toISOString()});changed=true}
- if(Number(s.workplacePreferenceDefaultsVersion||0)<2){for(const w of s.workplaces){if((/^Mori\b/i.test(w.name)&&!/instellen/i.test(w.name))||/^Polijsten$/i.test(w.name))w.preferredEmployees=['Shaffi','Youri','Peter']}s.workplacePreferenceDefaultsVersion=2;changed=true}
+ if(Number(s.workplacePreferenceDefaultsVersion||0)<3){for(const w of s.workplaces){if((/^Mori\b/i.test(w.name)&&!/instellen/i.test(w.name))||/^Schuren & polijsten$/i.test(w.name))w.preferredEmployees=['Shaffi','Youri','Peter']}s.workplacePreferenceDefaultsVersion=3;changed=true}
  if(changed)persist();return true;
 }
 function all(){return ensure()?S().workplaces:[]}

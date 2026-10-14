@@ -10,7 +10,7 @@ const rates={
  'Ruw materiaal boren':61,'Doppen lijmen':11,'Mori - Instellen':60,'Mori ZL15 #1':20.5,'Mori ZL15 #2':20.5,'Mori SL25':20.5,
  'Gildemeister':20.5,'Gildemeister - Instellen':60,'Teach-In draaibank - instellen':40,'Teach-In Draaibank (RALAB)':41,
  'Reichenbacher - Instellen':30,'Reichenbacher':26,'KUKA KR210 - Instellen':30,'KUKA KR210':41,'Kawasaki Boorrobot':11,
- 'Kolomboormachine':11,'Schuren':26,'Polijsten':26,'Assemblage':11,'Inpakken':11,'Zagen (Wiseco)':16,'Zagen':16
+ 'Kolomboormachine':11,'Schuren & polijsten':26,'Assemblage':11,'Inpakken':11,'Zagen (Wiseco)':16,'Zagen':16
 };
 function orderById(id){return S()?.orders?.find(o=>o.id===id)||null}
 function tasksFor(id){return (S()?.tasks||[]).filter(t=>t.orderId===id).slice().sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0))}
