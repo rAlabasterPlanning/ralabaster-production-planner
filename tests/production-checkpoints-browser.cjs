@@ -40,9 +40,11 @@ await page.locator('[data-workplace="m1"]').click();
 await page.locator('[data-add-project]').click();
 await page.locator('[data-order="other"]').click();
 assert.equal(await page.locator('[data-start-order="other"]').count(),1);
+assert.equal(await page.locator('#floorOvertime').count(),0);
 await page.locator('[data-start-order="other"]').click();
 await page.waitForFunction(()=>window.__calls.some(c=>c.name==='production_command'&&c.args.p_action==='start'&&c.args.p_payload.order_id==='other'));
 assert.deepEqual(errors,[]);
+assert.equal(await page.evaluate(()=>window.__calls.find(c=>c.name==='production_command'&&c.args.p_action==='start'&&c.args.p_payload.order_id==='other').args.p_payload.overtime),true);
 console.log(label+': expired previous work does not block choosing and starting a different order on the same machine');
 await page.reload();
 await page.locator('[data-employee="Shaffi"]').click();
@@ -69,6 +71,19 @@ assert.equal(await page.evaluate(()=>window.__fixture.sessions[0].good),20);
 assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('ralabaster-production-queue-v1')).length),0);
 assert.deepEqual(errors,[]);
 console.log(label+': finish at 20%, inline rejection, no duplicate queue entries, review and successful retry passed');
+await page.evaluate(()=>localStorage.setItem('ralabaster-production-queue-v1',JSON.stringify([{id:'old-overtime-request',action:'start',at:'2026-10-14T14:35:07.000Z',payload:{employee:'Shaffi',session_id:'old-overtime-session',workplace_id:'m1',order_id:'o',overtime:false},rejected:'Buiten standaard werktijd. Kies expliciet Overwerk'}])));
+await page.reload();
+await page.locator('[data-review-queue]').click();
+await page.locator('[data-retry-overtime]').click();
+await page.waitForFunction(()=>!document.querySelector('.floor-dialog'));
+const retried=await page.evaluate(()=>window.__calls.find(c=>c.name==='production_command'&&c.args.p_request==='old-overtime-request'));
+assert.equal(retried.args.p_payload.overtime,true);
+assert.equal(retried.args.p_occurred_at,'2026-10-14T14:35:07.000Z');
+assert.equal(retried.args.p_payload.session_id,'old-overtime-session');
+assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('ralabaster-production-queue-v1')).length),0);
+assert.deepEqual(errors,[]);
+console.log(label+': rejected start can be retried as overtime with original timestamp, request ID and session ID');
+
 
 
 await page.close()}}finally{await browser.close();server.close()}})().catch(e=>{console.error(e);server.close();process.exitCode=1});
