@@ -1,7 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const {fullApp}=require('./full-app-fixture.cjs');
 function safety(){
- const source=fs.readFileSync(path.join(__dirname,'../assets/performance-v1.js'),'utf8').replace('  let tries=0;', '  window.testSafety={seedHashes,collectChanges,mergeRows,mergeOperationalRows,acceptSavedDeadlines,mergeQuoteChanges,preserveMissing,markDeleted,cancelDeletion,loadNormalizedCloud,saveNormalizedCloud};\n  let tries=0;');
+ const source=fs.readFileSync(path.join(__dirname,'../assets/performance-v1.js'),'utf8').replace('  let tries=0;', '  window.testSafety={hash,contentHash,metadataOnly,isDirty:()=>cloudDirty,seedHashes,collectChanges,mergeRows,mergeOperationalRows,acceptSavedDeadlines,mergeQuoteChanges,preserveMissing,markDeleted,cancelDeletion,loadNormalizedCloud,saveNormalizedCloud};\n  let tries=0;');
  const values=new Map(),ctx=vm.createContext({window:{},state:{orders:[{id:'old',active:true,status:'confirmed'}],tasks:[{id:'task',orderId:'old',status:'open',planSegments:[{date:'2026-10-01',start:'08:15',minutes:30,employee:'Ralph'}]}]},localStorage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},KEY:'cache',WORKSPACE_ID:'ralabaster',structuredClone,setInterval:()=>1,clearInterval:()=>{},setTimeout:()=>1,clearTimeout:()=>{},requestAnimationFrame:fn=>fn(),console,isExternalTask:()=>false,isDryTask:()=>false,renderOnlineBadge:()=>{},cloudUser:{id:'user'},cloudStatus:'online',cloudLoading:false});
  vm.runInContext(source.replace('mergeQuoteChanges,preserveMissing','mergeQuoteChanges,mergeMetadata,preserveMissing'),ctx);ctx.window.testSafety.seedHashes();return ctx;
 }
@@ -191,3 +191,5 @@ test('cached product, price and notes cannot overwrite data entered today',()=>{
  const baseline=new Map([['order',structuredClone(cached[0])]]);merged=c.window.testSafety.mergeOperationalRows(remote,cached,baseline,[]);assert.equal(merged[0].saleUnit,75);
  const before={id:'order',note:'Before'},local={id:'order',note:'Actual local edit'};merged=c.window.testSafety.mergeOperationalRows([before],[local],new Map([['order',before]]),[]);assert.equal(merged[0].note,'Actual local edit');
 });
+
+test('JSONB key order and sync baselines do not create phantom pending writes',()=>{const c=safety(),api=c.window.testSafety;assert.equal(api.hash({b:2,a:{z:1,y:2}}),api.hash({a:{y:2,z:1},b:2}));assert.notEqual(api.hash([1,2]),api.hash([2,1]));assert.equal(api.contentHash({orders:[{id:'a',status:'done'}],metadataWriteBaseline:{x:1}}),api.contentHash({metadataWriteBaseline:{x:2},orders:[{status:'done',id:'a'}]}));assert.notEqual(api.contentHash({tasks:[{id:'a',status:'open'}]}),api.contentHash({tasks:[{id:'a',status:'done'}]}));assert.equal(api.metadataOnly({customers:[],metadataWriteBaseline:{recursive:1},quoteWriteBaseline:[]}).metadataWriteBaseline,undefined);});

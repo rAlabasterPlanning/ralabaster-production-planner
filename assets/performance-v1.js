@@ -15,7 +15,10 @@
   let cloudMetadata={};
   const OPERATIONAL_KEYS=new Set(['orders','tasks','quotes','quoteWriteBaseline','metadataWriteBaseline','pendingRecordDeletions','normalizedVersion']);
 
-  const hash=x=>JSON.stringify(x);
+  // JSONB reorders object keys. Compare content, not serialization order.
+  const hash=x=>JSON.stringify(x,(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(key=>[key,value[key]])):value);
+  const metadataOnly=x=>Object.fromEntries(Object.entries(x||{}).filter(([key])=>!OPERATIONAL_KEYS.has(key)));
+  const contentHash=x=>hash(Object.fromEntries(Object.entries(x||{}).filter(([key])=>!['quoteWriteBaseline','metadataWriteBaseline','normalizedVersion'].includes(key))));
   const yieldUI=()=>new Promise(resolve=>requestAnimationFrame(()=>resolve()));
 
   function buildIndexes(){
@@ -91,7 +94,7 @@
         state=remoteState;seedHashes();
       }
       cloudQuotes=structuredClone(incomingQuotes);
-      cloudMetadata=structuredClone(meta);
+      cloudMetadata=structuredClone(metadataOnly(meta));
       if(!Array.isArray(state.deletedTasks))state.deletedTasks=[];if(!Array.isArray(state.history))state.history=[];
       cloudStamp=metaRes.data?.updated_at||cloudStamp;normalizedReady=true;invalidate();scheduleLocalPersist();
       cloudStatus='online';renderOnlineBadge();
@@ -251,7 +254,7 @@
       const {data:savedMeta,error}=await supabaseClient.from('planner_shared_state').upsert({workspace_id:WORKSPACE_ID,data:meta,updated_at:now},{onConflict:'workspace_id'}).select('data,updated_at').maybeSingle();if(error)throw error;
       if(!savedMeta?.data)throw new Error('Opgeslagen planner-metadata kon niet worden bevestigd');
       for(const [key,value] of Object.entries(savedMeta.data))if(!OPERATIONAL_KEYS.has(key)){snapshot[key]=value;if(hash(state[key])===hash(localMetadata[key]))state[key]=structuredClone(value)}
-      cloudMetadata=structuredClone(savedMeta.data);
+      cloudMetadata=structuredClone(metadataOnly(savedMeta.data));
       cloudStamp=now;
       cloudQuotes=structuredClone(snapshot.quotes);
       if(hash(state.quotes||[])===localQuotes)state.quotes=structuredClone(snapshot.quotes);
@@ -260,7 +263,7 @@
         if(state.pendingRecordDeletions?.[kind])state.pendingRecordDeletions[kind]=state.pendingRecordDeletions[kind].filter(x=>sent.get(x.id)!==x.deletedAt);
       }
       snapshot.pendingRecordDeletions=structuredClone(state.pendingRecordDeletions||{orders:[],tasks:[]});
-      seedHashes(snapshot);cloudDirty=hash(state)!==hash(snapshot);scheduleLocalPersist();
+      seedHashes(snapshot);cloudDirty=contentHash(state)!==contentHash(snapshot);scheduleLocalPersist();
       if(!cloudDirty)localStorage.removeItem(PENDING_KEY);else syncQueued=true;
       delete window.__RALAB_LAST_SYNC_ERROR;
       cloudStatus='online';renderOnlineBadge();
