@@ -161,7 +161,7 @@
   }
   const DEADLINE_FIELDS=['communicatedDeadline','deadline','maximumReadyDate','internalTargetDate','planningCheckedAt','weekPlanningUpdatedAt'];
   const ORDER_COMPLETION_FIELDS=['status','active','closed','completedAt','completedQty','postCalculationCheckedAt','startWeightKg','endUnitWeightKg','endTotalWeightKg','yieldPct','deliveryNote'];
-  const TASK_PROGRESS_FIELDS=['status','actual','doneQty','consumption','note','completedAt','completedAtDT','date','start','employee','planSegments','planningWeek','planningWeekEarly','lockedPlanning','planningOrigin'];
+  const TASK_PROGRESS_FIELDS=['stageCorrection','status','actual','doneQty','consumption','note','completedAt','completedAtDT','date','start','employee','planSegments','planningWeek','planningWeekEarly','lockedPlanning','planningOrigin'];
   function stampRecordChanges(records,baseline,fields,revision,now){
     for(const record of records||[]){const before=baseline.get(record.id);if(!before){if(fields.some(k=>record[k]!==undefined))record[revision]=record[revision]||now;continue}if(fields.some(k=>hash(record[k]??null)!==hash(before[k]??null))&&String(record[revision]||'')===String(before[revision]||''))record[revision]=now}
   }
