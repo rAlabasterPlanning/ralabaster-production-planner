@@ -19,6 +19,6 @@ test('steenronde bewaart eindmaten, nul procent aders en marge eenmaal; blokvoor
 });
 test('orders zonder productkaart verschijnen en worden pas na opslaan een product',async t=>{
  const f=await fullApp(t),w=f.w;vm.runInContext("state.productTemplates=[];state.orders=[{id:'one',product:'Nieuw',qty:4},{id:'two',product:'Ander',qty:7}]",f.ctx);
- const api=w.RALAB_PRODUCT_REQUIREMENTS,products=api.latest();assert.equal(products.length,2);assert.equal(api.orders(products.find(p=>p.name==='Nieuw')).length,1);assert.equal(f.state().productTemplates.length,0);
+ const api=w.RALAB_PRODUCT_REQUIREMENTS,products=api.latest();assert.equal(api.quantity({qty:0,quickDraftQty:10,quantityPending:true}),10);assert.equal(products.length,2);assert.equal(api.orders(products.find(p=>p.name==='Nieuw')).length,1);assert.equal(f.state().productTemplates.length,0);
  w.RALAB_PRODUCT_REQUIREMENTS.open();assert.ok(w.document.getElementById('pwCategory'));
 });
