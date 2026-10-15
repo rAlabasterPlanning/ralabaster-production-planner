@@ -116,6 +116,5 @@ window.addEventListener('online',()=>flush());
 async function boot(){client=window.RALAB_ADMIN_AUTH?.client;if(!client){setTimeout(boot,100);return}const {data}=await client.auth.getSession();if(!data?.session)return;try{await load();await flush()}catch(e){connected=false;queueStatus();toast(e.message||'Productiegegevens laden mislukt')}setInterval(()=>{if(!sending&&client)load().then(()=>flush()).catch(()=>{connected=false;queueStatus()})},15000);setInterval(tick,1000);}
 fetch('assets/ralabaster-logo.b64.txt').then(r=>r.text()).then(b64=>{$('floorLogo').src='data:image/jpeg;base64,'+b64.trim()}).catch(()=>{$('floorLogo').hidden=true;document.querySelector('.floor-brand span').style.display='block'});
 window.RALAB_PRODUCTION_FLOOR={load,render,tick,send,getSnapshot:()=>snapshot,toast,hasPending:()=>sending||queue.length>0,getQueueIssue:()=>queue[0]?.rejected||'',isSelecting:()=>!!employee||sending||queue.length>0};boot();
-})();
-
 document.addEventListener("click",async e=>{const b=e.target.closest("[data-floor-drawings]");if(!b)return;try{await window.RALAB_ORDER_DRAWINGS.open(client,{key:"planner:"+b.dataset.floorDrawings,label:snapshot.orders.find(o=>o.id===b.dataset.floorDrawings)?.orderNo||"",floor:true,readOnly:true})}catch(e){toast(e.message)}});
+})();
