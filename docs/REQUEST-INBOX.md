@@ -35,6 +35,12 @@ Inspect queue status with an administrator/server connection. `pending` retries 
 
 The migration does not backfill email for older requests. It enables RLS and service-only queue access; review rows are restricted by `portal_is_admin()`. The worker is protected by `CRON_SECRET` and reads request contents from the database.
 
+## Live verification on 19 October 2026
+
+The deployed inbox loaded the two existing portal order requests and the new-count badge under an existing staff session. Opening request details loaded the editable fields. No real customer request was changed and no test email was sent.
+
+The existing planner sync reported `planner_orders_v2 (2 records): Hiding an order requires completed status or explicit deletion [23514]`. This occurs in the existing normalized order persistence, before shared quotation metadata is written. The inbox therefore refuses quotation preparation/order confirmation while the planner exposes a sync error. Request review notes save independently to the database. Resolve the pending order-state conflict deliberately before creating new quotations; do not bypass the database guard or mark orders completed without checking their actual state.
+
 ## Verification
 
 `node --test tests/quote-notifications.test.cjs tests/request-inbox.test.cjs tests/nav-more.test.cjs`

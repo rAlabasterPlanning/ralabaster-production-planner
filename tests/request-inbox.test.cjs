@@ -14,6 +14,7 @@ test('request inbox keeps originals, persists additions, reuses quotation, and r
  form.elements.product_name.value='Lamp revised';form.elements.quantity.value='20';form.elements.notes.value='INTERNAL ONLY';
  form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await f.wait(30);
  assert.equal(tables.planner_request_reviews[0].data.quantity,20);assert.equal(original.quantity,10);
+ w.__RALAB_LAST_SYNC_ERROR='existing order sync failed';d.querySelector('[data-inbox-calculate]').click();await f.wait(30);assert.match(d.querySelector('[data-inbox-message]').textContent,/niet synchroniseren/);assert.equal(f.state().quotes.filter(q=>q.sourceRequest).length,0);delete w.__RALAB_LAST_SYNC_ERROR;
  d.querySelector('[data-inbox-calculate]').click();await f.wait(250);
  const q=f.state().quotes.find(q=>q.sourceRequest);assert.equal(q.name,'Lamp revised');assert.equal(q.qty,20);assert.doesNotMatch(q.project,/INTERNAL ONLY/);
  assert.equal(d.querySelector('#cName').value,'Lamp revised');

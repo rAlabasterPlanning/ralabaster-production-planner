@@ -37,6 +37,7 @@ async function saveReview(x,extra={}){
  reviews=reviews.filter(r=>!(r.source===x.source&&r.request_id===x.id));reviews.push(value);updateCount();return value;
 }
 async function calculate(x){
+ if(window.__RALAB_LAST_SYNC_ERROR)throw Error('De planner kan wijzigingen niet synchroniseren. Controleer eerst de Supabase-melding bovenaan voordat u een offerte of order maakt. Uw aanvraag blijft bewaard.');
  await saveReview(x);let q=quote(x);const s=S(),v=fields(x);if(!s)throw Error('Planner is nog niet geladen.');
  if(!q){
   let customerId=x.customer_id||v.customer_id;
@@ -57,7 +58,7 @@ document.addEventListener('click',e=>{
  if(open){selected=open.dataset.inboxOpen;render()}if(f){filter=f.dataset.inboxFilter;page=0;render()}const pg=e.target.closest('[data-inbox-page]');if(pg){page+=Number(pg.dataset.inboxPage);render()}
  if(e.target.closest('[data-inbox-refresh]'))refresh();
  if(x&&e.target.closest('[data-inbox-calculate]'))act(()=>calculate(x));
- if(x&&e.target.closest('[data-inbox-confirm]'))window.RALAB_DOCS.openQuote(quote(x).quoteNo);
+ if(x&&e.target.closest('[data-inbox-confirm]'))act(async()=>{if(window.__RALAB_LAST_SYNC_ERROR)throw Error('Los eerst de Supabase-synchronisatiefout op voordat u een order bevestigt.');window.RALAB_DOCS.openQuote(quote(x).quoteNo)});
  if(x&&e.target.closest('[data-inbox-plan]'))window.RALAB_ERP.openOrder(quote(x).orderId);
  if(x&&e.target.closest('[data-inbox-file]'))act(async()=>{const {data,error}=await db().storage.from('portal-files').createSignedUrl(x.attachment_path,60);if(error)throw error;window.open(data.signedUrl,'_blank','noopener')});
 },true);
@@ -66,4 +67,3 @@ async function count(){if(!db()||!root().classList.contains('hidden')||document.
 setTimeout(count,2500);setInterval(count,60000);
 window.RALAB_REQUEST_INBOX={refresh};
 })();
-
