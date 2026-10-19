@@ -33,6 +33,7 @@
 <button class="navbtn erp-nav" data-view="dashboard">Dashboard</button>
 <button class="navbtn" data-view="calculation">Calculatie</button>
 <button class="navbtn erp-nav" data-view="quotes">Offertes</button>
+<button class="navbtn" data-view="requests">Nieuwe aanvragen <span data-request-count aria-live="polite"></span></button>
 <button class="navbtn erp-nav active" data-view="orderoverview">Orderoverzicht</button>
 <button class="navbtn" data-view="weeks">Overzichtplanner</button>
 <div class="nav-more" style="position:relative;flex:0 0 auto">
@@ -76,6 +77,7 @@
 <section id="view-customers" class="hidden"></section>
 <section id="view-acquisition" class="hidden"></section>
 <section id="view-portaladmin" class="hidden"></section>
+<section id="view-requests" class="hidden"></section>
 <section id="view-import" class="hidden"></section>
 <section id="view-history" class="hidden"></section>
 <section id="view-settings" class="hidden"></section>
@@ -139,6 +141,7 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/order-print.js?v=20261016-1"></script>
 <script src="assets/order-drawings.js?v=20261015-order-1"></script>
 <script src="assets/customer-portal-admin-v1.js?v=20261015-order-1"></script>
+<script src="assets/request-inbox.js?v=20261019-1"></script>
 <script src="assets/order-calculation-workflow-v1.js?v=20261014-finishing-merge-1"></script>
 <script src="assets/order-calculation-bridge-v1.js?v=20261014-finishing-merge-1"></script>
 <script src="assets/order-tier-adjustment-v1.js?v=20261007-1"></script>
