@@ -1,7 +1,7 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20261020-preserve-pending-versions-v2';
+  const VERSION='20261020-preserve-pending-completion-v3';
   const PENDING_KEY='ralabaster_planner_pending_v1';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
@@ -58,9 +58,13 @@
   }
 
   function compactLocalState(){
-    const ids=new Set((state.orders||[]).filter(o=>!o.deleted&&o.active!==false&&o.status!=='completed').map(o=>o.id));
-    const compact={...state,orders:(state.orders||[]).filter(o=>ids.has(o.id)),tasks:(state.tasks||[]).filter(t=>ids.has(t.orderId)||t.orderId==='__workshop_general__'),normalizedVersion:2};
-    try{let txt=JSON.stringify(compact);if(txt.length>3800000){compact.orders=[];compact.tasks=[];txt=JSON.stringify(compact)}return txt}catch(_){return null}
+    // Keep unsaved completions until their background cloud write is acknowledged.
+    // Removing them immediately lets a reload restore the old active server copy.
+    const pendingOrderIds=new Set((state.orders||[]).filter(o=>lastOrderHashes.get(o.id)!==hash(o)).map(o=>o.id));
+    const pendingTaskIds=new Set((state.tasks||[]).filter(t=>lastTaskHashes.get(t.id)!==hash(t)).map(t=>t.id));
+    const ids=new Set((state.orders||[]).filter(o=>pendingOrderIds.has(o.id)||(!o.deleted&&o.active!==false&&o.status!=='completed')).map(o=>o.id));
+    const compact={...state,orders:(state.orders||[]).filter(o=>ids.has(o.id)),tasks:(state.tasks||[]).filter(t=>ids.has(t.orderId)||pendingTaskIds.has(t.id)||t.orderId==='__workshop_general__'),normalizedVersion:2};
+    try{let txt=JSON.stringify(compact);if(txt.length>3800000){compact.orders=compact.orders.filter(o=>pendingOrderIds.has(o.id));compact.tasks=compact.tasks.filter(t=>pendingOrderIds.has(t.orderId)||pendingTaskIds.has(t.id));txt=JSON.stringify(compact)}return txt}catch(_){return null}
   }
   function scheduleLocalPersist(){
     clearTimeout(localPersistTimer);
@@ -374,3 +378,4 @@
   let tries=0;const timer=setInterval(()=>{tries++;if(install()||tries>100)clearInterval(timer)},100);
   const normTimer=setInterval(async()=>{if(!installed||normalizedReady||normalizedInitBusy)return;if(typeof supabaseClient!=='undefined'&&supabaseClient&&typeof cloudUser!=='undefined'&&cloudUser){const ok=await loadNormalizedCloud(true);if(ok)clearInterval(normTimer)}},350);
 })();
+

@@ -1,6 +1,6 @@
 // rAlabaster: snelle orders uitwerken in de normale calculatie en zonder duplicaat omzetten naar productieorder(s).
 (()=>{
-const VERSION='20261007-2';
+const VERSION='20261020-no-completed-quick-conversion-3';
 let activeQuickOrderId='',opening=false;
 let restoring=false;
 let selectedOpIds=new Set();
@@ -9,6 +9,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const setVal=(id,value)=>{const e=document.getElementById(id);if(e)e.value=value??''};
 const num=v=>{const n=Number(String(v??'').replace(',','.'));return Number.isFinite(n)?n:0};
 function quickOrder(id=activeQuickOrderId){return S()?.orders?.find(o=>o.id===id&&!o.deleted)||null}
+function finished(o){return !!o&&(o.deleted||o.closed||o.active===false||['completed','closed','done','cancelled','deleted'].includes(String(o.status||'').toLowerCase()))}
 function resetPricing(){const p=window.RALAB_CALC_PRICE;if(!p)return;p.manualByIndex=[];p.tiersByIndex=[];p.includeTiersByIndex=[]}
 function contextNotice(o){
  const general=document.getElementById('calcGeneralBlock');if(!general)return;
@@ -47,7 +48,7 @@ function open(id){
  setTimeout(()=>applyPrefill(o),30);return true;
 }
 function mergeCreatedIntoQuick(quick,first,count=1){
- const s=S();if(!s||!quick||!first||quick.id===first.id)return false;
+ const s=S();if(!s||!quick||!first||quick.id===first.id||finished(quick)||finished(first))return false;
  const createdId=first.id,quickId=quick.id,product=window.RALAB_CALC_UI?.products?.[0]||{},ready=quick.quickDraftReady||product.customerReadyDate||document.getElementById('cProductCustomerDate')?.value||document.getElementById('cDeadline')?.value||first.customerReadyDate||first.communicatedDeadline||first.deadline||'',original={id:quick.id,orderNo:quick.orderNo,note:quick.note,created:quick.created,createdAt:quick.createdAt,customerName:quick.customerName,draftQty:quick.quickDraftQty,draftProduct:quick.quickDraftProduct};
  Object.assign(quick,structuredClone(first),{id:quickId,note:original.note||first.note||'',created:original.created||first.created,createdAt:original.createdAt||first.createdAt,needsCalculation:false,quantityPending:false,status:'confirmed',calculationCompletedAt:new Date().toISOString(),quickOrderSource:true,updatedAt:new Date().toISOString()});
  if(ready){quick.customerReadyDate=ready;quick.communicatedDeadline=ready;quick.deadline=ready}
@@ -86,3 +87,4 @@ document.addEventListener('click',e=>{if(activeQuickOrderId&&e.target.closest?.(
 if(!install())setTimeout(install,500);setTimeout(install,1800);window.addEventListener('ralabaster:state-loaded',()=>setTimeout(reconcilePendingDuplicates,80));setTimeout(reconcilePendingDuplicates,2300);
 new MutationObserver(()=>{const o=quickOrder();if(o?.needsCalculation&&!document.getElementById('view-calculation')?.classList.contains('hidden'))requestAnimationFrame(()=>{restorePrefillIfRebuilt(o);syncSelectedOps();if(!document.getElementById('quickCalcContext'))contextNotice(o)})}).observe(document.querySelector('main')||document.body,{subtree:true,childList:true});
 })();
+
