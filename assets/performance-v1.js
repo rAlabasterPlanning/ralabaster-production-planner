@@ -1,7 +1,7 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20260930-record-revision-v1';
+  const VERSION='20261020-preserve-deleted-orders-v1';
   const PENDING_KEY='ralabaster_planner_pending_v1';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
@@ -76,7 +76,8 @@
       const orderReq=fetchPaged((a,b)=>supabaseClient.from('planner_orders_v2').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).eq('deleted',false).eq('active',true).order('deadline',{ascending:true,nullsFirst:false}).range(a,b));
       const taskReq=fetchPaged((a,b)=>supabaseClient.from('planner_tasks_v2').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).eq('deleted',false).eq('order_active',true).range(a,b));
       const archiveReq=fetchPaged((a,b)=>supabaseClient.from('planner_orders_v2').select('order_id').eq('workspace_id',WORKSPACE_ID).eq('active',false).eq('deleted',false).range(a,b));
-      const [metaRes,orderRows,taskRows,archivedRows]=await Promise.all([metaReq,orderReq,taskReq,archiveReq]);
+      const deletedReq=fetchPaged((a,b)=>supabaseClient.from('planner_orders_v2').select('order_id,data,deleted').eq('workspace_id',WORKSPACE_ID).eq('deleted',true).range(a,b));
+      const [metaRes,orderRows,taskRows,archivedRows,deletedRows]=await Promise.all([metaReq,orderReq,taskReq,archiveReq,deletedReq]);
       const archivedIds=new Set(archivedRows.map(r=>r.order_id).filter(Boolean));if(metaRes.error)throw metaRes.error;
       const meta=metaRes.data?.data||{};
       const incomingQuotes=Array.isArray(meta.quotes)?meta.quotes:[];
@@ -85,6 +86,7 @@
       if(pending||cloudDirty){
         // A compact/local cache is never an authoritative list of deletions.
         const local={...state,orders:state.orders.filter(o=>!archivedIds.has(o.id)),tasks:state.tasks.filter(t=>!archivedIds.has(t.orderId))};
+        preserveDeletedOrderConflicts(local,deletedRows);
         const mergedOrders=mergeOperationalRows(remoteState.orders,local.orders,lastOrderSnapshots,[[DEADLINE_FIELDS,'deadlineUpdatedAt'],[ORDER_COMPLETION_FIELDS,'orderCompletionUpdatedAt']]);
         const mergedTasks=mergeOperationalRows(remoteState.tasks,local.tasks,lastTaskSnapshots,[[TASK_PROGRESS_FIELDS,'taskProgressUpdatedAt']]);
         seedHashes(remoteState);
@@ -124,6 +126,24 @@
   }
   function mergeRows(remote,local){
     return [...new Map([...(remote||[]),...(local||[])].map(x=>[x.id,x])).values()];
+  }
+  function preserveDeletedOrderConflicts(local,deletedRows){
+    const tombstones=new Map((deletedRows||[]).filter(r=>r.deleted===true).map(r=>[r.order_id,r.data]));
+    const affected=new Set([...(local.orders||[]).filter(o=>tombstones.has(o.id)).map(o=>o.id),...(local.tasks||[]).filter(t=>tombstones.has(t.orderId)).map(t=>t.orderId)]);
+    if(!affected.size)return;
+    const stamp=new Date().toISOString(),records=[...affected].map((id,i)=>({
+      id:`deleted-order-conflict:${id}:${stamp}:${i}`,at:stamp,reason:'server_order_already_deleted',orderId:id,
+      localOrder:structuredClone((local.orders||[]).find(o=>o.id===id)||null),
+      localTasks:structuredClone((local.tasks||[]).filter(t=>t.orderId===id)),
+      serverOrder:structuredClone(tombstones.get(id))
+    }));
+    // Persist the complete local versions BEFORE removing their stale active
+    // copies. If storage is full, abort loading rather than lose pending work.
+    const key='ralabaster_sync_recovery_v1',prior=JSON.parse(localStorage.getItem(key)||'[]');
+    localStorage.setItem(key,JSON.stringify([...prior,...records]));
+    local.syncRecoveryRecords=[...(local.syncRecoveryRecords||[]),...records];
+    local.orders=(local.orders||[]).filter(o=>!affected.has(o.id));
+    local.tasks=(local.tasks||[]).filter(t=>!affected.has(t.orderId));
   }
   function mergeOperationalRows(remote,local,baseline,groups){
     const byId=new Map(remote.map(r=>[r.id,r]));

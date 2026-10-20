@@ -10,6 +10,8 @@ To change tiers later, open the order and use **Aantal / staffel wijzigen**. The
 
 Acceptance requires a successful planner synchronization and database response. On synchronization failure or stale quotation data, nothing is created locally. Do not bypass synchronization errors: resolve the underlying invalid pending change first. A lost response can be retried safely.
 
+The normalized loader also checks server deletion records before merging a pending browser cache. If a locally active order has already been deleted on the server, its complete local order and task versions are saved first in `ralabaster_sync_recovery_v1` in browser storage and in `syncRecoveryRecords` in planner metadata. Only then are those stale active copies excluded from synchronization. This prevents an old cache from resurrecting deleted orders or blocking unrelated saves. Storage failure stops recovery before any local records are removed. Server deletion backups and archive protection remain unchanged.
+
 ## Verification
 
 Run `node --test tests/quote-acceptance.test.cjs tests/request-inbox.test.cjs tests/order-tier-adjustment.test.cjs tests/production-forecast.test.cjs tests/planner-plugin-core.test.cjs` after installing the project/test dependencies.
