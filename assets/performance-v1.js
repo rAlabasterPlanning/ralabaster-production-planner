@@ -1,7 +1,7 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20261020-preserve-pending-completion-v3';
+  const VERSION='20261020-mobile-authoritative-refresh-v4';
   const PENDING_KEY='ralabaster_planner_pending_v1';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
@@ -9,7 +9,7 @@
   let installed=false,indexesValid=false,normalizedReady=false,normalizedInitBusy=false;
   let taskIndex=new Map(),orderIndex=new Map(),dateEmpIndex=new Map(),uniqueMachines=[];
   let analysisCache=new Map(),lastOrderHashes=new Map(),lastTaskHashes=new Map(),lastOrderSnapshots=new Map(),lastTaskSnapshots=new Map();
-  let pendingViewFrame=0,cloudStamp='',exactMode=false,localPersistTimer=0;
+  let pendingViewFrame=0,cloudStamp='',cloudOperationalStamp='',exactMode=false,localPersistTimer=0;
   let syncInFlight=false,syncQueued=false,cloudDirty=false;
   let cloudQuotes=[];
   let cloudMetadata={};
@@ -79,8 +79,8 @@
       const metaReq=supabaseClient.from('planner_shared_state').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).maybeSingle();
       const orderReq=fetchPaged((a,b)=>supabaseClient.from('planner_orders_v2').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).eq('deleted',false).eq('active',true).order('deadline',{ascending:true,nullsFirst:false}).range(a,b));
       const taskReq=fetchPaged((a,b)=>supabaseClient.from('planner_tasks_v2').select('data,updated_at').eq('workspace_id',WORKSPACE_ID).eq('deleted',false).eq('order_active',true).range(a,b));
-      const archiveReq=fetchPaged((a,b)=>supabaseClient.from('planner_orders_v2').select('order_id').eq('workspace_id',WORKSPACE_ID).eq('active',false).eq('deleted',false).range(a,b));
-      const deletedReq=fetchPaged((a,b)=>supabaseClient.from('planner_orders_v2').select('order_id,data,deleted').eq('workspace_id',WORKSPACE_ID).eq('deleted',true).range(a,b));
+      const archiveReq=fetchPaged((a,b)=>supabaseClient.from('planner_orders_v2').select('order_id,updated_at').eq('workspace_id',WORKSPACE_ID).eq('active',false).eq('deleted',false).range(a,b));
+      const deletedReq=fetchPaged((a,b)=>supabaseClient.from('planner_orders_v2').select('order_id,data,deleted,updated_at').eq('workspace_id',WORKSPACE_ID).eq('deleted',true).range(a,b));
       const [metaRes,orderRows,taskRows,archivedRows,deletedRows]=await Promise.all([metaReq,orderReq,taskReq,archiveReq,deletedReq]);
       const archivedIds=new Set(archivedRows.map(r=>r.order_id).filter(Boolean));if(metaRes.error)throw metaRes.error;
       const meta=metaRes.data?.data||{};
@@ -103,7 +103,7 @@
       cloudQuotes=structuredClone(incomingQuotes);
       cloudMetadata=structuredClone(metadataOnly(meta));
       if(!Array.isArray(state.deletedTasks))state.deletedTasks=[];if(!Array.isArray(state.history))state.history=[];
-      cloudStamp=metaRes.data?.updated_at||cloudStamp;normalizedReady=true;invalidate();scheduleLocalPersist();
+      cloudStamp=metaRes.data?.updated_at||cloudStamp;cloudOperationalStamp=[...orderRows,...taskRows,...archivedRows,...deletedRows].reduce((latest,row)=>String(row?.updated_at||'')>latest?String(row.updated_at):latest,'');normalizedReady=true;invalidate();scheduleLocalPersist();
       cloudStatus='online';renderOnlineBadge();
       if(pending||cloudDirty)setTimeout(saveNormalizedCloud,0);
       // Notify lightweight metadata views without running a full planner render.
@@ -299,7 +299,7 @@
       if(!savedMeta?.data)throw new Error('Opgeslagen planner-metadata kon niet worden bevestigd');
       for(const [key,value] of Object.entries(savedMeta.data))if(!OPERATIONAL_KEYS.has(key)){snapshot[key]=value;if(hash(state[key])===hash(localMetadata[key]))state[key]=structuredClone(value)}
       cloudMetadata=structuredClone(metadataOnly(savedMeta.data));
-      cloudStamp=now;
+      cloudStamp=now;cloudOperationalStamp=now;
       cloudQuotes=structuredClone(snapshot.quotes);
       if(hash(state.quotes||[])===localQuotes)state.quotes=structuredClone(snapshot.quotes);
       for(const kind of ['orders','tasks']){
@@ -368,7 +368,17 @@
     loadCloudState=async function(silent=false){
       if(!normalizedReady)return originalLoadCloudState(silent);
       if(!supabaseClient||!cloudUser||cloudLoading||cloudDirty||syncInFlight)return;
-      try{const {data,error}=await supabaseClient.from('planner_shared_state').select('updated_at').eq('workspace_id',WORKSPACE_ID).maybeSingle();if(error)throw error;const next=data?.updated_at||'';if(next&&next===cloudStamp)return;return loadNormalizedCloud(true)}catch(e){console.warn(e)}
+      try{
+        const [meta,orders,tasks]=await Promise.all([
+          supabaseClient.from('planner_shared_state').select('updated_at').eq('workspace_id',WORKSPACE_ID).maybeSingle(),
+          supabaseClient.from('planner_orders_v2').select('updated_at').eq('workspace_id',WORKSPACE_ID).order('updated_at',{ascending:false}).limit(1).maybeSingle(),
+          supabaseClient.from('planner_tasks_v2').select('updated_at').eq('workspace_id',WORKSPACE_ID).order('updated_at',{ascending:false}).limit(1).maybeSingle()
+        ]);
+        if(meta.error||orders.error||tasks.error)throw(meta.error||orders.error||tasks.error);
+        const nextMeta=meta.data?.updated_at||'',nextOperational=[orders.data?.updated_at||'',tasks.data?.updated_at||''].sort().at(-1)||'';
+        if(nextMeta===cloudStamp&&nextOperational===cloudOperationalStamp)return;
+        return loadNormalizedCloud(true)
+      }catch(e){console.warn(e)}
     };
     switchView=function(v){currentView=v;document.querySelectorAll('section[id^="view-"]').forEach(x=>x.classList.add('hidden'));document.getElementById('view-'+v)?.classList.remove('hidden');document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));if(pendingViewFrame)cancelAnimationFrame(pendingViewFrame);pendingViewFrame=requestAnimationFrame(()=>{pendingViewFrame=0;render()})};
 

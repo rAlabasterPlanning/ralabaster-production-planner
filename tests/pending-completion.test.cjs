@@ -32,3 +32,10 @@ test('duplicate reconciliation cannot reopen or remove a completed order',()=>{
   vm.runInContext(source,c);assert.equal(c.window.RALAB_QUICK_CALC.reconcile(),false);assert.deepEqual(state,before);assert.equal(saves,0);
  }
 });
+test('mobile refresh watches normalized order and task timestamps',()=>{
+ const source=fs.readFileSync(require.resolve('../assets/performance-v1.js'),'utf8');
+ assert.match(source,/planner_orders_v2'\)\.select\('updated_at'\).*order\('updated_at'.*limit\(1\)/s);
+ assert.match(source,/planner_tasks_v2'\)\.select\('updated_at'\).*order\('updated_at'.*limit\(1\)/s);
+ assert.match(source,/nextOperational===cloudOperationalStamp/);
+ assert.match(source,/select\('order_id,updated_at'\).*eq\('active',false\)/s);
+});
