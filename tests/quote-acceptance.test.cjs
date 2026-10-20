@@ -17,7 +17,7 @@ test('staffel selection updates quantity and discounted total without changing o
  assert.match(f.el('[data-accept-total]').textContent,/1.912,50/);assert.equal(f.el('[data-accept-submit]').disabled,false);
  assert.equal(JSON.stringify(f.w.state.quotes),before);
 });
-test('zero, decimals, negative and oversized quantities are rejected; deviations need agreement and explanation',t=>{
+test('all-zero, blank, decimals, negative and oversized quantities are rejected; deviations need agreement and explanation',t=>{
  const f=fixture(t);f.open();for(const v of ['','0','-1','1.5','2147483648']){f.change('[data-accept-qty]',v);assert.equal(f.el('[data-accept-submit]').disabled,true)}
  f.change('[data-accept-qty]','20');assert.equal(f.el('[data-accept-deviation]').hidden,false);
  f.el('[data-accept-confirm]').click();assert.equal(f.el('[data-accept-submit]').disabled,true);
@@ -38,6 +38,13 @@ test('sync and database errors keep dialog open, create nothing locally and perm
 test('multiple products have independent tiers and quantities',t=>{
  const f=fixture(t);f.w.state.quotes.push({...structuredClone(quote),id:'q2',lineNo:2,name:'Base'});f.open();f.change('[data-accept-tier="0"]','25','change');f.change('[data-accept-tier="1"]','50','change');
  assert.equal(f.el('[data-accept-qty="0"]').value,'25');assert.equal(f.el('[data-accept-qty="1"]').value,'50');assert.match(f.el('[data-accept-total]').textContent,/5.062,50/);
+});
+test('zero skips unpurchased products without requiring a price-deviation agreement',async t=>{
+ let args;const f=fixture(t,{rpc:async(_name,p)=>{args=p;return{data:{orders:[{id:'selected',qty:10,sourceQuoteNo:'Q-TEST',sourceQuoteLineId:'q1'}],tasks:[{id:'selected-task',orderId:'selected'}]}}}});
+ f.w.state.quotes.push({...structuredClone(quote),id:'q2',lineNo:2},{...structuredClone(quote),id:'q3',lineNo:3});const before=JSON.stringify(f.w.state.quotes);f.open();
+ f.change('[data-accept-qty="1"]','0');f.change('[data-accept-qty="2"]','0');
+ assert.equal(f.el('[data-accept-submit]').disabled,false);assert.equal(f.el('[data-accept-deviation="1"]').hidden,true);assert.equal(f.el('[data-accept-deviation="2"]').hidden,true);assert.match(f.el('[data-accept-price="1"]').textContent,/Niet besteld/);assert.match(f.el('[data-accept-total]').textContent,/900,00/);
+ f.el('[data-accept-submit]').click();await f.wait();assert.deepEqual(Array.from(args.p_choices,r=>r.qty),[10,0,0]);assert.equal(f.w.state.orders.length,1);assert.equal(f.w.state.tasks.length,1);assert.equal(JSON.stringify(f.w.state.quotes),before);
 });
 test('full app Accept → Order opens selection, does not save unsaved quote edits or sort source tiers',async t=>{
  const f=await fullApp(t);vm.runInContext(`state.quotes=${JSON.stringify([quote])};state.orders=[];state.tasks=[]`,f.ctx);const before=JSON.stringify(f.state().quotes);

@@ -45,7 +45,7 @@ begin
  if not rejected then raise exception 'Hidden tier accepted';end if;
  rejected:=false;
  begin perform public.planner_accept_quote_v1('ralabaster','__ACCEPT_VALIDATION__',lines,jsonb_set(jsonb_set(choices,'{0,tierQty}','25'),'{0,qty}','1.5'));
- exception when others then if sqlerrm not like '%gehele aantallen%' then raise;end if;rejected:=true;end;
+ exception when others then if sqlerrm not like '%geheel aantal%' then raise;end if;rejected:=true;end;
  if not rejected then raise exception 'Fractional quantity accepted';end if;
  rejected:=false;
  begin perform public.planner_accept_quote_v1('ralabaster','__ACCEPT_VALIDATION__','[]',choices);
