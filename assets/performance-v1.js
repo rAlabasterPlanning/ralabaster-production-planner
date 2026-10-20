@@ -1,7 +1,7 @@
 // rAlabaster scalable performance/data layer.
 // UI reads indexed/lightweight data. Cloud sync is background-only and never blocks navigation.
 (()=>{
-  const VERSION='20261020-preserve-deleted-orders-v1';
+  const VERSION='20261020-preserve-pending-versions-v2';
   const PENDING_KEY='ralabaster_planner_pending_v1';
   const PAGE_SIZE=1000;
   const BACKLOG_ORDER_LIMIT=120;
@@ -89,8 +89,9 @@
         preserveDeletedOrderConflicts(local,deletedRows);
         const mergedOrders=mergeOperationalRows(remoteState.orders,local.orders,lastOrderSnapshots,[[DEADLINE_FIELDS,'deadlineUpdatedAt'],[ORDER_COMPLETION_FIELDS,'orderCompletionUpdatedAt']]);
         const mergedTasks=mergeOperationalRows(remoteState.tasks,local.tasks,lastTaskSnapshots,[[TASK_PROGRESS_FIELDS,'taskProgressUpdatedAt']]);
+        const mergedQuotes=normalizedReady?mergeQuoteChanges(incomingQuotes,local.quotes||[],cloudQuotes):mergeStartupQuotes(incomingQuotes,local);
         seedHashes(remoteState);
-        state={...remoteState,...mergeMetadata(meta,local,cloudMetadata,!normalizedReady),orders:mergedOrders,tasks:mergedTasks,pendingRecordDeletions:local.pendingRecordDeletions,quotes:normalizedReady?mergeQuoteChanges(incomingQuotes,local.quotes||[],cloudQuotes):mergeRows(incomingQuotes,local.quotes||[])};
+        state={...remoteState,...mergeMetadata(meta,local,cloudMetadata,!normalizedReady),orders:mergedOrders,tasks:mergedTasks,pendingRecordDeletions:local.pendingRecordDeletions,quotes:mergedQuotes};
         cloudDirty=true;
       }else{
         state=remoteState;seedHashes();
@@ -139,11 +140,30 @@
     }));
     // Persist the complete local versions BEFORE removing their stale active
     // copies. If storage is full, abort loading rather than lose pending work.
+    persistSyncRecovery(local,records);
+    local.orders=(local.orders||[]).filter(o=>!affected.has(o.id));
+    local.tasks=(local.tasks||[]).filter(t=>!affected.has(t.orderId));
+  }
+  function persistSyncRecovery(local,records){
+    if(!records.length)return;
     const key='ralabaster_sync_recovery_v1',prior=JSON.parse(localStorage.getItem(key)||'[]');
     localStorage.setItem(key,JSON.stringify([...prior,...records]));
     local.syncRecoveryRecords=[...(local.syncRecoveryRecords||[]),...records];
-    local.orders=(local.orders||[]).filter(o=>!affected.has(o.id));
-    local.tasks=(local.tasks||[]).filter(t=>!affected.has(t.orderId));
+  }
+  function mergeStartupQuotes(remote,local){
+    const result=new Map(remote.map(q=>[q.id,q])),records=[],stamp=new Date().toISOString();
+    const revision=q=>Math.max(0,...['updatedAt','quoteDraftAt'].map(k=>Date.parse(q[k]||'')||0));
+    for(const q of local.quotes||[]){
+      const server=result.get(q.id);
+      if(!server){result.set(q.id,q);continue}
+      if(hash(server)===hash(q))continue;
+      // Without a read baseline, a different cached quote is not evidence of a
+      // fresh edit. Retain both versions instead of overwriting newer prices.
+      records.push({id:`quote-cache-conflict:${q.id}:${stamp}`,at:stamp,reason:'startup_quote_conflict',localQuote:structuredClone(q),serverQuote:structuredClone(server)});
+      if(revision(q)>revision(server))result.set(q.id,q);
+    }
+    persistSyncRecovery(local,records);
+    return [...result.values()];
   }
   function mergeOperationalRows(remote,local,baseline,groups){
     const byId=new Map(remote.map(r=>[r.id,r]));

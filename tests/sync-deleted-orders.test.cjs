@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 function fixture(){
- const values=new Map(),source=fs.readFileSync(require.resolve('../assets/performance-v1.js'),'utf8').replace('  let tries=0;','  window.recoveryTest={preserveDeletedOrderConflicts,loadNormalizedCloud,saveNormalizedCloud};\n  let tries=0;');
+ const values=new Map(),source=fs.readFileSync(require.resolve('../assets/performance-v1.js'),'utf8').replace('  let tries=0;','  window.recoveryTest={preserveDeletedOrderConflicts,mergeStartupQuotes,loadNormalizedCloud,saveNormalizedCloud};\n  let tries=0;');
  const c=vm.createContext({window:{},state:{orders:[],tasks:[],quotes:[{id:'q1',qty:10,priceTiers:[{qty:10,saleUnit:100},{qty:25,saleUnit:80}]}]},structuredClone,localStorage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},KEY:'cache',WORKSPACE_ID:'ralabaster',setTimeout:()=>1,clearTimeout:()=>{},setInterval:()=>1,clearInterval:()=>{},requestAnimationFrame:f=>f(),console,cloudUser:{id:'admin'},cloudStatus:'error',cloudLoading:false,renderOnlineBadge:()=>{},isExternalTask:()=>false,isDryTask:()=>false});
  vm.runInContext(source,c);return c;
 }
@@ -17,6 +17,14 @@ test('full storage stops recovery without removing any local orders or tasks',()
 test('normal orders remain untouched and repeated recovery does not duplicate copies',()=>{
  const c=fixture(),local={orders:[{id:'normal'}],tasks:[]};c.window.recoveryTest.preserveDeletedOrderConflicts(local,[{order_id:'normal',deleted:false,data:{id:'normal'}}]);assert.equal(local.orders.length,1);assert.equal(c.localStorage.getItem('ralabaster_sync_recovery_v1'),undefined);
  const rows=[{order_id:'normal',deleted:true,data:{id:'normal'}}];c.window.recoveryTest.preserveDeletedOrderConflicts(local,rows);c.window.recoveryTest.preserveDeletedOrderConflicts(local,rows);assert.equal(JSON.parse(c.localStorage.getItem('ralabaster_sync_recovery_v1')).length,1);
+});
+test('startup never lets an older cached quotation replace newer saved prices',()=>{
+ const c=fixture(),server={id:'q',saleUnit:275,updatedAt:'2026-10-19T14:06:31Z'},stale={id:'q',saleUnit:465,quoteDraftAt:'2026-10-15T13:20:49Z'},local={quotes:[stale,{id:'new-pending',qty:10}]};
+ const merged=c.window.recoveryTest.mergeStartupQuotes([server],local);assert.equal(merged[0].saleUnit,275);assert.equal(merged[1].id,'new-pending');assert.equal(local.syncRecoveryRecords[0].localQuote.saleUnit,465);assert.equal(local.syncRecoveryRecords[0].serverQuote.saleUnit,275);
+});
+test('ambiguous cached quote edits are preserved; explicitly newer edits retain both versions',()=>{
+ const c=fixture(),server={id:'q',saleUnit:100},local={quotes:[{id:'q',saleUnit:120}]};assert.equal(c.window.recoveryTest.mergeStartupQuotes([server],local)[0].saleUnit,100);assert.equal(local.syncRecoveryRecords[0].localQuote.saleUnit,120);
+ const newer={quotes:[{id:'q',saleUnit:130,updatedAt:'2026-10-20T12:00:00Z'}]};assert.equal(c.window.recoveryTest.mergeStartupQuotes([{...server,updatedAt:'2026-10-19T12:00:00Z'}],newer)[0].saleUnit,130);assert.equal(newer.syncRecoveryRecords[0].serverQuote.saleUnit,100);
 });
 test('pending startup and save recover two tombstones, preserve quotes and save unrelated edits',async()=>{
  const c=fixture(),quotes=structuredClone(c.state.quotes),server={id:'live',active:true,status:'confirmed',note:'Before'},tombstones=['deleted-a','deleted-b'].map(id=>({order_id:id,deleted:true,data:{id,deleted:true,active:true,status:'needs_calculation',deletedAt:'2026-10-19'}}));
