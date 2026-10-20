@@ -14,7 +14,7 @@ function estimatedMargin(lines){return total(lines)-estimatedCost(lines)}
 function estimatedMarginPct(lines){const revenue=total(lines);return revenue?estimatedMargin(lines)/revenue*100:0}
 function statusOf(lines){
  const explicit=String(lines[0]?.quoteStatus||lines[0]?.status||'').toLowerCase();
- if(lines.some(q=>q.orderId)||explicit==='accepted')return'accepted';
+ if(lines.some(q=>q.orderId||(S()?.orders||[]).some(o=>o.sourceQuoteLineId===q.id||o.sourceQuoteNo===(q.quoteNo||q.orderNo)))||explicit==='accepted')return'accepted';
  if(['followup','follow_up','opvolgen'].includes(explicit))return'followup';
  if(['lost','verloren'].includes(explicit))return'lost';
  if(['won','gewonnen'].includes(explicit))return'won';

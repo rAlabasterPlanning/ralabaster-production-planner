@@ -11,14 +11,17 @@ const orderTasks=id=>(S()?.tasks||[]).filter(t=>t.orderId===id&&!t.deleted);
 
 function quoteFor(o){
  const quotes=S()?.quotes||[];
- return quotes.find(q=>q.orderId===o.id)
+ return o.sourceQuoteSnapshot
+   ||quotes.find(q=>q.id===o.sourceQuoteLineId)
+   ||quotes.find(q=>q.orderId===o.id)
    ||quotes.find(q=>(q.quoteNo||q.orderNo)===o.sourceQuoteNo&&norm(q.name)===norm(o.product))
    ||quotes.find(q=>(q.quoteNo||q.orderNo)===o.sourceQuoteNo)
    ||o.costing||null;
 }
 function tiersFor(o){
  const q=quoteFor(o),raw=Array.isArray(q?.priceTiers)?q.priceTiers:[];
- const rows=raw.filter(t=>q?.tierVisibility?.[String(Math.round(num(t.qty)))]!==false).map(t=>({qty:Math.max(1,Math.round(num(t.qty))),saleUnit:Math.max(0,num(t.saleUnit))})).filter(t=>t.qty&&Number.isFinite(t.saleUnit));
+ const adjustment=1+num(o.adjustmentPct??q?.adjustmentPct)/100;
+ const rows=raw.filter(t=>q?.tierVisibility?.[String(Math.round(num(t.qty)))]!==false).map(t=>({qty:Math.max(1,Math.round(num(t.qty))),saleUnit:Math.max(0,num(t.saleUnit)*adjustment)})).filter(t=>t.qty&&Number.isFinite(t.saleUnit));
  if(!rows.some(t=>t.qty===Math.round(num(o.qty))))rows.push({qty:Math.max(1,Math.round(num(o.qty))),saleUnit:Math.max(0,num(o.saleUnit))});
  return [...new Map(rows.map(t=>[t.qty,t])).values()].sort((a,b)=>a.qty-b.qty);
 }

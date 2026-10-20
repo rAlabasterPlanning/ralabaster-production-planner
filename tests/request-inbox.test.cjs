@@ -23,9 +23,13 @@ test('request inbox keeps originals, persists additions, reuses quotation, and r
  d.querySelector('[data-view="requests"]').click();await f.wait(50);d.querySelector('[data-inbox-open]').click();
  vm.runInContext(`Object.assign(state.quotes.find(q=>q.id===${JSON.stringify(q.id)}),{ops:[{name:'Mori SL25',minutes:1,mode:'unit',rate:60}],saleUnit:25,total:500})`,f.ctx);
  d.querySelector('[data-inbox-confirm]').click();await f.wait(100);
- const accept=d.querySelector('[data-accept-quote]');assert.ok(accept,'quotation document has confirmation control');accept.click();await f.wait(200);
- const accepted=f.state().quotes.find(v=>v.id===q.id);assert.ok(accepted.orderId);assert.ok(f.state().tasks.some(t=>t.orderId===accepted.orderId));
+ const quoteBefore=structuredClone(f.state().quotes.find(v=>v.id===q.id));
+ w.__acceptClient={rpc:async(name,args)=>({data:{orders:[{id:'accepted-request-order',sourceQuoteNo:q.quoteNo,sourceQuoteLineId:q.id,product:q.name,qty:args.p_choices[0].qty,saleUnit:25,totalSale:500,active:true}],tasks:[{id:'accepted-request-task',orderId:'accepted-request-order',name:'Mori SL25',estimate:20,status:'open'}]}})};
+ vm.runInContext('supabaseClient=window.__acceptClient',f.ctx);w.RALAB_PERFORMANCE.flushCloudSave=async()=>{};
+ const accept=d.querySelector('[data-accept-quote]');assert.ok(accept,'quotation document has confirmation control');accept.click();await f.wait(30);
+ assert.ok(d.querySelector('[data-accept-submit]'));d.querySelector('[data-accept-submit]').click();await f.wait(200);
+ const accepted=f.state().orders.find(v=>v.sourceQuoteLineId===q.id);assert.ok(accepted);assert.ok(f.state().tasks.some(t=>t.orderId===accepted.id));assert.deepEqual(f.state().quotes.find(v=>v.id===q.id),quoteBefore);
  d.querySelector('[data-view="requests"]').click();await f.wait(60);
- let order;w.RALAB_ERP.openOrder=id=>order=id;d.querySelector('[data-inbox-plan]').click();assert.equal(order,accepted.orderId);
+ let order;w.RALAB_ERP.openOrder=id=>order=id;d.querySelector('[data-inbox-plan]').click();assert.equal(order,accepted.id);
  assert(writes.every(x=>x==='planner_request_reviews'));
 });
