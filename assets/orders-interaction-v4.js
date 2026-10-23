@@ -108,6 +108,8 @@
       const btn=e.target.closest?.('#view-customers button');
       const action=orderAction(btn);
       if(action){e.preventDefault();e.stopImmediatePropagation();runOrderAction(action);return}
+      // Buttons owned by other modules (portal invites, previews, planning) are not row clicks.
+      if(btn)return;
       const row=e.target.closest?.('#view-customers tr[data-customer-id]');
       if(row){
         e.preventDefault();e.stopImmediatePropagation();
