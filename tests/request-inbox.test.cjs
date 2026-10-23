@@ -33,3 +33,16 @@ test('request inbox keeps originals, persists additions, reuses quotation, and r
  let order;w.RALAB_ERP.openOrder=id=>order=id;d.querySelector('[data-inbox-plan]').click();assert.equal(order,accepted.id);
  assert(writes.every(x=>x==='planner_request_reviews'));
 });
+
+test('grouped order request becomes one quotation containing every product and shared reference/date',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;
+ const original={id:'22222222-1111-4111-8111-111111111111',customer_id:'customer-a',request_type:'order',status:'new',product_name:'2 producten',description:'First original',quantity:2,unit:'stuks',customer_reference:'PO-456',requested_delivery_date:'2026-12-10',product_lines:[{product_name:'First',description:'First description',dimensions:'100 mm',material:'Albast',quantity:2,unit:'stuks'},{product_name:'Second',description:'Second description',dimensions:'200 mm',material:'Stone',quantity:3,unit:'sets',attachment_path:'customer-a/file.pdf'}],created_at:'2026-10-23T10:00:00Z'};
+ const tables={portal_product_requests:[original],acquisition_requests:[],planner_request_reviews:[],portal_customers:[{customer_id:'customer-a',company_name:'Customer A'}]};
+ w.RALAB_ADMIN_AUTH={client:{from(table){const q={select(){return q},order(){return q},eq(){return q},range(){return Promise.resolve({data:tables[table]})},async upsert(value){tables[table]=[structuredClone(value)];return {error:null}}};return q},rpc:async()=>({data:1})}};
+ vm.runInContext("state.customers.push({id:'customer-a',name:'Customer A'});",f.ctx);
+ d.querySelector('[data-view="requests"]').click();await f.wait(80);assert.equal(d.querySelectorAll('[data-inbox-open]').length,1);assert.match(d.getElementById('view-requests').textContent,/PO-456/);
+ d.querySelector('[data-inbox-open]').click();assert.match(d.querySelector('details').textContent,/Second description/);assert.ok(d.querySelector('[data-request-attachment]'));
+ d.querySelector('[data-inbox-calculate]').click();await f.wait(250);
+ const quotes=f.state().quotes.filter(q=>q.sourceRequest);assert.equal(quotes.length,2);assert.equal(quotes[0].quoteNo,quotes[1].quoteNo);assert.equal(quotes[1].name,'Second');assert.equal(quotes[1].qty,3);assert.equal(quotes[1].customerReference,'PO-456');assert.equal(quotes[1].deadline,'2026-12-10');assert.match(quotes[1].project,/200 mm/);
+ d.querySelector('[data-view="requests"]').click();await f.wait(60);d.querySelector('[data-inbox-open]').click();d.querySelector('[data-inbox-calculate]').click();await f.wait(250);assert.equal(f.state().quotes.filter(q=>q.sourceRequest).length,2);assert.equal(original.product_lines[1].quantity,3);
+});
