@@ -9,9 +9,10 @@ const stamp=v=>v?new Date(v).toLocaleString('nl-NL',{timeZone:'Europe/Amsterdam'
 const value=v=>v==null||v===''?'—':typeof v==='boolean'?(v?'Ja':'Nee'):typeof v==='object'?JSON.stringify(v):String(v);
 let generation=0;
 function detail(row,orders,products){const after=row.details?.after||{},before=row.details?.before||{},order=orders.find(o=>o.id===row.target);const product=products.find(p=>p.id===row.target);return (order?`<div><b>${esc(order.order_no)}</b></div>`:product?`<div><b>${esc(product.name)}</b></div>`:'')+Object.keys(after).map(k=>`<div style="margin:4px 0"><b>${esc(fields[k]||k)}:</b> ${esc(value(before[k]))} → ${esc(value(after[k]))}</div>`).join('')}
-function mount(host,db,customerId,orders=[],products=[]){
+function mount(host,db,customerId,orders=[],products=[],options={}){
  const id=++generation;if(!host||!customerId)return;let offset=0;
  host.innerHTML=`<div class="toolbar" style="flex-wrap:wrap"><h3 style="margin:0">Activiteitenlog klant</h3><div class="spacer"></div><label>Periode <select class="input" data-activity-days><option value="30">Laatste 30 dagen</option><option value="90">Laatste 90 dagen</option><option value="0">Sinds start registratie</option></select></label><label>Activiteit <select class="input" data-activity-kind><option value="">Alles</option><option value="login">Inloggen</option><option value="page">Pagina's</option><option value="click">Klikken</option><option value="change">Opgeslagen wijzigingen</option></select></label><button class="btn" type="button" data-activity-refresh>Vernieuwen</button></div><p class="muted">Registratie vanaf 12 oktober 2026. Een inlogsessie telt één keer; opnieuw laden telt niet als nieuwe login. Klikken tonen gebruik, opgeslagen wijzigingen zijn bevestigd door de database. Jouw klantweergave telt niet mee.</p><div data-activity-summary role="status"></div><div data-activity-rows style="margin-top:12px"></div><div class="toolbar" style="margin-top:10px"><button class="btn" type="button" data-activity-prev>← Nieuwere</button><span data-activity-page></span><button class="btn" type="button" data-activity-next>Oudere →</button></div>`;
+ if(options.allTime)host.querySelector('[data-activity-days]').value='0';
  let serial=0;
  async function load(){const request=++serial,days=Number(host.querySelector('[data-activity-days]').value),kind=host.querySelector('[data-activity-kind]').value,rows=host.querySelector('[data-activity-rows]');rows.textContent='Activiteiten laden…';host.querySelectorAll('button').forEach(b=>b.disabled=true);
  const base=(columns='*',options)=>{let q=db.from('portal_activity_log').select(columns,options).eq('customer_id',customerId);if(days)q=q.gte('created_at',new Date(Date.now()-days*86400000).toISOString());return q;};
@@ -25,5 +26,17 @@ function mount(host,db,customerId,orders=[],products=[]){
  }
  host.onchange=()=>{offset=0;load()};host.onclick=e=>{if(e.target.closest('[data-activity-refresh]'))load();if(e.target.closest('[data-activity-prev]')){offset=Math.max(0,offset-25);load()}if(e.target.closest('[data-activity-next]')){offset+=25;load()}};load();
 }
-window.RALAB_PORTAL_ACTIVITY_ADMIN={mount};
+function open(customerId){
+ const customer=(typeof state!=='undefined'?state.customers:[])?.find(c=>c.id===customerId);
+ const db=window.RALAB_ADMIN_AUTH?.client;
+ if(!db)return alert('Log opnieuw in bij de planner om portaalactiviteit te bekijken.');
+ showModal('<div class="modalhead"><h3>Portaalactiviteit · '+esc(customer?.name||'Klant')+'</h3></div><div class="modalbody"><section data-customer-activity-view></section></div><div class="modalfoot"><button class="btn" type="button" data-customer-activity-close>Sluiten</button></div>');
+ mount(document.querySelector('[data-customer-activity-view]'),db,customerId,[],[],{allTime:true});
+}
+document.addEventListener('click',e=>{
+ const button=e.target.closest('[data-customer-portal-activity]');
+ if(button){e.preventDefault();open(button.dataset.customerPortalActivity)}
+ if(e.target.closest('[data-customer-activity-close]'))closeModal();
+});
+window.RALAB_PORTAL_ACTIVITY_ADMIN={mount,open};
 })();
