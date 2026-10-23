@@ -19,8 +19,8 @@
  text(45,603,'LEVERINGSADRES',true,9,green);wrap(customer.company_name,38).slice(0,2).forEach((v,i)=>text(45,582-i*14,v,true,11,dark));
  const address=[customer.address||customer.street,[customer.postal_code||customer.zip,customer.city].filter(Boolean).join(' '),customer.country,customer.contact_name?`t.a.v. ${customer.contact_name}`:''].filter(Boolean);
  address.flatMap(v=>wrap(v,43)).slice(0,4).forEach((v,i)=>text(45,550-i*13,v,false,9));
- text(323,603,'DOCUMENTGEGEVENS',true,9,green);text(323,582,'DATUM GEREED',true,8,green);text(323,567,readyDate||'-');text(323,540,'KLANTREFERENTIE',true,8,green);wrap(order.customer_reference||'-',38).slice(0,3).forEach((v,i)=>text(323,525-i*13,v));
- text(45,473,'GELEVERDE ARTIKELEN',true,9,green);fill(45,438,505,27,dark);text(57,448,'OMSCHRIJVING',true,9,'1 1 1');text(401,448,'VERPAKKING',true,9,'1 1 1');text(505,448,'AANTAL',true,9,'1 1 1');y=418;
+ text(323,603,'DOCUMENTGEGEVENS',true,9,green);text(323,582,'BEVESTIGDE LEVERDATUM',true,8,green);text(323,567,readyDate||'-');text(323,540,'KLANTREFERENTIE',true,8,green);const referenceRows=wrap(order.customer_reference||'-',38);referenceRows.forEach((v,i)=>text(323,525-i*13,v));const requestedY=510-referenceRows.length*13;text(323,requestedY,'GEVRAAGDE LEVERDATUM',true,8,green);text(323,requestedY-15,order.requested_delivery_date||'-',false,9);
+ const tableTop=Math.min(473,requestedY-40);text(45,tableTop,'GELEVERDE ARTIKELEN',true,9,green);fill(45,tableTop-35,505,27,dark);text(57,tableTop-25,'OMSCHRIJVING',true,9,'1 1 1');text(401,tableTop-25,'VERPAKKING',true,9,'1 1 1');text(505,tableTop-25,'AANTAL',true,9,'1 1 1');y=tableTop-55;
  }
  page();
  for(const line of [...(order.portal_order_lines||[])].sort((a,b)=>a.line_no-b.line_no)){

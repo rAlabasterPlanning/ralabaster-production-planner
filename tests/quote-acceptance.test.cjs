@@ -51,3 +51,14 @@ test('full app Accept → Order opens selection, does not save unsaved quote edi
  f.w.RALAB_DOCS.openQuote('Q-TEST');f.w.document.querySelector('[data-q-qty]').value='999';f.w.document.querySelector('[data-accept-quote]').click();
  assert.ok(f.w.document.querySelector('[data-accept-tier]'));assert.equal(f.w.document.querySelector('[data-accept-qty]').value,'10');assert.equal(JSON.stringify(f.state().quotes),before);assert.equal(f.state().orders.length,0);
 });
+
+test('acceptance captures one customer PO and separate requested/confirmed dates for every product',async t=>{
+ let args,name;const f=fixture(t,{rpc:async(n,p)=>{name=n;args=p;return{data:{orders:[{id:'o1',customerReference:p.p_customer_reference,customerReadyDate:p.p_requested_delivery_date,communicatedDeadline:p.p_confirmed_delivery_date}],tasks:[]}}}});
+ f.w.state.quotes[0].customerReference='OLD-PO';f.w.state.quotes[0].customerReadyDate='2026-11-01';f.w.state.quotes[0].estimatedReadyDate='2026-11-10';f.w.state.quotes.push({...structuredClone(f.w.state.quotes[0]),id:'q2',lineNo:2});const before=JSON.stringify(f.w.state.quotes);f.open();
+ assert.equal(f.el('[data-accept-reference]').value,'OLD-PO');assert.equal(f.el('[data-accept-requested]').value,'2026-11-01');assert.equal(f.el('[data-accept-confirmed]').value,'2026-11-10');
+ f.change('[data-accept-reference]',' PO-123 ');f.change('[data-accept-requested]','2026-12-01');f.change('[data-accept-confirmed]','2026-12-15');f.el('[data-accept-submit]').click();await f.wait();
+ assert.equal(name,'planner_accept_quote_v2');assert.equal(args.p_customer_reference,'PO-123');assert.equal(args.p_requested_delivery_date,'2026-12-01');assert.equal(args.p_confirmed_delivery_date,'2026-12-15');assert.equal(args.p_choices.length,2);assert.equal(f.w.state.orders[0].customerReference,'PO-123');assert.equal(JSON.stringify(f.w.state.quotes),before);
+});
+test('failed acceptance retains entered PO and both dates for retry',async t=>{
+ const f=fixture(t,{rpc:async()=>({error:{message:'Offline'}})});f.open();f.change('[data-accept-reference]','PO retry');f.change('[data-accept-requested]','2026-12-01');f.change('[data-accept-confirmed]','2026-12-20');f.el('[data-accept-submit]').click();await f.wait();assert.equal(f.el('[data-accept-reference]').value,'PO retry');assert.equal(f.el('[data-accept-requested]').value,'2026-12-01');assert.equal(f.el('[data-accept-confirmed]').value,'2026-12-20');assert.equal(f.w.state.orders.length,0);
+});
