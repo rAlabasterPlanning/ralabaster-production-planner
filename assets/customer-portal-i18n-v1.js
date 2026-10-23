@@ -19,5 +19,6 @@ function set(next,{manual=true,rerender=true}={}){if(!['nl','en','de'].includes(
 document.addEventListener('change',e=>{if(e.target.matches('[data-portal-language]'))set(e.target.value)});
 window.addEventListener('ralab:portal-customer',e=>{if(localStorage.getItem(MANUAL))return;set(e.detail?.language||'nl',{manual:false,rerender:true})});
 new MutationObserver(m=>{if(!busy)for(const x of m)for(const n of x.addedNodes)if(n.nodeType===1||n.nodeType===3)apply(n.nodeType===1?n:n.parentElement)}).observe(document.documentElement,{subtree:true,childList:true});
+const linkLanguage=new URL(location.href).searchParams.get('lang');if(['nl','en','de'].includes(linkLanguage))set(linkLanguage,{manual:false,rerender:false});
 window.RALAB_PORTAL_I18N={apply,set,get:()=>language,locale};document.addEventListener('DOMContentLoaded',()=>apply());
 })();
