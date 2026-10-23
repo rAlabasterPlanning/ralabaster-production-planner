@@ -50,7 +50,7 @@ Deno.serve(async (req: Request) => {
       if (authError) throw authError;
       return json({ ok: true, action, active, email: member.email });
     }
-    if (action !== "invite") return json({ error: "Onbekende actie." }, 400);
+    if (!["invite", "prepare_invitation"].includes(action)) return json({ error: "Onbekende actie." }, 400);
     const customerId = String(body.customer_id || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
     const contactName = String(body.contact_name || "").trim();
@@ -66,7 +66,24 @@ Deno.serve(async (req: Request) => {
       account = data.users.find((u) => u.email?.toLowerCase() === email) || null;
       if (data.users.length < 100) break;
     }
+    const draftOnly = action === "prepare_invitation";
+    const language = String(body.language || "nl");
+    if (draftOnly && !["nl", "en", "de"].includes(language)) return json({ error: "Ongeldige taal." }, 400);
+    if (draftOnly && account) {
+      const { data: membership, error } = await admin.from("portal_customer_users").select("customer_id,active").eq("user_id", account.id).maybeSingle();
+      if (error) throw error;
+      if (membership && membership.customer_id !== customerId) return json({ error: "Dit e-mailadres hoort al bij een andere klant. Controleer de klantkoppeling." }, 409);
+      if (membership && !membership.active) return json({ error: "Dit account is geblokkeerd. Activeer het eerst via Klantportaal." }, 409);
+      const { data: staff } = await admin.from("portal_admins").select("user_id").eq("user_id", account.id).maybeSingle();
+      if (staff) return json({ error: "Een plannerbeheerder kan niet als klant worden uitgenodigd." }, 409);
+    }
     let invited = false;
+    if (draftOnly && !account) {
+      // Provision access without sending mail. The customer's reset email proves mailbox ownership.
+      const { data, error } = await admin.auth.admin.createUser({ email, email_confirm: true, user_metadata: { contact_name: contactName } });
+      if (error) throw error;
+      account = data.user;
+    }
     if (!account) {
       const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
         redirectTo: "https://ralabasterplanner.vercel.app/portal?mode=password",
@@ -78,8 +95,10 @@ Deno.serve(async (req: Request) => {
     }
     if (!account) throw new Error("Klantaccount kon niet worden gemaakt.");
 
+    if (!draftOnly) {
     const { error: unbanError } = await admin.auth.admin.updateUserById(account.id, { ban_duration: "none" });
     if (unbanError) throw unbanError;
+    }
 
     const { error: linkError } = await admin.from("portal_customer_users").upsert({
       user_id: account.id,
@@ -90,7 +109,11 @@ Deno.serve(async (req: Request) => {
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
     if (linkError) throw linkError;
-    return json({ ok: true, invited, email, user_id: account.id });
+    if (draftOnly) {
+      const { error } = await admin.from("portal_customers").update({ preferred_language: language, updated_at: new Date().toISOString() }).eq("customer_id", customerId);
+      if (error) throw error;
+    }
+    return json({ ok: true, invited, draft_only: draftOnly, email, user_id: account.id });
   } catch (error) {
     console.error(error);
     return json({ error: error instanceof Error ? error.message : "Portaaltoegang kon niet worden opgeslagen." }, 400);
