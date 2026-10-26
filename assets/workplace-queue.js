@@ -6,18 +6,19 @@
  const active=o=>window.RALAB_ORDER_PRINT?.active(o)??(!o.deleted&&o.active!==false&&!o.closed&&o.status!=='completed');
  const name=t=>String(t.assignedMachine||t.machine||t.name||'Werkplek ontbreekt').replace(/\s*-\s*instellen\s*$/i,'').trim();
  const key=n=>window.RALAB_PRODUCTION_CORE?.canonical(n)||String(n).toLowerCase().trim();
+ const displayName=n=>/^steen\s+inkopen\s+spanje(?:\s*\(extern\))?$/i.test(String(n||'').trim())?'Wacht op binnenkomst Alabaster':n;
  let floor={},freshAt=null,loading=false,problem='',query='',draft=null,orderSaving=false,orderMessage='';
  function workplaceOrder(s){
-  const known=new Map(),add=n=>{n=String(n||'').replace(/\s*-\s*instellen\s*$/i,'').trim();if(n&&!known.has(key(n)))known.set(key(n),{key:key(n),name:n})};
+  const known=new Map(),add=n=>{n=String(n||'').replace(/\s*-\s*instellen\s*$/i,'').trim();if(n&&!known.has(key(n)))known.set(key(n),{key:key(n),name:displayName(n)})};
   for(const w of s.workplaces||[])if(w.active!==false)add(w.name);
   const ids=new Set((s.orders||[]).filter(active).map(o=>o.id));
   for(const t of s.tasks||[])if(ids.has(t.orderId)&&!t.deleted&&!t.isStaffAbsence)add(name(t));
-  for(const g of columns(s,floor))add(g.name);
+  for(const g of columns(s,floor))if(!known.has(g.key))known.set(g.key,{key:g.key,name:g.name});
   add('Route aanvullen');add('Gereed / leveren');
   const saved=Array.isArray(s.workplaceQueueOrder?.sequence)?s.workplaceQueueOrder.sequence:[];
   // Retain temporarily empty or removed workplaces in the setting. They regain
   // their position when work returns, including after a filtered board is saved.
-  const result=[],seen=new Set();for(const k of saved){if(typeof k!=='string'||seen.has(k))continue;seen.add(k);result.push(known.get(k)||{key:k,name:k});}
+  const result=[],seen=new Set();for(const k of saved){if(typeof k!=='string'||seen.has(k))continue;seen.add(k);result.push(known.get(k)||{key:k,name:displayName(k)});}
   for(const [k,item] of known)if(!seen.has(k)){seen.add(k);result.push(item)}return result;
  }
  function orderRows(){const root=document.querySelector('[data-queue-order-list]');if(!root||!draft)return;
@@ -42,7 +43,7 @@
  }
  function columns(state,snapshot={},search='',at=Date.now()){
   const groups=new Map(),workplaces=state.workplaces||[],saved=Array.isArray(state.workplaceQueueOrder?.sequence)?state.workplaceQueueOrder.sequence:[],rank=new Map(workplaces.map((w,i)=>[key(w.name),i])),customRank=new Map(saved.map((k,i)=>[k,i]));
-  function add(o,t,label,status,source){const k=key(label);if(!groups.has(k))groups.set(k,{key:k,name:workplaces.find(w=>key(w.name)===k)?.name||label,cards:[]});
+  function add(o,t,label,status,source){const k=key(label);if(!groups.has(k))groups.set(k,{key:k,name:displayName(workplaces.find(w=>key(w.name)===k)?.name||label),cards:[]});
    const col=groups.get(k);if(col.cards.some(c=>c.order.id===o.id&&c.task?.id===t?.id))return;col.cards.push({order:o,task:t,status,source});}
   for(const o of (state.orders||[]).filter(active)){
    if(search&&!`${o.orderNo||''} ${o.product||''} ${o.customerName||''}`.toLowerCase().includes(search.toLowerCase()))continue;
@@ -59,7 +60,7 @@
   return [...groups.values()].sort((a,b)=>(customRank.get(a.key)??Infinity)-(customRank.get(b.key)??Infinity)||(rank.get(a.key)??999)-(rank.get(b.key)??999)||a.name.localeCompare(b.name,'nl')).map(g=>({...g,cards:g.cards.sort((a,b)=>String(a.order.communicatedDeadline||a.order.deadline||'9999').localeCompare(String(b.order.communicatedDeadline||b.order.deadline||'9999'))||String(a.order.orderNo).localeCompare(String(b.order.orderNo),'nl'))}));
  }
  function card(c){const o=c.order,t=c.task,reported=t&&!t.stageCorrection&&Number(t.doneQty)>0;
-  return `<article class="queue-card" data-queue-order="${esc(o.id)}"><div class="queue-card-top"><b>${esc(o.orderNo||'Ordernummer ontbreekt')}</b><span class="queue-badge ${c.source==='live'?'queue-live':''}">${esc(c.status)}</span></div><h3>${esc(o.product||'Product ontbreekt')}</h3><p>${esc(o.customerName||'Klant ontbreekt')}</p>${t?`<p class="queue-operation">${esc(t.name||t.machine)} · stap ${esc(t.seq||'—')}</p>`:''}<dl><div><dt>Orderaantal</dt><dd>${o.quantityPending?'Nog invullen':esc(o.qty??'Ontbreekt')}</dd></div>${reported?`<div><dt>Gemeld op deze stap</dt><dd>${esc(t.doneQty)}</dd></div>`:''}${o.deliveries?.length?`<div><dt>Geleverd / backorder</dt><dd>${Number(o.deliveredQty)||0} / ${Math.max(0,Number(o.qty)-(Number(o.deliveredQty)||0))}</dd></div>`:''}<div><dt>Bevestigde leverdatum</dt><dd>${esc(o.communicatedDeadline||o.deadline||'Niet vastgelegd')}</dd></div></dl><div class="queue-actions"><button type="button" class="btn small" data-queue-open="${esc(o.id)}">Order openen</button>${t?`<button type="button" class="btn small" data-queue-stage="${esc(o.id)}">Fase bijwerken</button>`:''}</div></article>`;
+  return `<article class="queue-card" data-queue-order="${esc(o.id)}"><div class="queue-card-top"><b>${esc(o.orderNo||'Ordernummer ontbreekt')}</b><span class="queue-badge ${c.source==='live'?'queue-live':''}">${esc(c.status)}</span></div><h3>${esc(o.product||'Product ontbreekt')}</h3><p>${esc(o.customerName||'Klant ontbreekt')}</p>${t?`<p class="queue-operation">${esc(displayName(t.name||t.machine))} · stap ${esc(t.seq||'—')}</p>`:''}<dl><div><dt>Orderaantal</dt><dd>${o.quantityPending?'Nog invullen':esc(o.qty??'Ontbreekt')}</dd></div>${reported?`<div><dt>Gemeld op deze stap</dt><dd>${esc(t.doneQty)}</dd></div>`:''}${o.deliveries?.length?`<div><dt>Geleverd / backorder</dt><dd>${Number(o.deliveredQty)||0} / ${Math.max(0,Number(o.qty)-(Number(o.deliveredQty)||0))}</dd></div>`:''}<div><dt>Bevestigde leverdatum</dt><dd>${esc(o.communicatedDeadline||o.deadline||'Niet vastgelegd')}</dd></div></dl><div class="queue-actions"><button type="button" class="btn small" data-queue-open="${esc(o.id)}">Order openen</button>${t?`<button type="button" class="btn small" data-queue-stage="${esc(o.id)}">Fase bijwerken</button>`:''}</div></article>`;
  }
  function render(){const root=document.getElementById('view-workplacequeue');if(!root)return;const s=S();if(!s){root.textContent='Plannergegevens worden geladen…';return}
   const groups=columns(s,floor,query),count=new Set(groups.flatMap(g=>g.cards.map(c=>c.order.id))).size;
