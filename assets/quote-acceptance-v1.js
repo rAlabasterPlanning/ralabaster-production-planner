@@ -4,6 +4,11 @@ const S=()=>{try{return state}catch(_){return null}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(n);
 let session=null,busy=false;
+async function confirmedRequest(request){
+ let timer;
+ try{return await Promise.race([request,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('De database reageert niet op tijd. De order kan al zijn aangemaakt. Probeer opnieuw met dezelfde keuzes; een bestaande order wordt niet verdubbeld.')),30000)})]);}
+ finally{clearTimeout(timer)}
+}
 function tiers(q){
  const rows=q.includeTierPricing?(q.priceTiers||[]).filter(t=>q.tierVisibility?.[String(t.qty)]!==false):[];
  // The main product line is also a quoted price, even when its quantity is
@@ -46,19 +51,22 @@ function refresh(){
 async function submit(){
  if(busy||!session)return;
  const rows=choices(),reference=document.querySelector('[data-accept-reference]').value.trim(),requested=document.querySelector('[data-accept-requested]').value||null,confirmed=document.querySelector('[data-accept-confirmed]').value||null,error=reference.length>200?'Het PO-nummer mag maximaal 200 tekens bevatten.':validate(rows),message=document.querySelector('[data-accept-error]');if(error){message.textContent=error;return}
- busy=true;document.querySelectorAll('#modalRoot input,#modalRoot select,#modalRoot button').forEach(e=>e.disabled=true);
+ busy=true;message.textContent='Order wordt aangemaakt en gecontroleerd…';message.setAttribute('role','status');
+ const button=document.querySelector('[data-accept-submit]');button.textContent='Order aanmaken…';button.setAttribute('aria-busy','true');
+ document.querySelectorAll('#modalRoot input,#modalRoot select,#modalRoot button').forEach(e=>e.disabled=true);
  try{
   if(typeof supabaseClient==='undefined'||!supabaseClient)throw Error('Log eerst online in. Een order wordt alleen aangemaakt als de database dit kan bevestigen.');
-  await window.RALAB_PERFORMANCE?.flushCloudSave?.();
-  const {data,error:rpcError}=await supabaseClient.rpc('planner_accept_quote_v2',{p_workspace_id:typeof WORKSPACE_ID==='undefined'?'ralabaster':WORKSPACE_ID,p_quote_no:session.no,p_customer_reference:reference||null,p_requested_delivery_date:requested,p_confirmed_delivery_date:confirmed,p_expected_lines:session.lines,p_choices:rows.map(({saleUnit,...r})=>r)});
+  // This transaction checks the saved quote itself. Flushing unrelated planner edits
+  // first can hang acceptance and save edits the acceptance dialog explicitly excludes.
+  const {data,error:rpcError}=await confirmedRequest(supabaseClient.rpc('planner_accept_quote_v2',{p_workspace_id:typeof WORKSPACE_ID==='undefined'?'ralabaster':WORKSPACE_ID,p_quote_no:session.no,p_customer_reference:reference||null,p_requested_delivery_date:requested,p_confirmed_delivery_date:confirmed,p_expected_lines:session.lines,p_choices:rows.map(({saleUnit,...r})=>r)}));
   if(rpcError)throw Error(rpcError.message);
   if(!data?.orders?.length||!Array.isArray(data.tasks))throw Error('De database heeft de order niet bevestigd. Probeer opnieuw; een reeds aangemaakte order wordt niet verdubbeld.');
   const s=S();s.orders||=[];s.tasks||=[];
   for(const o of data.orders){const i=s.orders.findIndex(x=>x.id===o.id);if(i<0)s.orders.push(o);else s.orders[i]=o;}
   for(const t of data.tasks){const i=s.tasks.findIndex(x=>x.id===t.id);if(i<0)s.tasks.push(t);else s.tasks[i]=t;}
-  window.RALAB_PERFORMANCE?.invalidate?.();save();session=null;closeModal();window.RALAB_ERP?.show?.('orders');
- }catch(e){message.textContent=e?.message||String(e);}
- finally{busy=false;if(session){document.querySelectorAll('#modalRoot input,#modalRoot select,#modalRoot button').forEach(e=>e.disabled=false);refresh();}}
+  window.RALAB_PERFORMANCE?.invalidate?.();save();window.RALAB_DIRTY?.allowClose?.();session=null;closeModal();window.RALAB_ERP?.show?.('orders');
+ }catch(e){message.setAttribute('role','alert');message.textContent=e?.message||String(e);message.scrollIntoView?.({block:'nearest'});}
+ finally{busy=false;if(session){document.querySelectorAll('#modalRoot input,#modalRoot select,#modalRoot button').forEach(e=>e.disabled=false);button.textContent='Bevestigen en order aanmaken';button.removeAttribute('aria-busy');refresh();}}
 }
 document.addEventListener('click',e=>{if(e.target.closest?.('[data-accept-submit]')){e.preventDefault();submit()}if(e.target.closest?.('[data-accept-cancel]')&&!busy){const no=session?.no;session=null;window.RALAB_DOCS?.openQuote(no)}},true);
 document.addEventListener('change',e=>{if(!session||busy)return;if(e.target.matches?.('[data-accept-tier]')){const i=e.target.dataset.acceptTier;document.querySelector(`[data-accept-qty="${i}"]`).value=e.target.value;document.querySelector(`[data-accept-confirm="${i}"]`).checked=false;document.querySelector(`[data-accept-reason="${i}"]`).value='';}if(e.target.matches?.('[data-accept-tier],[data-accept-confirm]'))refresh()},true);

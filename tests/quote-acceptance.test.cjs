@@ -30,11 +30,17 @@ test('atomic RPC success merges orders/tasks once and leaves all quote fields un
  assert.equal(calls,1);assert.equal(args.p_choices[0].qty,25);assert.equal(args.p_choices[0].saleUnit,undefined);
  assert.equal(f.w.state.orders.length,1);assert.equal(f.w.state.tasks[0].estimate,125);assert.equal(JSON.stringify(f.w.state.quotes),before);
 });
-test('sync and database errors keep dialog open, create nothing locally and permit retry',async t=>{
- let calls=0;const f=fixture(t,{flush:()=>Promise.reject(Error('Synchronisatie mislukt')),rpc:()=>{calls++}});f.open();f.el('[data-accept-submit]').click();await f.wait();
- assert.equal(calls,0);assert.equal(f.w.state.orders.length,0);assert.match(f.el('[data-accept-error]').textContent,/Synchronisatie/);assert.equal(f.el('[data-accept-submit]').disabled,false);
- f.w.RALAB_PERFORMANCE.flushCloudSave=()=>Promise.resolve();f.w.supabaseClient.rpc=async()=>({error:{message:'De offerte is intussen gewijzigd'}});f.el('[data-accept-submit]').click();await f.wait();assert.match(f.el('[data-accept-error]').textContent,/intussen gewijzigd/);assert.equal(f.w.state.orders.length,0);
+test('acceptance does not wait for unrelated cloud saves, while database errors allow retry',async t=>{
+ let flushes=0,calls=0;const f=fixture(t,{flush:()=>{flushes++;return new Promise(()=>{})},rpc:async()=>{calls++;return {error:{message:'De offerte is intussen gewijzigd'}}}});f.open();f.el('[data-accept-submit]').click();await f.wait();
+ assert.equal(flushes,0);assert.equal(calls,1);assert.equal(f.w.state.orders.length,0);assert.match(f.el('[data-accept-error]').textContent,/intussen gewijzigd/);assert.equal(f.el('[data-accept-submit]').disabled,false);
 });
+test('a stalled response shows progress, times out, ignores late results and permits an idempotent retry',async t=>{
+ let resolve,calls=0;const f=fixture(t,{rpc:()=>{calls++;return calls===1?new Promise(r=>resolve=r):Promise.resolve({data:{orders:[{id:'existing'}],tasks:[],existing:true}})}});
+ const timer=f.w.setTimeout.bind(f.w);f.w.setTimeout=(fn,ms)=>timer(fn,ms===30000?5:ms);f.open();f.el('[data-accept-submit]').click();
+ assert.equal(f.el('[data-accept-submit]').getAttribute('aria-busy'),'true');assert.match(f.el('[data-accept-error]').textContent,/aangemaakt en gecontroleerd/);await f.wait();assert.equal(f.el('[data-accept-submit]').disabled,false);assert.match(f.el('[data-accept-error]').textContent,/niet op tijd/);
+ resolve({data:{orders:[{id:'late'}],tasks:[]}});await f.wait();assert.equal(f.w.state.orders.length,0);f.el('[data-accept-submit]').click();await f.wait();assert.equal(calls,2);assert.equal(f.w.state.orders.length,1);assert.equal(f.w.state.orders[0].id,'existing');
+});
+
 test('multiple products have independent tiers and quantities',t=>{
  const f=fixture(t);f.w.state.quotes.push({...structuredClone(quote),id:'q2',lineNo:2,name:'Base'});f.open();f.change('[data-accept-tier="0"]','25','change');f.change('[data-accept-tier="1"]','50','change');
  assert.equal(f.el('[data-accept-qty="0"]').value,'25');assert.equal(f.el('[data-accept-qty="1"]').value,'50');assert.match(f.el('[data-accept-total]').textContent,/5.062,50/);
