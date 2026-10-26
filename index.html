@@ -27,6 +27,7 @@
 .nav-more-menu .navbtn:hover,.nav-more-menu .navbtn.active{background:#28423d;color:#fff}
 </style>
 <link rel="stylesheet" href="assets/product-documents.css?v=20261015-order-1">
+<link rel="stylesheet" href="assets/workplace-queue.css?v=20261026-1">
 </head>
 <body>
 <header><a class="brand" href="#" aria-label="rAlabaster" style="display:flex;align-items:center;flex:0 0 auto"><img id="brandLogo" class="brand-logo" alt="rAlabaster" style="height:42px;width:auto;display:block"></a><nav>
@@ -35,6 +36,7 @@
 <button class="navbtn erp-nav" data-view="quotes">Offertes</button>
 <button class="navbtn" data-view="requests">Nieuwe aanvragen <span data-request-count aria-live="polite"></span></button>
 <button class="navbtn erp-nav active" data-view="orderoverview">Orderoverzicht</button>
+<button class="navbtn" data-view="workplacequeue">Werk per werkplek</button>
 <button class="navbtn" data-view="weeks">Overzichtplanner</button>
 <div class="nav-more" style="position:relative;flex:0 0 auto">
   <button class="btn nav-more-trigger" type="button" aria-expanded="false" aria-controls="navMoreMenu" style="min-width:82px">Meer ▾</button>
@@ -81,6 +83,7 @@
 <section id="view-import" class="hidden"></section>
 <section id="view-history" class="hidden"></section>
 <section id="view-settings" class="hidden"></section>
+<section id="view-workplacequeue" class="hidden"></section>
 </main>
 <div id="printArea"></div>
 <div id="modalRoot"></div>
@@ -102,7 +105,7 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/production-core.js"></script>
 <script src="assets/production-pace.js"></script>
 <script src="assets/production-forecast.js"></script>
-<script src="assets/erp.js?v=20261023-invite-customer-1"></script>
+<script src="assets/erp.js?v=20261026-partial-deliveries-1"></script>
 <script src="assets/quote-meta.js?v=20260923-2"></script>
 <script src="assets/order-actions.js?v=20260930-1"></script>
 <script src="assets/products.js?v=20261014-finishing-merge-1"></script>
@@ -157,10 +160,12 @@ fetch('assets/ralabaster-logo.b64.txt').then(r=>{if(!r.ok)throw new Error();retu
 <script src="assets/orders-interaction-v4.js?v=20261023-customer-actions-1"></script>
 <script src="assets/order-modal-buttons-v1.js?v=20260923-3"></script>
 <script src="assets/modal-layer-v1.js?v=20260914-2"></script>
-<script src="assets/completed-order-actions-v1.js?v=20261007-outlook-sender-fix-1"></script>
-<script src="assets/order-closeout-v1.js?v=20261020-quick-order-closeout-2"></script>
+<script src="assets/completed-order-actions-v1.js?v=20261026-partial-deliveries-1"></script>
+<script src="assets/order-closeout-v1.js?v=20261026-partial-deliveries-1"></script>
 <script src="assets/planning-order-controls-v1.js?v=20261013-youri-1"></script>
-<script src="assets/planning-week-proposal-v1.js?v=20261013-youri-1"></script>\n<script src="assets/planning-production-sequence-v1.js?v=20261013-youri-1"></script>\n<script src="assets/planning-hybrid-week-v1.js?v=20261013-youri-1"></script>
+<script src="assets/planning-week-proposal-v1.js?v=20261013-youri-1"></script>
+<script src="assets/planning-production-sequence-v1.js?v=20261013-youri-1"></script>
+<script src="assets/planning-hybrid-week-v1.js?v=20261013-youri-1"></script>
 <script src="assets/planning-gap-compaction-v1.js?v=20260913-2"></script>
 <script src="assets/planning-manual-start-v1.js?v=20260925-6"></script>
 <script src="assets/planning-touch-reorder-v1.js?v=20260925-1"></script>
@@ -188,5 +193,7 @@ document.addEventListener('click',function(e){
 </script>
 <script src="assets/customer-portal-preview-launcher.js?v=20261012-visibility-1"></script>
 <script src="assets/acquisition-loader.js?v=20261013-4"></script>
+<script src="assets/order-deliveries.js?v=20261026-partial-deliveries-1"></script>
+<script src="assets/workplace-queue.js?v=20261026-1"></script>
 </body>
 </html>
