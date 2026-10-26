@@ -1,4 +1,4 @@
-// Read-only view of current production phases, shared with the order overview.
+// Current production phases with a saved display order for workplaces.
 (()=>{'use strict';
  const S=()=>{try{return state}catch(_){return null}};
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -6,9 +6,42 @@
  const active=o=>window.RALAB_ORDER_PRINT?.active(o)??(!o.deleted&&o.active!==false&&!o.closed&&o.status!=='completed');
  const name=t=>String(t.assignedMachine||t.machine||t.name||'Werkplek ontbreekt').replace(/\s*-\s*instellen\s*$/i,'').trim();
  const key=n=>window.RALAB_PRODUCTION_CORE?.canonical(n)||String(n).toLowerCase().trim();
- let floor={},freshAt=null,loading=false,problem='',query='';
+ let floor={},freshAt=null,loading=false,problem='',query='',draft=null,orderSaving=false,orderMessage='';
+ function workplaceOrder(s){
+  const known=new Map(),add=n=>{n=String(n||'').replace(/\s*-\s*instellen\s*$/i,'').trim();if(n&&!known.has(key(n)))known.set(key(n),{key:key(n),name:n})};
+  for(const w of s.workplaces||[])if(w.active!==false)add(w.name);
+  const ids=new Set((s.orders||[]).filter(active).map(o=>o.id));
+  for(const t of s.tasks||[])if(ids.has(t.orderId)&&!t.deleted&&!t.isStaffAbsence)add(name(t));
+  for(const g of columns(s,floor))add(g.name);
+  add('Route aanvullen');add('Gereed / leveren');
+  const saved=Array.isArray(s.workplaceQueueOrder?.sequence)?s.workplaceQueueOrder.sequence:[];
+  // Retain temporarily empty or removed workplaces in the setting. They regain
+  // their position when work returns, including after a filtered board is saved.
+  const result=[],seen=new Set();for(const k of saved){if(typeof k!=='string'||seen.has(k))continue;seen.add(k);result.push(known.get(k)||{key:k,name:k});}
+  for(const [k,item] of known)if(!seen.has(k)){seen.add(k);result.push(item)}return result;
+ }
+ function orderRows(){const root=document.querySelector('[data-queue-order-list]');if(!root||!draft)return;
+  root.innerHTML=draft.map((w,i)=>`<div class="queue-order-row"><label><span class="sr-only">Volgnummer voor ${esc(w.name)}</span><input class="input" type="number" min="1" max="${draft.length}" step="1" value="${i+1}" data-queue-order-position="${esc(w.key)}" aria-label="Volgnummer voor ${esc(w.name)}"></label><b>${esc(w.name)}</b><button class="btn" type="button" data-queue-order-move="${esc(w.key)}" data-direction="-1" aria-label="${esc(w.name)} eerder" ${i===0?'disabled':''}>↑</button><button class="btn" type="button" data-queue-order-move="${esc(w.key)}" data-direction="1" aria-label="${esc(w.name)} later" ${i===draft.length-1?'disabled':''}>↓</button></div>`).join('');
+ }
+ function editOrder(){if(orderSaving)return;const s=S();if(!s)return;draft=workplaceOrder(s);
+  showModal('<div class="modalhead"><h3>Verwerkingsvolgorde werkplekken</h3></div><div class="modalbody"><p>Geef een werkplek een volgnummer of verplaats hem met de pijlen. Bovenaan in deze lijst is links in het overzicht. Ook lege werkplekken behouden hun plek.</p><div data-queue-order-list></div><p role="status" data-queue-order-status></p></div><div class="modalfoot"><button class="btn" type="button" data-queue-order-cancel>Annuleren</button><div class="spacer"></div><button class="btn primary" type="button" data-queue-order-save>Volgorde opslaan</button></div>');orderRows();
+ }
+ function moveOrder(k,position){if(!draft||orderSaving)return;const index=draft.findIndex(w=>w.key===k);if(index<0)return;
+  const status=document.querySelector('[data-queue-order-status]');if(!Number.isSafeInteger(position)||position<1||position>draft.length){if(status)status.textContent=`Vul een geheel volgnummer van 1 tot ${draft.length} in.`;orderRows();return}
+  const [item]=draft.splice(index,1);draft.splice(position-1,0,item);if(status)status.textContent='Nieuwe volgorde staat klaar. Klik op Volgorde opslaan.';orderRows();
+  [...document.querySelectorAll('[data-queue-order-position]')].find(e=>e.dataset.queueOrderPosition===k)?.focus();
+ }
+ async function saveOrder(){if(!draft||orderSaving)return;const s=S();if(!s)return;const previous=s.workplaceQueueOrder;
+  orderSaving=true;const status=document.querySelector('[data-queue-order-status]'),controls=[...document.querySelectorAll('#modalRoot input,#modalRoot button')];controls.forEach(e=>e.disabled=true);
+  try{s.workplaceQueueOrder={sequence:draft.map(w=>w.key),updatedAt:new Date().toISOString()};try{save()}catch(error){if(previous===undefined)delete s.workplaceQueueOrder;else s.workplaceQueueOrder=previous;throw error}
+   orderMessage='Volgorde lokaal opgeslagen.';
+   if(typeof cloudUser!=='undefined'&&cloudUser&&window.RALAB_PERFORMANCE?.flushCloudSave){let timer;if(status)status.textContent='Volgorde online opslaan…';try{await Promise.race([window.RALAB_PERFORMANCE.flushCloudSave(15000),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Online bevestiging duurt te lang.')),16000)})]);orderMessage='Volgorde opgeslagen voor de planner.'}catch(error){orderMessage='Volgorde lokaal bewaard; online opslaan nog niet bevestigd. '+(error.message||'')}finally{clearTimeout(timer)}}
+   window.RALAB_DIRTY?.allowClose?.();draft=null;closeModal();render();
+  }catch(error){if(status){status.setAttribute('role','alert');status.textContent=error.message||'Opslaan is niet gelukt.'}}
+  finally{orderSaving=false;controls.forEach(e=>e.disabled=false)}
+ }
  function columns(state,snapshot={},search='',at=Date.now()){
-  const groups=new Map(),workplaces=state.workplaces||[],rank=new Map(workplaces.map((w,i)=>[key(w.name),i]));
+  const groups=new Map(),workplaces=state.workplaces||[],saved=Array.isArray(state.workplaceQueueOrder?.sequence)?state.workplaceQueueOrder.sequence:[],rank=new Map(workplaces.map((w,i)=>[key(w.name),i])),customRank=new Map(saved.map((k,i)=>[k,i]));
   function add(o,t,label,status,source){const k=key(label);if(!groups.has(k))groups.set(k,{key:k,name:workplaces.find(w=>key(w.name)===k)?.name||label,cards:[]});
    const col=groups.get(k);if(col.cards.some(c=>c.order.id===o.id&&c.task?.id===t?.id))return;col.cards.push({order:o,task:t,status,source});}
   for(const o of (state.orders||[]).filter(active)){
@@ -23,14 +56,14 @@
    const current=selection.task,candidates=route.filter(t=>!done(t)&&(t.id===current.id||current.parallelGroupId&&t.parallelGroupId===current.parallelGroupId));
    for(const t of candidates){const label=t.id===current.id&&selection.workplace?selection.workplace:name(t),status=t.type==='wait'?'Wachten / drogen':t.type==='external'?'Extern':['in_progress','started'].includes(t.status)?'In productie':'Klaar voor deze fase';add(o,t,label,status,selection.source);}
   }
-  return [...groups.values()].sort((a,b)=>(rank.get(a.key)??999)-(rank.get(b.key)??999)||a.name.localeCompare(b.name,'nl')).map(g=>({...g,cards:g.cards.sort((a,b)=>String(a.order.communicatedDeadline||a.order.deadline||'9999').localeCompare(String(b.order.communicatedDeadline||b.order.deadline||'9999'))||String(a.order.orderNo).localeCompare(String(b.order.orderNo),'nl'))}));
+  return [...groups.values()].sort((a,b)=>(customRank.get(a.key)??Infinity)-(customRank.get(b.key)??Infinity)||(rank.get(a.key)??999)-(rank.get(b.key)??999)||a.name.localeCompare(b.name,'nl')).map(g=>({...g,cards:g.cards.sort((a,b)=>String(a.order.communicatedDeadline||a.order.deadline||'9999').localeCompare(String(b.order.communicatedDeadline||b.order.deadline||'9999'))||String(a.order.orderNo).localeCompare(String(b.order.orderNo),'nl'))}));
  }
  function card(c){const o=c.order,t=c.task,reported=t&&!t.stageCorrection&&Number(t.doneQty)>0;
   return `<article class="queue-card" data-queue-order="${esc(o.id)}"><div class="queue-card-top"><b>${esc(o.orderNo||'Ordernummer ontbreekt')}</b><span class="queue-badge ${c.source==='live'?'queue-live':''}">${esc(c.status)}</span></div><h3>${esc(o.product||'Product ontbreekt')}</h3><p>${esc(o.customerName||'Klant ontbreekt')}</p>${t?`<p class="queue-operation">${esc(t.name||t.machine)} · stap ${esc(t.seq||'—')}</p>`:''}<dl><div><dt>Orderaantal</dt><dd>${o.quantityPending?'Nog invullen':esc(o.qty??'Ontbreekt')}</dd></div>${reported?`<div><dt>Gemeld op deze stap</dt><dd>${esc(t.doneQty)}</dd></div>`:''}${o.deliveries?.length?`<div><dt>Geleverd / backorder</dt><dd>${Number(o.deliveredQty)||0} / ${Math.max(0,Number(o.qty)-(Number(o.deliveredQty)||0))}</dd></div>`:''}<div><dt>Bevestigde leverdatum</dt><dd>${esc(o.communicatedDeadline||o.deadline||'Niet vastgelegd')}</dd></div></dl><div class="queue-actions"><button type="button" class="btn small" data-queue-open="${esc(o.id)}">Order openen</button>${t?`<button type="button" class="btn small" data-queue-stage="${esc(o.id)}">Fase bijwerken</button>`:''}</div></article>`;
  }
  function render(){const root=document.getElementById('view-workplacequeue');if(!root)return;const s=S();if(!s){root.textContent='Plannergegevens worden geladen…';return}
   const groups=columns(s,floor,query),count=new Set(groups.flatMap(g=>g.cards.map(c=>c.order.id))).size;
-  root.innerHTML=`<div class="toolbar"><div><h2>Werk per werkplek</h2><p>Combineer werk van orders die bij dezelfde productiefase staan.</p></div><div class="spacer"></div><label>Zoek order, product of klant<input class="input" type="search" data-queue-search value="${esc(query)}"></label><button class="btn" type="button" data-queue-refresh ${loading?'disabled':''}>${loading?'Ophalen…':'Vernieuwen'}</button></div><div class="queue-info" role="status">${count} orders · ${groups.length} werkplekken met werk. ${freshAt?`Werkvloer bijgewerkt ${esc(new Date(freshAt).toLocaleTimeString('nl-NL',{timeZone:'Europe/Amsterdam',hour:'2-digit',minute:'2-digit'}))}.`:'Stand volgens orderroute; werkvloer wordt opgehaald.'}${problem?` ${esc(problem)}`:''}<p>Een order staat bij de huidige fase. Parallel werk kan op meerdere werkplekken staan. ‘Klaar voor’ volgt uit de geregistreerde route; ‘In productie’ uit een actieve registratie of taakstatus.</p></div><div class="queue-board" tabindex="0" aria-label="Werkplekken, horizontaal schuiven">${groups.map(g=>`<section class="queue-column" data-queue-workplace="${esc(g.name)}"><header><h3>${esc(g.name)}</h3><span>${new Set(g.cards.map(c=>c.order.id)).size} orders · ${g.cards.length} taken</span></header><div class="queue-cards">${g.cards.map(card).join('')}</div></section>`).join('')||'<div class="panel" style="padding:24px">Geen lopende orders voor deze zoekopdracht.</div>'}</div>`;
+  root.innerHTML=`<div class="toolbar"><div><h2>Werk per werkplek</h2><p>Combineer werk van orders die bij dezelfde productiefase staan.</p></div><div class="spacer"></div><label>Zoek order, product of klant<input class="input" type="search" data-queue-search value="${esc(query)}"></label><button class="btn" type="button" data-queue-order-edit>Volgorde aanpassen</button><button class="btn" type="button" data-queue-refresh ${loading?'disabled':''}>${loading?'Ophalen…':'Vernieuwen'}</button></div><div class="queue-info" role="status">${orderMessage?`<p>${esc(orderMessage)}</p>`:''}${count} orders · ${groups.length} werkplekken met werk. ${freshAt?`Werkvloer bijgewerkt ${esc(new Date(freshAt).toLocaleTimeString('nl-NL',{timeZone:'Europe/Amsterdam',hour:'2-digit',minute:'2-digit'}))}.`:'Stand volgens orderroute; werkvloer wordt opgehaald.'}${problem?` ${esc(problem)}`:''}<p>Een order staat bij de huidige fase. Parallel werk kan op meerdere werkplekken staan. ‘Klaar voor’ volgt uit de geregistreerde route; ‘In productie’ uit een actieve registratie of taakstatus.</p></div><div class="queue-board" tabindex="0" aria-label="Werkplekken, horizontaal schuiven">${groups.map(g=>`<section class="queue-column" data-queue-workplace="${esc(g.name)}"><header><h3>${esc(g.name)}</h3><span>${new Set(g.cards.map(c=>c.order.id)).size} orders · ${g.cards.length} taken</span></header><div class="queue-cards">${g.cards.map(card).join('')}</div></section>`).join('')||'<div class="panel" style="padding:24px">Geen lopende orders voor deze zoekopdracht.</div>'}</div>`;
  }
  async function refresh(){if(loading)return;loading=true;problem='';render();let timer;
   try{const db=window.RALAB_ADMIN_AUTH?.client;if(!db){problem='Geen online werkvloerverbinding; de orderroute blijft zichtbaar.';return}
@@ -39,8 +72,9 @@
   }catch(e){problem=e.message||'Werkvloer niet opgehaald.'}finally{clearTimeout(timer);loading=false;render()}
  }
  function show(){window.RALAB_ERP?.show('workplacequeue');render();refresh()}
- window.addEventListener('click',e=>{const b=e.target.closest?.('[data-view="workplacequeue"],[data-queue-refresh],[data-queue-open],[data-queue-stage]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();if(b.dataset.view)show();else if(b.hasAttribute('data-queue-refresh'))refresh();else if(b.dataset.queueOpen)window.RALAB_ERP?.openOrder(b.dataset.queueOpen);else window.RALAB_ERP?.openOverviewStep(b.dataset.queueStage)},true);
+ window.addEventListener('click',e=>{const b=e.target.closest?.('[data-view="workplacequeue"],[data-queue-refresh],[data-queue-open],[data-queue-stage],[data-queue-order-edit],[data-queue-order-save],[data-queue-order-cancel],[data-queue-order-move]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();if(b.hasAttribute('data-queue-order-edit'))return editOrder();if(b.hasAttribute('data-queue-order-save'))return saveOrder();if(b.hasAttribute('data-queue-order-cancel')){if(orderSaving)return;draft=null;window.RALAB_DIRTY?.allowClose?.();return closeModal()}if(b.hasAttribute('data-queue-order-move')){const i=draft?.findIndex(w=>w.key===b.dataset.queueOrderMove);return moveOrder(b.dataset.queueOrderMove,i+1+Number(b.dataset.direction))}if(b.dataset.view)show();else if(b.hasAttribute('data-queue-refresh'))refresh();else if(b.dataset.queueOpen)window.RALAB_ERP?.openOrder(b.dataset.queueOpen);else window.RALAB_ERP?.openOverviewStep(b.dataset.queueStage)},true);
+ document.addEventListener('change',e=>{if(e.target.matches?.('[data-queue-order-position]'))moveOrder(e.target.dataset.queueOrderPosition,Number(e.target.value))});
  document.addEventListener('input',e=>{if(!e.target.matches?.('[data-queue-search]'))return;query=e.target.value;const start=e.target.selectionStart;render();const field=document.querySelector('[data-queue-search]');field?.focus();field?.setSelectionRange(start,start)});
  setInterval(()=>{const root=document.getElementById('view-workplacequeue');if(root&&!root.classList.contains('hidden'))refresh()},30000);
- window.RALAB_WORKPLACE_QUEUE={columns,render,refresh,show};
+ window.RALAB_WORKPLACE_QUEUE={columns,render,refresh,show,workplaceOrder};
 })();
