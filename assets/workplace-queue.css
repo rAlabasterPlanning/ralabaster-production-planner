@@ -6,3 +6,7 @@ main:has(>#view-workplacequeue:not(.hidden)){width:100%;max-width:none;margin-in
 #view-workplacequeue{width:100%;max-width:none;min-width:0}
 #view-workplacequeue .queue-board{width:100%;max-width:100%;box-sizing:border-box;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 @media(pointer:coarse){#view-workplacequeue .queue-actions .btn{min-height:44px}}
+
+.queue-column>header .queue-print{display:block;width:100%;margin-top:12px;min-height:44px;background:#fff;color:#183e32;white-space:normal}
+
+.queue-column>header{height:auto;min-height:0}
