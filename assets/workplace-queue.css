@@ -10,3 +10,41 @@ main:has(>#view-workplacequeue:not(.hidden)){width:100%;max-width:none;margin-in
 .queue-column>header .queue-print{display:block;width:100%;margin-top:12px;min-height:44px;background:#fff;color:#183e32;white-space:normal}
 
 .queue-column>header{height:auto;min-height:0}
+
+/* Compact board for touch tablets; keep finger-sized actions. */
+@media (pointer:coarse) and (min-width:600px) and (max-width:1400px){
+ main:has(>#view-workplacequeue:not(.hidden)){padding:12px}
+ #view-workplacequeue>.toolbar{display:grid;grid-template-columns:minmax(0,1fr) 170px auto auto;gap:8px;align-items:end}
+ #view-workplacequeue>.toolbar>.spacer{display:none}
+ #view-workplacequeue>.toolbar h2{font-size:20px;line-height:1.2}
+ #view-workplacequeue>.toolbar p{font-size:11px;line-height:1.3;margin:4px 0 0}
+ #view-workplacequeue>.toolbar label{font-size:11px;min-width:0}
+ #view-workplacequeue>.toolbar input{width:100%;min-width:0}
+ #view-workplacequeue>.toolbar .btn,#view-workplacequeue>.toolbar input{min-height:44px;font-size:12px}
+ #view-workplacequeue .queue-info{font-size:11px;line-height:1.35;margin:8px 0}
+ #view-workplacequeue .queue-info>p:last-child{display:none}
+ #view-workplacequeue .queue-board{gap:10px;padding-bottom:12px}
+ #view-workplacequeue .queue-column{flex:0 0 calc((100% - 40px)/5);min-width:220px;max-width:none;border-radius:8px}
+ #view-workplacequeue .queue-column>header{padding:9px 10px}
+ #view-workplacequeue .queue-column>header h3{font-size:14px;line-height:1.2;margin:0 0 4px;overflow-wrap:anywhere}
+ #view-workplacequeue .queue-column>header span{font-size:10px}
+ #view-workplacequeue .queue-column>header .queue-print{font-size:11px;min-height:44px;margin-top:6px;padding:5px 8px}
+ #view-workplacequeue .queue-cards{padding:8px;gap:8px;max-height:calc(100dvh - 290px)}
+ #view-workplacequeue .queue-card{padding:9px;border-radius:6px;box-shadow:none}
+ #view-workplacequeue .queue-card-top{gap:4px}
+ #view-workplacequeue .queue-card-top>b{font-size:11px;overflow-wrap:anywhere}
+ #view-workplacequeue .queue-badge{font-size:9px;padding:3px 5px}
+ #view-workplacequeue .queue-card h3{font-size:13px;line-height:1.25;margin:8px 0 4px}
+ #view-workplacequeue .queue-card p{font-size:11px;line-height:1.3;margin:3px 0}
+ #view-workplacequeue .queue-card dl{gap:4px;margin:8px 0}
+ #view-workplacequeue .queue-card dl>div{font-size:10px;gap:6px}
+ #view-workplacequeue .queue-actions{gap:5px;padding-top:7px}
+ #view-workplacequeue .queue-actions .btn{font-size:11px;padding:5px;min-height:44px;line-height:1.2}
+}
+@media (pointer:coarse) and (min-width:900px) and (max-width:1199px){#view-workplacequeue .queue-column{flex-basis:calc((100% - 30px)/4)}}
+@media (pointer:coarse) and (min-width:600px) and (max-width:899px){
+ #view-workplacequeue>.toolbar{grid-template-columns:minmax(0,1fr) auto auto}
+ #view-workplacequeue>.toolbar>div:first-child{grid-column:1/-1}
+ #view-workplacequeue .queue-column{flex-basis:calc((100% - 20px)/3)}
+ #view-workplacequeue .queue-cards{max-height:calc(100dvh - 340px)}
+}
