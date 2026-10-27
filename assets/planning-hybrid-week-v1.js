@@ -257,6 +257,7 @@ function theoreticalPreview(controls,weekStart){
 }
 let autoAssignBusy=false;
 async function ensureWeekAssignments(force=false){
+ if(!force)return false; // Automatic renders must not run a full planning calculation.
  if(autoAssignBusy)return false;
  if(!force&&!needsWeekAssignment())return false;
  autoAssignBusy=true;
@@ -353,14 +354,14 @@ function decorate(){
 async function install(){
   try{await window.RALAB_CORE_READY}catch(_){}
   if(typeof window.renderWeeks!=='function'||!window.RALAB_ORDER_CONTROLS||!window.RALAB_DEADLINE_PLANNER)return setTimeout(install,100);
-  const old=window.renderWeeks;window.renderWeeks=function(){const r=old.apply(this,arguments);setTimeout(()=>{decorate();if(needsWeekAssignment())ensureWeekAssignments().then(changed=>{if(changed)old.apply(window,arguments)})},0);return r};
+  const old=window.renderWeeks;window.renderWeeks=function(){const r=old.apply(this,arguments);setTimeout(decorate,0);return r};
   document.addEventListener('click',e=>{
     const saveBtn=e.target.closest?.('[data-missing-save]');if(saveBtn){e.preventDefault();return saveMissingData()}
     const cancel=e.target.closest?.('[data-missing-cancel]');if(cancel){e.preventDefault();document.getElementById('modalRoot').innerHTML='';return}
     const b=e.target.closest?.('[data-hybrid-plan]');if(!b)return;e.preventDefault();plan()
   },true);
   window.RALAB_HYBRID_PLANNER={version:VERSION,plan,buildWeekOnly,openMissingData,ensureWeekAssignments,needsWeekAssignment,theoreticalPreview};
-  setTimeout(()=>ensureWeekAssignments().then(changed=>{if(changed){try{window.RALAB_ERP?.renderOrderOverview?.()}catch(_){}try{window.renderWeeks?.()}catch(_){}}else decorate()}),250);
+  setTimeout(decorate,250);
 }
 install();
 })();
