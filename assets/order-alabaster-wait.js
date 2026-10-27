@@ -2,7 +2,8 @@
 (()=>{'use strict';
  const S=()=>{try{return state}catch(_){return null}};
  const active=o=>o?.alabasterWait?.active===true;
- function label(o){return o?.alabasterWait?.kind==='external'?'Wacht op binnenkomst extern':'Wacht op binnenkomst Alabaster'}
+ function label(o){return o?.alabasterWait?.kind==='external'?'Extern':'Wacht op binnenkomst Alabaster'}
+ function displayName(value){return /^(?:extern|wacht op binnenkomst\s*\(?extern\)?)$/i.test(String(value||'').trim())?'Extern':value}
  function detail(o){return o?.alabasterWait?.kind==='external'?o.alabasterWait.externalStatus==='ready'?'Ligt klaar voor extern':o.alabasterWait.externalStatus==='return'?'Wacht op retour':'Externe status nog niet gekozen':'Wachtstatus ingesteld'}
  function next(o,enabled,reason,kind,externalStatus){const type=kind||o.alabasterWait?.kind||'alabaster',status=externalStatus??(o.alabasterWait?.kind==='external'&&(o.alabasterWait.active||!enabled)?o.alabasterWait.externalStatus||'':'');if(!['','ready','return'].includes(status))throw Error('Kies een geldige externe status.');return{...(o.alabasterWait||{}),kind:type,externalStatus:type==='external'?status:'',active:enabled,at:new Date().toISOString(),reason:String(reason||'').trim()||(enabled?label({alabasterWait:{kind:type}}):'Wachtstatus opgeheven')}}
  async function verify(o){if(!(typeof cloudUser!=='undefined'&&cloudUser&&typeof supabaseClient!=='undefined'&&supabaseClient))return;
@@ -14,5 +15,5 @@
   try{save()}catch(error){if(before===undefined)delete o.alabasterWait;else o.alabasterWait=before;throw error}
   window.RALAB_PERFORMANCE?.invalidate?.();await verify(o);window.RALAB_ERP?.renderOrderOverview?.();window.RALAB_WORKPLACE_QUEUE?.render?.();return true;
  }
- window.RALAB_ALABASTER_WAIT={active,label,detail,next,set,verify};
+ window.RALAB_ALABASTER_WAIT={active,label,displayName,detail,next,set,verify};
 })();
