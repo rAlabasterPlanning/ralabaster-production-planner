@@ -5,7 +5,7 @@
  const done=t=>['done','completed'].includes(String(t.status||'').toLowerCase());
  const active=o=>window.RALAB_ORDER_PRINT?.active(o)??(!o.deleted&&o.active!==false&&!o.closed&&o.status!=='completed');
  const name=t=>String(t.assignedMachine||t.machine||t.name||'Werkplek ontbreekt').replace(/\s*-\s*instellen\s*$/i,'').trim();
- const key=n=>window.RALAB_PRODUCTION_CORE?.canonical(n)||String(n).toLowerCase().trim();
+ const key=n=>{const value=/^wacht op binnenkomst alabaster$/i.test(String(n).trim())?'Steen inkopen Spanje (extern)':n;return window.RALAB_PRODUCTION_CORE?.canonical(value)||String(value).toLowerCase().trim()};
  const displayName=n=>/^steen\s+inkopen\s+spanje(?:\s*\(extern\))?$/i.test(String(n||'').trim())?'Wacht op binnenkomst Alabaster':n;
  let floor={},freshAt=null,loading=false,problem='',query='',draft=null,orderSaving=false,orderMessage='';
  function workplaceOrder(s){
@@ -48,6 +48,7 @@
   for(const o of (state.orders||[]).filter(active)){
    if(search&&!`${o.orderNo||''} ${o.product||''} ${o.customerName||''}`.toLowerCase().includes(search.toLowerCase()))continue;
    const route=(state.tasks||[]).filter(t=>t.orderId===o.id&&!t.deleted&&!t.isStaffAbsence).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));
+   if(o.alabasterWait?.active){add(o,null,'Wacht op binnenkomst Alabaster','Wacht op Alabaster','material-hold');continue}
    if(o.needsCalculation||!route.length){add(o,null,'Route aanvullen','Nog uitwerken','route');continue}
    const selection=window.RALAB_ERP?.overviewCurrent(o,route,snapshot)||{task:route.find(t=>!done(t)),source:'route'};
    if(!selection.task){add(o,null,'Gereed / leveren','Productiestappen gereed','route');continue}
@@ -60,7 +61,7 @@
   return [...groups.values()].sort((a,b)=>(customRank.get(a.key)??Infinity)-(customRank.get(b.key)??Infinity)||(rank.get(a.key)??999)-(rank.get(b.key)??999)||a.name.localeCompare(b.name,'nl')).map(g=>({...g,cards:g.cards.sort((a,b)=>String(a.order.communicatedDeadline||a.order.deadline||'9999').localeCompare(String(b.order.communicatedDeadline||b.order.deadline||'9999'))||String(a.order.orderNo).localeCompare(String(b.order.orderNo),'nl'))}));
  }
  function card(c){const o=c.order,t=c.task,reported=t&&!t.stageCorrection&&Number(t.doneQty)>0;
-  return `<article class="queue-card" data-queue-order="${esc(o.id)}"><div class="queue-card-top"><b>${esc(o.orderNo||'Ordernummer ontbreekt')}</b><span class="queue-badge ${c.source==='live'?'queue-live':''}">${esc(c.status)}</span></div><h3>${esc(o.product||'Product ontbreekt')}</h3><p>${esc(o.customerName||'Klant ontbreekt')}</p>${t?`<p class="queue-operation">${esc(displayName(t.name||t.machine))} · stap ${esc(t.seq||'—')}</p>`:''}<dl><div><dt>Orderaantal</dt><dd>${o.quantityPending?'Nog invullen':esc(o.qty??'Ontbreekt')}</dd></div>${reported?`<div><dt>Gemeld op deze stap</dt><dd>${esc(t.doneQty)}</dd></div>`:''}${o.deliveries?.length?`<div><dt>Geleverd / backorder</dt><dd>${Number(o.deliveredQty)||0} / ${Math.max(0,Number(o.qty)-(Number(o.deliveredQty)||0))}</dd></div>`:''}<div><dt>Bevestigde leverdatum</dt><dd>${esc(o.communicatedDeadline||o.deadline||'Niet vastgelegd')}</dd></div></dl><div class="queue-actions"><button type="button" class="btn small" data-queue-open="${esc(o.id)}">Order openen</button>${t||c.status==='Productiestappen gereed'?`<button type="button" class="btn small" data-queue-stage="${esc(o.id)}">Fase bijwerken</button>`:''}</div></article>`;
+  return `<article class="queue-card" data-queue-order="${esc(o.id)}"><div class="queue-card-top"><b>${esc(o.orderNo||'Ordernummer ontbreekt')}</b><span class="queue-badge ${c.source==='live'?'queue-live':''}">${esc(c.status)}</span></div><h3>${esc(o.product||'Product ontbreekt')}</h3><p>${esc(o.customerName||'Klant ontbreekt')}</p>${t?`<p class="queue-operation">${esc(displayName(t.name||t.machine))} · stap ${esc(t.seq||'—')}</p>`:''}<dl><div><dt>Orderaantal</dt><dd>${o.quantityPending?'Nog invullen':esc(o.qty??'Ontbreekt')}</dd></div>${reported?`<div><dt>Gemeld op deze stap</dt><dd>${esc(t.doneQty)}</dd></div>`:''}${o.deliveries?.length?`<div><dt>Geleverd / backorder</dt><dd>${Number(o.deliveredQty)||0} / ${Math.max(0,Number(o.qty)-(Number(o.deliveredQty)||0))}</dd></div>`:''}<div><dt>Bevestigde leverdatum</dt><dd>${esc(o.communicatedDeadline||o.deadline||'Niet vastgelegd')}</dd></div></dl><div class="queue-actions"><button type="button" class="btn small" data-queue-open="${esc(o.id)}">Order openen</button><button type="button" class="btn small" data-queue-stage="${esc(o.id)}">Fase bijwerken</button></div></article>`;
  }
  function render(){const root=document.getElementById('view-workplacequeue');if(!root)return;const s=S();if(!s){root.textContent='Plannergegevens worden geladen…';return}
   const groups=columns(s,floor,query),count=new Set(groups.flatMap(g=>g.cards.map(c=>c.order.id))).size;
