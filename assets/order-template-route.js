@@ -7,7 +7,7 @@
   for(const op of ops)if(!String(op.name||'').trim()||!['batch','unit','wait','external'].includes(op.mode)||op.minutes==null||op.minutes===''||!Number.isFinite(Number(op.minutes))||Number(op.minutes)<0)throw Error('De opgeslagen productiestappen zijn onvolledig. Controleer naam, tijd en tijdsoort in het product.');
   const tasks=ops.map((op,i)=>{const estimate=Number(op.minutes)*(op.mode==='unit'?qty:1);return{
    id:'t_template_'+order.id+'_'+i,orderId:order.id,seq:i+1,name:op.name,machine:op.machine||op.name,
-   estimate,orderCalcMinutes:Number(op.minutes),calcMode:op.mode,sourceOpId:op.id||null,
+   estimate,orderCalcMinutes:Number(op.minutes),calcMode:op.mode,operationInstanceId:op.id||null,sourceOpId:op.sourceOpId||op.id||null,
    dependsPrev:op.dependsPrev??i>0,type:['wait','external'].includes(op.mode)?op.mode:'internal',
    externalLeadDays:op.mode==='external'?(op.externalLeadDays??Math.ceil(estimate/1440)):null,
    expectedExternalCostBatch:op.externalBatch??0,expectedExternalCostUnit:op.externalUnit??0,

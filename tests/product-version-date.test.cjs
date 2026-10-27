@@ -30,7 +30,7 @@ test('iedere productregel bewaart zijn eigen verwachte klantdatum bij losse prod
  change(w,d.querySelector('#cName'),'Schaal A');
  change(w,d.querySelector('#cQty'),'4');
  change(w,d.querySelector('#cProductCustomerDate'),'2026-11-10');
- selectStep(w,d,'Schuren');
+ selectStep(w,d,'Schuren & polijsten');
  d.querySelector('#cuiLoadSteps').click();
  await f.wait(30);
  d.querySelector('#cuiAddProduct').click();
@@ -38,7 +38,7 @@ test('iedere productregel bewaart zijn eigen verwachte klantdatum bij losse prod
  change(w,d.querySelector('#cName'),'Schaal B');
  change(w,d.querySelector('#cQty'),'7');
  change(w,d.querySelector('#cProductCustomerDate'),'2026-12-05');
- selectStep(w,d,'Polijsten');
+ selectStep(w,d,'Schuren & polijsten');
  d.querySelector('#cuiLoadSteps').click();
  await f.wait(30);
  const before=f.state().orders.length;
@@ -90,10 +90,10 @@ test('multi-product totaal blijft direct juist na aantallen wijzigen en productw
  const f=await fullApp(t),w=f.w,d=w.document;
  w.HTMLElement.prototype.scrollIntoView=()=>{};
  d.querySelector('.navbtn[data-view="calculation"]').click();await f.wait(200);
- change(w,d.getElementById('cName'),'Product A');change(w,d.getElementById('cQty'),'2');selectStep(w,d,'Schuren');d.getElementById('cuiLoadSteps').click();await f.wait(30);
+ change(w,d.getElementById('cName'),'Product A');change(w,d.getElementById('cQty'),'2');selectStep(w,d,'Schuren & polijsten');d.getElementById('cuiLoadSteps').click();await f.wait(30);
  let price=d.getElementById('cManualSalePrice');price.value='100';price.dispatchEvent(new w.Event('input',{bubbles:true}));
  d.getElementById('cuiAddProduct').click();await f.wait(60);
- change(w,d.getElementById('cName'),'Product B');change(w,d.getElementById('cQty'),'3');selectStep(w,d,'Polijsten');d.getElementById('cuiLoadSteps').click();await f.wait(30);
+ change(w,d.getElementById('cName'),'Product B');change(w,d.getElementById('cQty'),'3');selectStep(w,d,'Schuren & polijsten');d.getElementById('cuiLoadSteps').click();await f.wait(30);
  price=d.getElementById('cManualSalePrice');price.value='50';price.dispatchEvent(new w.Event('input',{bubbles:true}));await f.wait(30);
  assert.match(d.getElementById('cCalcTotalSale').textContent,/350,00/);
  d.querySelector('[data-cui-product="0"]').click();await f.wait(160);assert.equal(d.getElementById('cManualSalePrice').value,'100');
