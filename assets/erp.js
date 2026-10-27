@@ -510,7 +510,7 @@ function confirmCopyOrder(id){
    productionLatestStartWeek:'',productionLatestWorkDate:'',weekPlanningUpdatedAt:'',
    planningDecision:'',planningDecisionAt:''
  });
- delete cloned.completedAt;delete cloned.deletedAt;delete cloned.productionSequence;delete cloned.packingSlipDraftAt;delete cloned.packingSlipSentAt;delete cloned.packingSlipFailureAt;delete cloned.packingSlipRecipient;delete cloned.packingSlipEvents;
+ delete cloned.projectCartNumber;delete cloned.projectCartUpdatedAt;delete cloned.completedAt;delete cloned.deletedAt;delete cloned.productionSequence;delete cloned.packingSlipDraftAt;delete cloned.packingSlipSentAt;delete cloned.packingSlipFailureAt;delete cloned.packingSlipRecipient;delete cloned.packingSlipEvents;
  s.orders.push(cloned);
  const srcTasks=(s.tasks||[]).filter(t=>t.orderId===id&&!t.deleted).sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0));
  srcTasks.forEach((t,i)=>{

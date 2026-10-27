@@ -48,3 +48,5 @@ main:has(>#view-workplacequeue:not(.hidden)){width:100%;max-width:none;margin-in
  #view-workplacequeue .queue-column{flex-basis:calc((100% - 20px)/3)}
  #view-workplacequeue .queue-cards{max-height:calc(100dvh - 340px)}
 }
+
+.queue-cart{display:grid;grid-template-columns:1fr 78px;align-items:center;gap:4px 8px;margin:10px 0;font-weight:700;font-size:12px}.queue-cart .input{width:100%;min-height:44px;font-size:17px;font-weight:700;text-align:center;padding:6px}.queue-cart [data-cart-save-status]{grid-column:1/-1;font-size:10px;font-weight:400;overflow-wrap:anywhere}
