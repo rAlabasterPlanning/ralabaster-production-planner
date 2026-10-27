@@ -1,7 +1,7 @@
 window.RALAB_CORE_READY=window.RALAB_CORE_READY||new Promise((resolve,reject)=>{window.__RALAB_CORE_RESOLVE=resolve;window.__RALAB_CORE_REJECT=reject});
 (async()=>{
   try{
-    const ver='20261015-overview-1';
+    const ver='20261027-shared-auth-1';
     const parts=['app.part01.txt','app.part02.txt','app.part03.txt','app.part04.txt','app.part05.txt','app.part06.txt','app.part07.txt'];
     const texts=await Promise.all(parts.map(async p=>{
       const r=await fetch('assets/'+p+'?v='+ver,{cache:'default'});
@@ -11,10 +11,10 @@ window.RALAB_CORE_READY=window.RALAB_CORE_READY||new Promise((resolve,reject)=>{
     const cloudPatch=`
 // --- non-blocking cloud bootstrap ---
 async function initSupabase(){
- const c=onlineConfig();if(!c.url||!c.anonKey||!window.supabase){cloudStatus='offline';renderOnlineBadge();return}
+ const shared=window.RALAB_ADMIN_AUTH?.client,c=onlineConfig();if(!shared&&(!c.url||!c.anonKey||!window.supabase)){cloudStatus='offline';renderOnlineBadge();return}
  try{
-  supabaseClient=window.supabase.createClient(c.url,c.anonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-  const {data}=await supabaseClient.auth.getSession();cloudUser=data?.session?.user||null;
+  supabaseClient=shared||window.supabase.createClient(c.url,c.anonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'ralabaster-planner-auth-v1'}});
+  const {data,error}=await supabaseClient.auth.getSession();if(error)throw error;cloudUser=data?.session?.user||null;
   if(cloudUser){startCloudRefresh();setTimeout(()=>loadCloudState(true),0)}else{cloudStatus='login';renderOnlineBadge()}
   supabaseClient.auth.onAuthStateChange((_event,session)=>{cloudUser=session?.user||null;if(cloudUser){startCloudRefresh();setTimeout(()=>loadCloudState(true),0)}else{stopCloudRefresh();cloudStatus='login';renderOnlineBadge();renderSettings()}})
  }catch(e){console.error(e);cloudStatus='error';renderOnlineBadge()}
