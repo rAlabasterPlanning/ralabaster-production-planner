@@ -7,7 +7,7 @@
  const active=o=>window.RALAB_ORDER_PRINT?.active(o)??(!o.deleted&&o.active!==false&&!o.closed&&o.status!=='completed');
  const name=t=>String(t.assignedMachine||t.machine||t.name||'Werkplek ontbreekt').replace(/\s*-\s*instellen\s*$/i,'').trim();
  const key=n=>{const value=/^wacht op binnenkomst alabaster$/i.test(String(n).trim())?'Steen inkopen Spanje (extern)':/^(?:extern|wacht op binnenkomst\s*\(?extern\)?)$/i.test(String(n).trim())?'Wacht op binnenkomst (extern)':n;return window.RALAB_PRODUCTION_CORE?.canonical(value)||String(value).toLowerCase().trim()};
- const displayName=n=>/^steen\s+inkopen\s+spanje(?:\s*\(extern\))?$/i.test(String(n||'').trim())?'Wacht op binnenkomst Alabaster':/^(?:extern|wacht op binnenkomst\s*\(?extern\)?)$/i.test(String(n||'').trim())?'Extern':n;
+ const displayName=n=>/^mori(?:\s*-\s*instellen)?$/i.test(String(n||'').trim())?'Mori instellen':/^steen\s+inkopen\s+spanje(?:\s*\(extern\))?$/i.test(String(n||'').trim())?'Wacht op binnenkomst Alabaster':/^(?:extern|wacht op binnenkomst\s*\(?extern\)?)$/i.test(String(n||'').trim())?'Extern':n;
  let floor={},freshAt=null,loading=false,problem='',query='',draft=null,orderSaving=false,orderMessage='',pendingStatusFocus=null,lastQueueScroll=0,renderAfterScroll=null;
  function workplaceOrder(s){
   const known=new Map(),add=n=>{n=String(n||'').replace(/\s*-\s*instellen\s*$/i,'').trim();if(n&&!known.has(key(n)))known.set(key(n),{key:key(n),name:displayName(n)})};

@@ -74,7 +74,7 @@
   text(45,586,11,customerName,true,dark);address.flatMap(x=>wrap(x,43)).slice(0,4).forEach((v,i)=>text(45,569-i*14,9.5,v,false,ink));
   text(323,608,9,'DOCUMENTGEGEVENS',true,green);
   label(323,586,'Datum',new Date(o.deliveryDate||Date.now()).toLocaleDateString('nl-NL',{timeZone:'Europe/Amsterdam'}));label(438,586,'Ordernummer',o.originalOrderNo||o.orderNo||'-',22);
-  label(323,536,'Klantreferentie',o.customerReference||'-');label(438,536,'Project',o.project||'-',22);
+  label(323,536,'Klantreferentie',o.customerReference||o.customerRef||o.reference||'-');label(438,536,'Project',o.project||'-',22);
   text(45,473,9,'GELEVERDE ARTIKELEN',true,green);
   fill(45,438,505,27,dark);text(57,448,9,'OMSCHRIJVING',true,'1 1 1');text(401,448,9,'VERPAKKING',true,'1 1 1');text(516,448,9,'AANTAL',true,'1 1 1');
   fill(45,379,505,59,light);
@@ -100,8 +100,9 @@
  function file(o){return new File([pdfBytes(o)],`Pakbon-${String(o.orderNo||o.id).replace(/[^\w.-]/g,'_')}.pdf`,{type:'application/pdf'})}
  function base64(bytes){let text='';for(const b of bytes)text+=String.fromCharCode(b);return btoa(text)}
  function utf8(text){return Uint8Array.from(unescape(encodeURIComponent(text)),c=>c.charCodeAt(0))}
+ function packingMessage(o){const reference=String(o.customerReference||o.customerRef||o.reference||"").trim().replace(/\s+/g," ");const subject=`Pakbon ${o.orderNo} - ${o.product}${reference?` - ${reference}`:""}`,body=`Beste,\n\nHierbij de pakbon voor order ${o.orderNo}.\nProduct: ${o.product}${reference?`\nKlantreferentie: ${reference}`:""}\nAantal: ${num(o.completedQty)||num(o.qty)}\n\nMet vriendelijke groet,\nrAlabaster`;return {subject,body}}
  function emlBytes(o,to){
-  const attachment=file(o),boundary='ralabaster_'+Date.now()+'_'+Math.random().toString(36).slice(2),subject=`Pakbon ${o.orderNo} - ${o.product}`,body=`Beste,\n\nHierbij de pakbon voor order ${o.orderNo}.\nProduct: ${o.product}\nAantal: ${num(o.completedQty)||num(o.qty)}\n\nMet vriendelijke groet,\nrAlabaster`;
+  const attachment=file(o),boundary='ralabaster_'+Date.now()+'_'+Math.random().toString(36).slice(2),{subject,body}=packingMessage(o);
   const fold=x=>x.match(/.{1,76}/g)?.join('\r\n')||'';
   return `X-Unsent: 1\r\nTo: ${to}\r\nSubject: =?UTF-8?B?${base64(utf8(subject))}?=\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${fold(base64(utf8(body)))}\r\n--${boundary}\r\nContent-Type: application/pdf; name="${attachment.name}"\r\nContent-Disposition: attachment; filename="${attachment.name}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${fold(base64(pdfBytes(o)))}\r\n--${boundary}--\r\n`;
  }
@@ -111,7 +112,7 @@
   const input=document.getElementById('completedCustomerEmail'),to=(input?.value||customer(o).email||'').trim();
   if(!to||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){alert('Vul eerst een geldig e-mailadres van de klant in.');input?.focus();return false}
   const note=document.getElementById('completedDeliveryNote');if(note)o.deliveryNote=note.value;
-  const f=file(o),subject=`Pakbon ${o.orderNo} - ${o.product}`,body=`Beste,\n\nHierbij de pakbon voor order ${o.orderNo}.\nProduct: ${o.product}\nAantal: ${num(o.completedQty)||num(o.qty)}\n\nMet vriendelijke groet,\nrAlabaster`;
+  const f=file(o),{subject,body}=packingMessage(o);
   if(share==='outlook'){download(new File([emlBytes(o,to)],`Pakbon-${String(o.orderNo||o.id).replace(/[^\w.-]/g,'_')}.eml`,{type:'message/rfc822'}));window.RALAB_COMPLETED_ORDER_ACTIONS?.markDeliveryDraft?.(o.id,to);const status=document.querySelector('[data-packing-draft-status]');if(status)status.textContent='Concept gemaakt en geregistreerd. Open het .eml-bestand in Outlook, verstuur het en klik daarna op “Markeer pakbon als verzonden”.';return true}
   if(share&&navigator.canShare?.({files:[f]})&&navigator.share){navigator.share({files:[f],title:subject,text:`Aan: ${to}\n${body}`}).catch(e=>{if(e.name!=='AbortError'){console.error(e);alert('Delen is niet gelukt. Gebruik E-mail openen + PDF downloaden.')}});return true}
   if(share){alert('PDF delen is hier niet beschikbaar. Gebruik E-mail openen + PDF downloaden.');return false}
