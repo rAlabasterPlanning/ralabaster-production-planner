@@ -17,7 +17,7 @@ async function load(client){
   client.from('portal_order_change_requests').select('*').eq('customer_id',customerId).order('created_at',{ascending:false})
  ]);for(const r of results)if(r.error)throw r.error;
  verified=true;allOrders=results[2].data||[];
- return {customer:results[0].data,products:results[1].data||[],orders:allOrders.filter(o=>!o.hidden_from_customer),quotes:results[3].data||[],requests:results[4].data||[],changes:results[5].data||[]};
+ return {customer:results[0].data,products:results[1].data||[],orders:allOrders.filter(o=>!o.hidden_from_customer),quotes:(results[3].data||[]).filter(q=>!q.hidden_from_customer),requests:results[4].data||[],changes:results[5].data||[]};
 }
 function renderHidden(){if(!verified||!ctx)return;const rows=allOrders.filter(o=>o.hidden_from_customer);ctx.main().innerHTML=ctx.head('Verborgen orders','Deze orders zijn alleen intern zichtbaar. U kunt ze hier weer tonen aan de klant.')+(rows.length?rows.map(o=>`<article class="panel" data-portal-order-id="${esc(o.id)}" style="margin-bottom:12px"><h3>${esc(o.order_no)}</h3>${ctx.orderProducts(o)}<p class="muted">Verborgen voor klant</p></article>`).join(''):ctx.empty('Geen verborgen orders','Alle orders zijn zichtbaar volgens hun status.'));}
 function afterRender(next){if(!verified)return;ctx=next;document.getElementById('portalLogout').hidden=true;

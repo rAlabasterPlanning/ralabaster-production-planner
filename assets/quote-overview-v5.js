@@ -7,7 +7,7 @@ const fmtDT=s=>{if(!s)return'';const d=new Date(s);return Number.isNaN(d.getTime
 function S(){try{return state}catch(_){return null}}
 function persist(){try{save()}catch(e){console.error(e)}}
 function customer(id){return(S()?.customers||[]).find(c=>c.id===id)}
-function groups(){const by=new Map();for(const q of S()?.quotes||[]){const no=String(q.quoteNo||q.orderNo||q.id);if(!by.has(no))by.set(no,[]);by.get(no).push(q)}return[...by.entries()].map(([no,lines])=>({no,lines:lines.sort((a,b)=>(a.lineNo||0)-(b.lineNo||0))})).sort((a,b)=>String(b.no).localeCompare(String(a.no)))}
+function groups(){const by=new Map();for(const q of S()?.quotes||[]){const no=String(q.quoteNo||q.orderNo||q.id),key=JSON.stringify([q.customerId,no]);if(!by.has(key))by.set(key,[]);by.get(key).push(q)}return[...by.values()].map(lines=>({no:String(lines[0].quoteNo||lines[0].orderNo||lines[0].id),lines:lines.sort((a,b)=>(a.lineNo||0)-(b.lineNo||0))})).sort((a,b)=>String(b.no).localeCompare(String(a.no)))}
 function total(lines){const adj=num(lines[0]?.adjustmentPct),sub=lines.reduce((a,q)=>a+num(q.qty)*num(q.saleUnit),0);return sub*(1+adj/100)}
 function estimatedCost(lines){return lines.reduce((a,q)=>a+num(q.qty)*num(q.costUnit),0)}
 function estimatedMargin(lines){return total(lines)-estimatedCost(lines)}
@@ -41,6 +41,22 @@ function setStatus(no,status){
  persist();render();
 }
 function sentOf(lines){return lines[0]?.sentAt||lines[0]?.quotationSentAt||''}
+const visibilityBusy=new Set();
+async function setPortalVisibility(no,customerId,visible,input){
+ const key=JSON.stringify([customerId,no]),g=groups().find(g=>g.no===no&&g.lines[0]?.customerId===customerId);
+ if(!g||visibilityBusy.has(key))return;
+ const previous=g.lines.every(q=>q.portalVisible!==false);visibilityBusy.add(key);input.disabled=true;
+ try{
+  const db=window.RALAB_ADMIN_AUTH?.client||(typeof supabaseClient==='undefined'?null:supabaseClient);
+  if(!db)throw Error('Log online in om de zichtbaarheid op te slaan.');
+  const {data,error}=await db.rpc('portal_set_quote_visibility',{p_customer_id:customerId,p_quote_no:no,p_visible:visible});
+  if(error)throw error;
+  if(data?.visible!==visible||data?.customerId!==customerId||data?.quoteNo!==no)throw Error('De database heeft de zichtbaarheid niet bevestigd.');
+  for(const q of S()?.quotes||[])if(q.customerId===customerId&&String(q.quoteNo||q.orderNo||q.id)===no)q.portalVisible=visible;
+  window.RALAB_PERFORMANCE?.invalidate?.();
+ }catch(error){input.checked=previous;alert('Zichtbaarheid niet opgeslagen: '+(error.message||String(error)));}
+ finally{visibilityBusy.delete(key);input.disabled=false;render();}
+}
 function cName(q){return customer(q.customerId)?.name||q.customerSnapshot?.company||'—'}
 function cEmail(q){return customer(q.customerId)?.email||q.customerSnapshot?.email||''}
 function searchText(g){const q=g.lines[0];return[g.no,cName(q),q.customerReference,q.project,...g.lines.map(x=>x.name)].filter(Boolean).join(' ').toLowerCase()}
@@ -55,7 +71,7 @@ function render(){
    <div class="panel" style="padding:12px"><span class="muted">Waarde in filterperiode</span><div id="quotePeriodValue" style="font-size:24px;font-weight:800">—</div><small>excl. btw</small></div>
    <div class="panel" id="quoteMarginKpi" style="padding:12px;display:none"><span class="muted">Geschatte marge in filter</span><div id="quotePeriodMargin" style="font-size:24px;font-weight:800">—</div><small id="quotePeriodMarginPct">—</small></div>
  </div>
- <div class="panel" style="padding:0;overflow:hidden"><table style="margin:0"><thead><tr><th>Offerte</th><th>Aangemaakt</th><th>Klant</th><th>Referentie / project</th><th>Bedrag excl. btw</th><th class="quote-margin-col" style="display:none">Geschatte marge</th><th>Status</th><th>Mailstatus</th><th style="width:155px"></th></tr></thead><tbody id="quoteInboxBody"></tbody></table></div>`;
+ <div class="panel" style="padding:0;overflow:hidden"><table style="margin:0"><thead><tr><th>Offerte</th><th>Aangemaakt</th><th>Klant</th><th>Referentie / project</th><th>Bedrag excl. btw</th><th class="quote-margin-col" style="display:none">Geschatte marge</th><th>Status</th><th>Mailstatus</th><th>Klantportaal</th><th style="width:155px"></th></tr></thead><tbody id="quoteInboxBody"></tbody></table></div>`;
  const body=document.getElementById('quoteInboxBody');
  const draw=()=>{
    const term=(document.getElementById('quoteSearch')?.value||'').trim().toLowerCase(),
@@ -73,7 +89,7 @@ function render(){
    const marginPct=document.getElementById('quotePeriodMarginPct');if(marginPct)marginPct.textContent=(periodRevenue?(periodMargin/periodRevenue*100):0).toLocaleString('nl-NL',{minimumFractionDigits:1,maximumFractionDigits:1})+'% van omzet';
    document.querySelectorAll('.quote-margin-col').forEach(el=>el.style.display=showMargin?'':'none');
    const rows=all.filter(g=>{const st=statusOf(g.lines),sent=!!sentOf(g.lines);return(!term||searchText(g).includes(term))&&(sf==='all'||sf===st)&&inPeriod(createdOf(g.lines),pf)&&(mf==='all'||(mf==='sent'&&sent)||(mf==='not_sent'&&!sent))});
-   body.innerHTML=rows.map(g=>{const q=g.lines[0],st=statusOf(g.lines),sent=sentOf(g.lines),email=cEmail(q),created=createdOf(g.lines);return`<tr class="clickrow" data-open-quote-row="${esc(g.no)}" style="cursor:pointer"><td><b>${esc(g.no)}</b><br><span class="muted">${g.lines.length} regel${g.lines.length===1?'':'s'}</span></td><td><b>${esc(created||'—')}</b></td><td><b>${esc(cName(q))}</b>${email?`<br><span class="muted">${esc(email)}</span>`:''}</td><td>${esc(q.customerReference||'—')}${q.project?`<br><span class="muted">${esc(q.project)}</span>`:''}</td><td><b>${money(total(g.lines))}</b></td><td class="quote-margin-col" style="${showMargin?'':'display:none'}"><b>${money(estimatedMargin(g.lines))}</b><br><span class="muted">${estimatedMarginPct(g.lines).toLocaleString('nl-NL',{minimumFractionDigits:1,maximumFractionDigits:1})}%</span></td><td><select class="input" data-quote-status="${esc(g.no)}" style="min-width:135px"><option value="open" ${st==='open'?'selected':''}>Open</option><option value="followup" ${st==='followup'?'selected':''}>Opvolgen</option><option value="accepted" ${st==='accepted'?'selected':''}>Geaccepteerd</option><option value="won" ${st==='won'?'selected':''}>Gewonnen</option><option value="lost" ${st==='lost'?'selected':''}>Verloren</option></select></td><td>${sent?`<span class="badge">Verzonden</span><br><span class="muted">${esc(fmtDT(sent))}</span>`:'<span class="badge">Niet verzonden</span>'}</td><td style="text-align:right;white-space:nowrap"><button class="btn small primary" type="button" data-send-office365="${esc(g.no)}">E-mail versturen</button></td></tr>`}).join('')||'<tr><td colspan="9" class="muted" style="padding:16px">Geen offertes binnen de huidige filters.</td></tr>';
+   body.innerHTML=rows.map(g=>{const q=g.lines[0],st=statusOf(g.lines),sent=sentOf(g.lines),email=cEmail(q),created=createdOf(g.lines);return`<tr class="clickrow" data-open-quote-row="${esc(g.no)}" style="cursor:pointer"><td><b>${esc(g.no)}</b><br><span class="muted">${g.lines.length} regel${g.lines.length===1?'':'s'}</span></td><td><b>${esc(created||'—')}</b></td><td><b>${esc(cName(q))}</b>${email?`<br><span class="muted">${esc(email)}</span>`:''}</td><td>${esc(q.customerReference||'—')}${q.project?`<br><span class="muted">${esc(q.project)}</span>`:''}</td><td><b>${money(total(g.lines))}</b></td><td class="quote-margin-col" style="${showMargin?'':'display:none'}"><b>${money(estimatedMargin(g.lines))}</b><br><span class="muted">${estimatedMarginPct(g.lines).toLocaleString('nl-NL',{minimumFractionDigits:1,maximumFractionDigits:1})}%</span></td><td><select class="input" data-quote-status="${esc(g.no)}" style="min-width:135px"><option value="open" ${st==='open'?'selected':''}>Open</option><option value="followup" ${st==='followup'?'selected':''}>Opvolgen</option><option value="accepted" ${st==='accepted'?'selected':''}>Geaccepteerd</option><option value="won" ${st==='won'?'selected':''}>Gewonnen</option><option value="lost" ${st==='lost'?'selected':''}>Verloren</option></select></td><td>${sent?`<span class="badge">Verzonden</span><br><span class="muted">${esc(fmtDT(sent))}</span>`:'<span class="badge">Niet verzonden</span>'}</td><td><label style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input type="checkbox" data-quote-portal-visible="${esc(g.no)}" data-customer-id="${esc(q.customerId)}" ${g.lines.every(q=>q.portalVisible!==false)?"checked":""} ${visibilityBusy.has(JSON.stringify([q.customerId,g.no]))?"disabled":""}> Zichtbaar in klantportaal</label></td><td style="text-align:right;white-space:nowrap"><button class="btn small primary" type="button" data-send-office365="${esc(g.no)}">E-mail versturen</button></td></tr>`}).join('')||'<tr><td colspan="10" class="muted" style="padding:16px">Geen offertes binnen de huidige filters.</td></tr>';
  };
  ['quoteSearch','quoteStatusFilter','quotePeriodFilter','quoteSentFilter','quoteMarginToggle'].forEach(id=>document.getElementById(id)?.addEventListener(id==='quoteSearch'?'input':'change',draw));
  for(const [id,value] of Object.entries(filters)){const input=document.getElementById(id);if(input){if(input.type==='checkbox')input.checked=value;else input.value=value}}
@@ -84,8 +100,7 @@ async function sendOffice365(no){const m=mailData(no);if(!m)return;if(!m.to){ale
 function enhanceModal(no){setTimeout(()=>{const foot=document.querySelector('#modalRoot .modalfoot');if(!foot||foot.querySelector('[data-send-office365-modal]'))return;const b=document.createElement('button');b.className='btn primary';b.type='button';b.dataset.sendOffice365Modal=no;b.textContent='Send by email';const spacer=foot.querySelector('.spacer');if(spacer)spacer.insertAdjacentElement('afterend',b);else foot.appendChild(b)},25)}
 function install(){if(window.RALAB_ERP)window.RALAB_ERP.renderQuotes=render;if(window.RALAB_DOCS)window.RALAB_DOCS.renderQuotes=render}
 window.addEventListener('ralabaster:state-loaded',()=>{if(!document.getElementById('view-quotes')?.classList.contains('hidden'))render()});
-document.addEventListener('change',e=>{const st=e.target.closest?.('[data-quote-status]');if(st){e.preventDefault();e.stopPropagation();setStatus(st.dataset.quoteStatus,st.value)}} ,true);
+document.addEventListener('change',e=>{const visibility=e.target.closest?.('[data-quote-portal-visible]');if(visibility){e.stopPropagation();setPortalVisibility(visibility.dataset.quotePortalVisible,visibility.dataset.customerId,visibility.checked,visibility);return}const st=e.target.closest?.('[data-quote-status]');if(st){e.preventDefault();e.stopPropagation();setStatus(st.dataset.quoteStatus,st.value)}} ,true);
 document.addEventListener('click',e=>{const row=e.target.closest('[data-open-quote-row]');if(row&&!e.target.closest('button,select,input,label')){e.preventDefault();const no=row.dataset.openQuoteRow;window.RALAB_DOCS?.openQuote?.(no);enhanceModal(no);return}const send=e.target.closest('[data-send-office365]');if(send){e.preventDefault();e.stopPropagation();sendOffice365(send.dataset.sendOffice365);return}const sendM=e.target.closest('[data-send-office365-modal]');if(sendM){e.preventDefault();sendOffice365(sendM.dataset.sendOffice365Modal);return}const oq=e.target.closest('[data-open-quote]');if(oq)setTimeout(()=>enhanceModal(oq.dataset.openQuote),30);if(e.target.closest('.navbtn[data-view="quotes"]'))setTimeout(render,100)},true);
 setTimeout(()=>{install();if(!document.getElementById('view-quotes')?.classList.contains('hidden'))render()},900);setTimeout(install,1800);window.RALAB_QUOTE_INBOX={render,sendOffice365,setStatus};
 })();
-

@@ -11,6 +11,26 @@ const date=v=>{const s=String(v||'').slice(0,10);if(!s)return'—';const [y,m,d]
 const dateTime=v=>{const d=new Date(v);return v&&!Number.isNaN(d.getTime())?d.toLocaleString('nl-NL',{dateStyle:'short',timeStyle:'short'}):'—'};
 function S(){try{return state}catch(_){return null}}
 function performanceApi(){return window.RALAB_PERFORMANCE||null}
+const invoiceBusy=new Set();
+function invoiceCheckbox(o){return `<label style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input type="checkbox" data-invoice-sent="${esc(o.id)}" ${o.invoiceSent?'checked':''} ${invoiceBusy.has(o.id)?'disabled':''}> Factuur verstuurd?</label><small data-invoice-status="${esc(o.id)}" role="status">${o.invoiceSentAt?'Geregistreerd: '+esc(dateTime(o.invoiceSentAt)):''}</small>`}
+async function setInvoiceSent(input){
+ const id=input.dataset.invoiceSent,sent=input.checked;if(invoiceBusy.has(id))return;
+ invoiceBusy.add(id);input.disabled=true;
+ const message=[...document.querySelectorAll('[data-invoice-status]')].find(e=>e.dataset.invoiceStatus===id);
+ if(message)message.textContent='Opslaan…';
+ try{
+  const db=window.RALAB_ADMIN_AUTH?.client||(typeof supabaseClient==='undefined'?null:supabaseClient);
+  if(!db)throw Error('Log online in om de factuurregistratie op te slaan.');
+  const {data,error}=await db.rpc('planner_set_invoice_sent',{p_order_id:id,p_sent:sent});
+  if(error)throw error;
+  if(data?.id!==id||data?.invoiceSent!==sent)throw Error('De database heeft de factuurregistratie niet bevestigd.');
+  for(const o of S()?.orders||[])if(o.id===id)Object.assign(o,{invoiceSent:data.invoiceSent,invoiceSentAt:data.invoiceSentAt,invoiceStatusUpdatedAt:data.invoiceStatusUpdatedAt});
+  const cached=bundleCache.get(id);if(cached)Object.assign(cached.order,{invoiceSent:data.invoiceSent,invoiceSentAt:data.invoiceSentAt,invoiceStatusUpdatedAt:data.invoiceStatusUpdatedAt});
+  performanceApi()?.invalidate?.();if(message)message.textContent=sent?'Geregistreerd: '+dateTime(data.invoiceSentAt):'Niet als verstuurd gemarkeerd.';
+ }catch(error){input.checked=!sent;if(message)message.textContent='Niet opgeslagen: '+(error.message||String(error));}
+ finally{invoiceBusy.delete(id);input.disabled=false;}
+}
+document.addEventListener('change',e=>{const input=e.target.closest?.('[data-invoice-sent]');if(input){e.stopPropagation();setInvoiceSent(input)}},true);
 const bundleCache=new Map();let noteTimer=0;
 function localBundle(id){const s=S(),o=(s?.orders||[]).find(x=>x.id===id);return o?{order:o,tasks:(s.tasks||[]).filter(t=>t.orderId===id).sort((a,b)=>num(a.seq)-num(b.seq))}:null}
 async function bundle(id){const local=localBundle(id);if(local){bundleCache.set(id,local);return local}if(bundleCache.has(id))return bundleCache.get(id);const loaded=await performanceApi()?.loadOrderBundle?.(id);if(!loaded?.order)throw new Error('Afgeronde order niet gevonden.');bundleCache.set(id,loaded);return loaded}
@@ -114,5 +134,5 @@ document.addEventListener('click',e=>{
  if(e.target.closest?.('[data-completed-close]')){e.preventDefault();e.stopImmediatePropagation();if(typeof closeModal==='function')closeModal();return}
  const legacy=e.target.closest?.('#modalRoot button[onclick]'),raw=legacy?.getAttribute('onclick')||'';let m=raw.match(/printProductionReport\(['"]([^'"]+)['"]\)/);if(m){e.preventDefault();e.stopImmediatePropagation();createDocument(m[1],'report');return}m=raw.match(/printPackingSlip\(['"]([^'"]+)['"]\)/);if(m){e.preventDefault();e.stopImmediatePropagation();createDocument(m[1],'packing');return}m=raw.match(/emailPackingSlip\(['"]([^'"]+)['"]\)/);if(m){e.preventDefault();e.stopImmediatePropagation();prepareEmail(m[1])}
 },true);
-window.RALAB_COMPLETED_ORDER_ACTIONS={version:VERSION,open,createDocument,prepareEmail,persistNote,bundle,financials,markDeliveryDraft,markDeliverySent,markDeliveryFailed,deliveryStatusHtml};
+window.RALAB_COMPLETED_ORDER_ACTIONS={version:VERSION,open,createDocument,prepareEmail,persistNote,bundle,financials,markDeliveryDraft,markDeliverySent,markDeliveryFailed,deliveryStatusHtml,invoiceCheckbox,setInvoiceSent};
 })();
