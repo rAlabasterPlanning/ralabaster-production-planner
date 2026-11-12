@@ -11,6 +11,18 @@ function fixture(file,rpc){
  return {ctx,listeners,alerts,elements};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
+test('portal request placeholders have no misleading quote visibility checkbox',async()=>{
+ const calls=[];const f=fixture('quote-overview-v5.js',async(...args)=>{calls.push(args);return {}});
+ f.ctx.state.quotes=[{id:'request',customerId:'nila',quoteNo:'AAN-request',sourceRequest:'portal:request',status:'concept',total:0},{id:'quote',customerId:'nila',quoteNo:'20261111-1',status:'concept',total:100}];
+ f.ctx.window.RALAB_QUOTE_INBOX.render();
+ const html=f.elements.quoteInboxBody.innerHTML;
+ assert.match(html,/Aanvraag – nog geen offerte/);
+ assert.doesNotMatch(html,/data-quote-portal-visible="AAN-request"/);
+ assert.match(html,/data-quote-portal-visible="20261111-1"/);
+ const input={dataset:{quotePortalVisible:'AAN-request',customerId:'nila'},checked:false,closest:selector=>selector==='[data-quote-portal-visible]'?input:null};
+ for(const listener of f.listeners.change)listener({target:input,stopPropagation(){}});await tick();
+ assert.equal(calls.length,0);assert.equal(f.ctx.state.quotes[0].portalVisible,undefined);
+});
 test('quote checkbox is customer scoped, updates every line, keeps statuses and rolls back failed saves',async()=>{
  let fail=false;const calls=[];
  const f=fixture('quote-overview-v5.js',async(name,args)=>{calls.push({name,args});return fail?{error:{message:'offline'}}:{data:{customerId:args.p_customer_id,quoteNo:args.p_quote_no,visible:args.p_visible}}});
