@@ -47,3 +47,12 @@ Van technische tekening (PDF, DXF, STEP) → herkende geometrie met bronverwijzi
 - Schatting versus realisatie per bewerking en machine terug te vinden.
 - Geen live wijzigingen door conceptberekeningen; expliciete approval voor koppeling naar order/voorraad.
 - Testen met werkelijk door rAlabaster bewezen NC-programma's voordat NC-export vrijgegeven wordt.
+
+## Gebruikersflow — vijf gecontroleerde stappen (16 november 2026)
+1. Tekening en/of STEP uploaden. Bestanden moeten later afzonderlijk in veilige opslag worden bewaard en geanalyseerd.
+2. Geïnterpreteerde maten verifiëren: alle bronmaten expliciet accepteren of corrigeren; Z0 en eenheden bevestigen. In prototype zijn de getoonde maten placeholders, geen resultaten van AI-herkenning.
+3. Gekozen bewerkingen controleren: aan/uit, volgorde wijzigen, tools bevestigen; wijziging invalidateert latere codebeoordelingen.
+4. Basisgegevens invullen: machine, stockafmetingen, stockgewicht, aantallen, materiaalkosten, machine- en arbeidskosten, uitval en marge. Geldige waarden en expliciet akkoord vereist.
+5. Eén volledig doorlopend G-code-overzicht, blok-voor-blok bespreken, wijzigen en beoordelen. Reviewstatus bewaren; eerdere goedkeuringen ongeldig maken bij wijzigingen van onderliggende geometrie/route.
+
+In huidige prototype is alleen de wizard-interface gebouwd. Automatische herkenning, generator, verbindende validatieregels voor volledige machine-veiligheid, tekening-annotaties en NC-export ontbreken nog. Geen live Supabase-mutaties.
