@@ -1,7 +1,7 @@
 import {generateText, Output} from 'ai';
 import {z} from 'zod';
 import {authenticatedUser, tokenFrom} from './_planner-core.mjs';
-const MAX_FILE_BYTES=7_000_000, MODEL='openai/gpt-5.4-mini';
+const MAX_FILE_BYTES=2_500_000, MODEL='openai/gpt-5.4-mini';
 const dimension=z.object({value:z.number().positive().nullable(),unit:z.literal('mm'),source:z.string().max(240),origin:z.enum(['explicit','derived','unknown']),confidence:z.number().min(0).max(1)});
 const schema=z.object({
  partType:z.enum(['rotational','non_rotational','uncertain']),
@@ -19,7 +19,7 @@ function decodeFile(input){
  const base64=String(input.base64||'');
  if(!/^[A-Za-z0-9+/]+={0,2}$/.test(base64)||base64.length>Math.ceil(MAX_FILE_BYTES*4/3)+16)throw new Error('Bestandformaat of bestandsgrootte ongeldig.');
  const bytes=Buffer.from(base64,'base64');
- if(!bytes.length||bytes.length>MAX_FILE_BYTES)throw new Error('Upload moet kleiner zijn dan 7 MB.');
+ if(!bytes.length||bytes.length>MAX_FILE_BYTES)throw new Error('Upload moet kleiner zijn dan 2,5 MB.');
  const pdf=bytes.subarray(0,5).toString()==='%PDF-';
  const png=bytes.length>8&&bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
  const jpg=bytes.length>2&&bytes[0]===255&&bytes[1]===216;
