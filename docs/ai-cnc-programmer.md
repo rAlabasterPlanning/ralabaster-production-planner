@@ -56,3 +56,12 @@ Van technische tekening (PDF, DXF, STEP) → herkende geometrie met bronverwijzi
 5. Eén volledig doorlopend G-code-overzicht, blok-voor-blok bespreken, wijzigen en beoordelen. Reviewstatus bewaren; eerdere goedkeuringen ongeldig maken bij wijzigingen van onderliggende geometrie/route.
 
 In huidige prototype is alleen de wizard-interface gebouwd. Automatische herkenning, generator, verbindende validatieregels voor volledige machine-veiligheid, tekening-annotaties en NC-export ontbreken nog. Geen live Supabase-mutaties.
+
+## STEP-geometrie en bewerkingszijde
+- STEP-import via OpenCascade WebAssembly (occt-import-js 0.0.23), in de browser. STEP-bestand wordt niet naar de AI-API gestuurd.
+- Gebruiker kiest de draaias X/Y/Z en vervolgens de positieve of negatieve bewerkingszijde. Dit modelvlak wordt als Z0 voorgesteld, met negatieve machine-Z naar binnen.
+- Afgeleide maten: model-bounding-box, lengte langs gekozen as en radiale mesh-buitenomhullende. Die buitenomhullende is NIET gegarandeerd de nominale CAD-diameter.
+- Wanddikte, binnendiameter, kamerdiepte, opspanning en concentrische as blijven onbekend totdat ze apart worden gecontroleerd.
+- Andere bewerkingszijde invalideert eerdere maat-, bewerkings- en codebeoordelingen.
+- Vrij geroteerde assen, analytische B-Rep-maten, echte binnencontouren en volledige simulatietoetsen zijn nog niet gebouwd.
+- NC-export blijft geblokkeerd. Echte STEP-testbestanden, browser/WebAssembly-controle en machinevalidatie zijn vereist vóór release.
