@@ -158,7 +158,9 @@ if(x.scrap>=100||x.margin>=100)errors.push("Uitval en marge moeten lager zijn da
 if(!/^[0-9]{1,4}$/.test($("program").value))errors.push("O-nummer moet 1 t/m 4 cijfers bevatten.");
 if($("machine").value!=="11tt")errors.push("Fanuc 15T heeft nog geen gevalideerd machineprofiel.");
 errors.push("G71-/G70-parameters en offsets zijn nog niet machine-gevalideerd.");
-errors.push("Automatische tekeninginterpretatie en geometriecontrole zijn nog niet actief.");
+if(!drawingAnalysis)errors.push("Tekening of STEP moet nog worden geanalyseerd.");
+if(stepInfo&&!$("stepSideConfirmed").checked)errors.push("Bewerkingsrichting en Z0 zijn nog niet door jou bevestigd.");
+errors.push("CNC-machinesimulatie en volledige binnencontouranalyse zijn nog niet beschikbaar.");
 $("alerts").replaceChildren();errors.forEach(msg=>{const li=document.createElement("li");li.textContent=msg;li.className="error";$("alerts").append(li)});
 return errors;
 }
