@@ -15,40 +15,95 @@ button:disabled{opacity:.45;cursor:not-allowed}.actions{display:flex;gap:8px;fle
 #alerts li{margin:4px 0}#stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .stat{background:#f5f8f6;padding:9px;border-radius:8px}.stat strong{display:block;font-size:19px}
 @media(max-width:850px){main{grid-template-columns:1fr}#stats{grid-template-columns:1fr 1fr}}
+
+main.wizard{display:grid;grid-template-columns:1fr;max-width:1050px}
+.steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.steps .step{font-size:12px;text-align:left;white-space:normal;padding:12px;border:1px solid #cad7d0}
+.steps .step.active{background:#284a40;color:#fff}.steps .step.done{border-color:#33885b}
+.wizard-page[hidden]{display:none!important}.wizard-footer{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.checkrow{display:flex;gap:10px;align-items:flex-start;margin:20px 0;padding:12px;background:#eff5f1;border-radius:8px}
+.checkrow input,.opline input{width:auto;flex:none}.opline{display:flex;gap:10px;align-items:center;padding:12px;border:1px solid #d7e2dc;border-radius:8px;margin:7px 0}
+.opline .opname{flex:1}.opline button{padding:4px 9px}
+@media(max-width:850px){.steps{grid-template-columns:1fr 1fr}.wizard-footer{display:block}}
 </style></head><body>
 <header><div><h1>rAlabaster · AI CNC Programmer</h1><small>Ontwikkelprototype · uitsluitend concepten, geen machinevrijgave</small></div><a href="/">← Terug naar Planner</a></header>
-<main><aside class="panel">
-<h2>1. Tekening & product</h2>
-<label for="drawing">Technische tekening (PDF/STEP/DXF/afbeelding)</label><input id="drawing" type="file" accept=".pdf,.step,.stp,.dxf,image/*">
-<p class="hint" id="drawingState">Tekening wordt nog niet automatisch geïnterpreteerd. Verifieer de maten handmatig; AI- en CAD-uitlezing volgen in een volgende fase.</p>
-<label>Machine</label><select id="machine"><option value="11tt">Mori Seiki ZL-15 · Fanuc 11TT</option><option value="15t">Mori Seiki SL-25 · Fanuc 15T (nog niet geconfigureerd)</option></select>
-<div class="grid"><div><label>O-nummer</label><input id="program" value="1234" inputmode="numeric"></div><div><label>Aantal</label><input id="qty" type="number" min="1" value="100"></div>
-<div><label>Ruwe Ø mm</label><input id="rawD" type="number" min="0" value="180"></div><div><label>Ruwe lengte mm</label><input id="rawL" type="number" min="0" value="220"></div>
-<div><label>Product Ø mm</label><input id="partD" type="number" min="0" value="170"></div><div><label>Product lengte mm</label><input id="partL" type="number" min="0" value="210"></div>
-<div><label>Wand mm</label><input id="wall" type="number" min="0" value="6"></div><div><label>Ruw kg/st.</label><input id="rawKg" type="number" min="0" step=".01" value="15"></div></div>
-<h2 style="margin-top:18px">2. Kosteninputs</h2>
-<div class="grid"><div><label>Materiaal €/kg</label><input id="kgRate" type="number" min="0" step=".01" value="1.16"></div><div><label>CNC €/uur</label><input id="machineRate" type="number" min="0" step=".01" value="20.50"></div>
-<div><label>CNC min/st.</label><input id="cycle" type="number" min="0" step=".1" value="10"></div><div><label>Instellen min/batch</label><input id="setup" type="number" min="0" value="30"></div>
-<div><label>Instellen €/uur</label><input id="setupRate" type="number" min="0" value="60"></div><div><label>Nabewerking min/st.</label><input id="finish" type="number" min="0" value="5"></div>
-<div><label>Nabewerking €/uur</label><input id="finishRate" type="number" min="0" value="26"></div><div><label>Zaagkosten €/st.</label><input id="saw" type="number" min="0" value="6"></div>
-<div><label>Uitval %</label><input id="scrap" type="number" min="0" max="90" value="5"></div><div><label>Gewenste brutomarge %</label><input id="margin" type="number" min="0" max="95" value="60"></div></div>
-<div class="actions"><button id="estimate" class="primary">Herbereken kostprijs</button><button id="save">Bewaar concept JSON</button></div>
-<p class="hint">De tarieven zijn startwaarden uit bestaande werkplekken of voorbeelden. Cyclustijd en materiaalgewicht zijn nu handmatige aannames, géén G-code- of STEP-berekening.</p>
-</aside>
-<section class="panel">
-<h2>3. Volledige code · blok voor blok controleren</h2>
-<div class="warn"><b>Concept, niet machineklaar.</b> De hieronder getoonde tekst is uitsluitend een programmaraamwerk. De G71-cycli, offsets, turbine-/turretregels en veilige bewegingen zijn nog niet op de Fanuc 11TT gevalideerd. NC-export blijft daarom geblokkeerd.</div>
+<main class="wizard">
+<nav class="steps panel" aria-label="Stappen CNC-programmer">
+<button class="step active" data-step="0">1. Tekening of STEP uploaden</button>
+<button class="step" data-step="1">2. Geïnterpreteerde maten verifiëren</button>
+<button class="step" data-step="2">3. Bewerkingen controleren</button>
+<button class="step" data-step="3">4. Basisgegevens en stock</button>
+<button class="step" data-step="4">5. Volledige G-code controleren</button>
+</nav>
+<section class="panel wizard-page" data-page="0">
+<h2>Stap 1 · Tekening en/of STEP uploaden</h2>
+<label for="drawing">Technische tekening (PDF / DXF / afbeelding)</label><input id="drawing" type="file" accept=".pdf,.dxf,image/*">
+<label for="stepFile">3D-model (STEP / STP, optioneel)</label><input id="stepFile" type="file" accept=".step,.stp">
+<p class="hint" id="drawingState">Upload minstens één bron. De automatische AI/CAD-uitlezing is nog niet gekoppeld; alle volgende voorbeeldmaten moet je zelf vergelijken met de tekening.</p>
+<div class="warn">Dit prototype leest nog geen echte maten uit bestanden en maakt geen uitvoerbare NC-code. Een bestand selecteren geeft geen analyse of veiligheidsvalidatie.</div>
+</section>
+<section class="panel wizard-page" data-page="1" hidden>
+<h2>Stap 2 · Geïnterpreteerde maten verifiëren</h2>
+<p class="hint">Onderstaande getallen zijn voorbeeldwaarden en geen herkende maten. Verwijder of corrigeer ze op basis van de tekening. Bevestig expliciet dat je ze hebt gecontroleerd.</p>
+<div class="grid">
+<div><label for="partD">Product buitendiameter (mm)</label><input id="partD" type="number" min="0" value="170"></div>
+<div><label for="partL">Productlengte (mm)</label><input id="partL" type="number" min="0" value="210"></div>
+<div><label for="wall">Wanddikte (mm)</label><input id="wall" type="number" min="0" value="6"></div>
+<div><label for="zero">Z0-referentie</label><select id="zero"><option value="">— nog kiezen —</option><option value="front">Voorzijde werkstuk</option><option value="other">Andere referentie (later configureren)</option></select></div>
+</div>
+<label class="checkrow"><input id="dimensionsVerified" type="checkbox"> Ik heb de maten, aanzichten, referenties en ontbrekende afmetingen gecontroleerd.</label>
+<div id="geometryIssues" class="hint"></div>
+</section>
+<section class="panel wizard-page" data-page="2" hidden>
+<h2>Stap 3 · Gekozen bewerkingen controleren</h2>
+<p>Beoordeel en verander de bewerkingsvolgorde. Dit zijn <b>voorbeeldsuggesties</b>, geen AI-selectie uit de tekening.</p>
+<div id="operations"></div>
+<p class="hint">Je kunt bewerkingen aan- of uitzetten en met ↑ / ↓ verplaatsen. Iedere wijziging maakt bestaande codebeoordelingen ongeldig.</p>
+<label class="checkrow"><input id="operationsVerified" type="checkbox"> Bewerkingen, volgorde en gereedschapskeuze gecontroleerd.</label>
+</section>
+<section class="panel wizard-page" data-page="3" hidden>
+<h2>Stap 4 · Basisgegevens, stock en calculatie</h2>
+<div class="grid">
+<div><label for="machine">Machine</label><select id="machine"><option value="11tt">Mori Seiki ZL-15 · Fanuc 11TT</option><option value="15t">Mori Seiki SL-25 · Fanuc 15T (nog niet gevalideerd)</option></select></div>
+<div><label for="program">O-nummer</label><input id="program" value="1234" inputmode="numeric"></div>
+<div><label for="qty">Aantal</label><input id="qty" type="number" min="1" value="100"></div>
+<div><label for="rawD">Stock diameter (mm)</label><input id="rawD" type="number" min="0" value="180"></div>
+<div><label for="rawL">Stock lengte (mm)</label><input id="rawL" type="number" min="0" value="220"></div>
+<div><label for="rawKg">Stock gewicht (kg/st.)</label><input id="rawKg" type="number" min="0" step=".01" value="15"></div>
+<div><label for="kgRate">Materiaal (€/kg)</label><input id="kgRate" type="number" min="0" step=".01" value="1.16"></div>
+<div><label for="machineRate">CNC (€/uur)</label><input id="machineRate" type="number" min="0" step=".01" value="20.50"></div>
+<div><label for="cycle">CNC-tijd (min/st.)</label><input id="cycle" type="number" min="0" step=".1" value="10"></div>
+<div><label for="setup">Instellen (min/batch)</label><input id="setup" type="number" min="0" value="30"></div>
+<div><label for="setupRate">Instellen (€/uur)</label><input id="setupRate" type="number" min="0" value="60"></div>
+<div><label for="finish">Nabewerking (min/st.)</label><input id="finish" type="number" min="0" value="5"></div>
+<div><label for="finishRate">Nabewerking (€/uur)</label><input id="finishRate" type="number" min="0" value="26"></div>
+<div><label for="saw">Zagen (€/st.)</label><input id="saw" type="number" min="0" value="6"></div>
+<div><label for="scrap">Uitval (%)</label><input id="scrap" type="number" min="0" max="90" value="5"></div>
+<div><label for="margin">Brutomarge (%)</label><input id="margin" type="number" min="0" max="95" value="60"></div>
+</div>
+<p class="hint">Tarieven en tijden zijn hier nog voorbeeld- of handmatige waarden. Er is nog geen automatische timing uit G-code en geen koppeling naar live kostprijzen.</p>
+<button type="button" id="estimate">Herbereken kostprijs</button>
+<div id="stats"></div>
+<label class="checkrow"><input id="stockVerified" type="checkbox"> Stock, opspanning, machine, aantallen en calculatie-invoer gecontroleerd.</label>
+</section>
+<section class="panel wizard-page" data-page="4" hidden>
+<h2>Stap 5 · Volledige G-code controleren</h2>
+<div class="warn"><b>Geen uitvoerbare NC-code.</b> Dit is uitsluitend een concept met commentaarblokken. Programmageneratie, G71/G70, offsets, veilige bewegingen en postprocessor worden nog ontwikkeld en onafhankelijk gevalideerd. NC-export blijft uitgeschakeld.</div>
 <div class="actions"><button id="back">← Vorig blok</button><button id="approve" class="primary">Markeer blok inhoudelijk gecontroleerd</button><button id="next">Volgend blok →</button></div>
 <div id="code"></div>
-<label for="review">Opmerking bij geselecteerd blok</label><textarea id="review" placeholder="Bijvoorbeeld: bij het uitdraaien eerst in Z terug, daarna in X."></textarea>
-<div class="actions"><button id="storeReview">Opmerking bewaren</button><button id="exportNC" disabled title="Pas na machine- en postprocessorvalidatie">NC exporteren (geblokkeerd)</button></div>
-<h2>4. Automatische conceptcontroles</h2><ul id="alerts"></ul>
-<h2>5. Productietijd & kostprijs</h2><div id="stats"></div>
-<p class="hint">Voordat NC-export beschikbaar wordt: alle echte contouren uit tekening controleren; gereedschappen en offsets op machine valideren; G71-dialect, feed-modus, spilsnelheid, synchronisatie en veilige terugtrekwegen verifiëren; simulatie en gecontroleerde proefloop uitvoeren.</p>
-</section></main>
+<label for="review">Opmerking bij geselecteerd blok</label><textarea id="review" placeholder="Bijvoorbeeld: voor het kamertje eerst veilig in Z terugtrekken, dan X."></textarea>
+<div class="actions"><button id="storeReview">Opmerking bewaren</button><button id="exportNC" disabled>NC exporteren (geblokkeerd)</button></div>
+<h3>Conceptcontroles</h3><ul id="alerts"></ul>
+<p class="hint">Controleer straks de hele code van boven naar beneden, blok voor blok. Na volledige machinevalidatie en expliciete vrijgave kan NC-export pas beschikbaar worden.</p>
+</section>
+<footer class="panel wizard-footer">
+<div id="wizardMessage" role="status" class="hint"></div>
+<div class="actions"><button id="wizardPrev">← Vorige stap</button><button id="save">Concept JSON opslaan</button><button id="wizardNext" class="primary">Volgende stap →</button></div>
+</footer>
+</main>
 <script>
 "use strict";
-const codeBlocks=[
+let codeBlocks=[
 {name:"Programmastart",lines:["O1234 (CONCEPT - NIET UITVOEREN) ;","G50 S1750 ;"]},
 {name:"Vlakken",lines:["(VLAKKEN - GEOMETRIE EN T11 NOG CONTROLEREN) ;","(FANUC 11TT TEMPLATE NOG NIET VRIJGEGEVEN) ;"]},
 {name:"Buitencontour G71/G70",lines:["(BUITENCONTOUR - P/Q G71 NOG VALIDEREN) ;","(GEEN BEWEGINGEN GEGENEREERD) ;"]},
@@ -103,10 +158,10 @@ $("stats").replaceChildren();stats.forEach(([label,value])=>{const div=document.
 validate();
 }
 function save(){
-reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"concept-not-machine-approved",machine:$("machine").value,programNumber:$("program").value,inputs:inputs(),drawingName:$("drawing").files[0]?.name||null,blocks:codeBlocks.map((b,i)=>({...b,review:reviews[i]})),exportAllowed:false};
+reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"concept-not-machine-approved",machine:$("machine").value,programNumber:$("program").value,inputs:inputs(),drawingName:$("drawing").files[0]?.name||null,stepName:$("stepFile").files[0]?.name||null,wizard:{step:wizardStep,dimensionsVerified:$("dimensionsVerified").checked,operationsVerified:$("operationsVerified").checked,stockVerified:$("stockVerified").checked,operations:operationList.map(x=>({...x}))},blocks:codeBlocks.map((b,i)=>({...b,review:reviews[i]})),exportAllowed:false};
 const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ralabaster-cnc-concept-"+Date.now()+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
 }
-$("drawing").addEventListener("change",()=>{$("drawingState").textContent=$("drawing").files[0]?"Geselecteerd: "+$("drawing").files[0].name+". AI-uitlezing nog niet geïmplementeerd; maten handmatig overnemen en controleren.":"Tekening nog niet gekozen."});
+
 $("review").addEventListener("input",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=false;const el=document.querySelectorAll(".block")[selected];if(el){el.classList.remove("approved");const pill=el.querySelector(".pill");if(pill)pill.textContent="Nog niet bekeken";}});
 $("storeReview").addEventListener("click",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=false;draw()});
 $("approve").addEventListener("click",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=!reviews[selected].approved;draw()});
@@ -115,4 +170,72 @@ $("estimate").addEventListener("click",calculate);$("save").addEventListener("cl
 codeBlocks[0].lines[0]="O1234 (CONCEPT - NIET UITVOEREN) ;";
 $("program").addEventListener("input",()=>{codeBlocks[0].lines[0]="O"+$("program").value+" (CONCEPT - NIET UITVOEREN) ;";reviews[0].approved=false;draw();calculate()});
 draw();calculate();
+
+const operationList=[
+{id:"face",label:"Vlakken",tool:"T11",checked:true},
+{id:"outer",label:"Buitencontour G71/G70",tool:"T12",checked:true},
+{id:"inner",label:"Kamertje G71/G70",tool:"T07",checked:true},
+{id:"drill",label:"Boren",tool:"T09",checked:false},
+{id:"partoff",label:"Afsteken",tool:"T06",checked:true}
+];
+let wizardStep=0;
+const wizardNames=["Tekening uploaden","Maten verifiëren","Bewerkingen controleren","Stock invullen","Code controleren"];
+function resetDownstream(from){
+if(from<=1)$("dimensionsVerified").checked=false;
+if(from<=2)$("operationsVerified").checked=false;
+if(from<=3)$("stockVerified").checked=false;
+reviews=codeBlocks.map(()=>({approved:false,note:""}));selected=0;draw();refreshSteps();
+}
+function buildBlocks(){
+const header=[{name:"Programmastart",lines:["O"+$("program").value+" (CONCEPT - NIET UITVOEREN) ;","G50 S1750 ;"]}];
+const body=operationList.filter(x=>x.checked).map(x=>({name:x.label,lines:["("+x.label.toUpperCase()+" - "+x.tool+" - NOG VALIDEREN) ;","(GEEN UITVOERBARE CNC-BEWEGINGEN BESCHIKBAAR) ;"]}));
+codeBlocks=[...header,...body,{name:"Programma-einde",lines:["(GWP EN VEILIGE ROUTE NOG CONTROLEREN) ;","M30 ;"]}];
+reviews=codeBlocks.map(()=>({approved:false,note:""}));selected=0;draw();
+}
+function drawOperations(){
+const root=$("operations");root.replaceChildren();
+operationList.forEach((o,i)=>{
+const line=document.createElement("div");line.className="opline";
+const c=document.createElement("input");c.type="checkbox";c.checked=o.checked;c.setAttribute("aria-label","Selecteer "+o.label);c.addEventListener("change",()=>{o.checked=c.checked;$("operationsVerified").checked=false;buildBlocks();refreshSteps()});
+const name=document.createElement("span");name.className="opname";name.textContent=o.label+" · "+o.tool;
+const up=document.createElement("button");up.type="button";up.textContent="↑";up.disabled=i===0;up.setAttribute("aria-label","Verplaats "+o.label+" omhoog");up.addEventListener("click",()=>moveOp(i,-1));
+const down=document.createElement("button");down.type="button";down.textContent="↓";down.disabled=i===operationList.length-1;down.setAttribute("aria-label","Verplaats "+o.label+" omlaag");down.addEventListener("click",()=>moveOp(i,1));
+line.append(c,name,up,down);root.append(line);
+});
+}
+function moveOp(i,delta){const next=i+delta;[operationList[i],operationList[next]]=[operationList[next],operationList[i]];$("operationsVerified").checked=false;drawOperations();buildBlocks();refreshSteps()}
+function hasDrawing(){return $("drawing").files.length>0||$("stepFile").files.length>0}
+function geometricallyValid(){const d=number("partD"),l=number("partL"),w=number("wall");return [d,l,w].every(x=>Number.isFinite(x)&&x>0)&&w*2<d&&$("zero").value==="front"}
+function stockValid(){const values=["qty","rawD","rawL","rawKg","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin"].map(number);return values.every(Number.isFinite)&&values.every(x=>x>=0)&&Number.isInteger(number("qty"))&&number("qty")>0&&number("rawD")>=number("partD")&&number("rawL")>=number("partL")&&number("rawKg")>0&&number("scrap")<100&&number("margin")<100&&/^[0-9]{1,4}$/.test($("program").value)}
+function completed(i){
+if(i===0)return hasDrawing();
+if(i===1)return geometricallyValid()&&$("dimensionsVerified").checked;
+if(i===2)return operationList.some(o=>o.checked)&&$("operationsVerified").checked;
+if(i===3)return stockValid()&&$("stockVerified").checked;
+return reviews.length===codeBlocks.length&&reviews.every(r=>r.approved);
+}
+function refreshSteps(){
+document.querySelectorAll(".steps .step").forEach((btn,i)=>{btn.classList.toggle("active",i===wizardStep);btn.classList.toggle("done",completed(i));btn.setAttribute("aria-current",i===wizardStep?"step":"false")});
+document.querySelectorAll(".wizard-page").forEach((panel,i)=>{panel.hidden=i!==wizardStep});
+$("wizardPrev").disabled=wizardStep===0;
+$("wizardNext").disabled=wizardStep>=4;
+$("wizardNext").textContent=wizardStep===3?"Naar codecontrole →":"Volgende stap →";
+$("wizardMessage").textContent="Stap "+(wizardStep+1)+" van 5 · "+wizardNames[wizardStep]+(completed(wizardStep)?" · gecontroleerd":" · nog te controleren");
+}
+function showStep(i,allowBack=true){
+if(i<0||i>4)return;
+if(i>wizardStep){for(let k=0;k<i;k++)if(!completed(k)){$("wizardMessage").textContent="Controleer eerst stap "+(k+1)+": "+wizardNames[k];return}}
+wizardStep=i;if(wizardStep===4){buildBlocks();calculate()}refreshSteps();window.scrollTo({top:0,behavior:"smooth"});
+}
+$("wizardPrev").addEventListener("click",()=>showStep(wizardStep-1));
+$("wizardNext").addEventListener("click",()=>showStep(wizardStep+1));
+document.querySelectorAll(".steps .step").forEach((b,i)=>b.addEventListener("click",()=>showStep(i)));
+["drawing","stepFile"].forEach(id=>$(id).addEventListener("change",()=>{
+$("drawingState").textContent=hasDrawing()?"Bestand(en) geselecteerd. Automatische interpretatie is nog niet geactiveerd; maten handmatig vergelijken.":"Upload minimaal een tekening of STEP.";
+resetDownstream(1);
+}));
+["partD","partL","wall","zero"].forEach(id=>$(id).addEventListener("input",()=>{resetDownstream(1);refreshSteps()}));
+["dimensionsVerified","operationsVerified","stockVerified"].forEach(id=>$(id).addEventListener("change",refreshSteps));
+["rawD","rawL","rawKg","qty","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin","machine"].forEach(id=>$(id).addEventListener("input",()=>{$("stockVerified").checked=false;refreshSteps();calculate()}));
+drawOperations();buildBlocks();refreshSteps();
 </script></body></html>
