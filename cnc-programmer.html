@@ -39,12 +39,27 @@ main.wizard{display:grid;grid-template-columns:1fr;max-width:1050px}
 <h2>Stap 1 · Tekening en/of STEP uploaden</h2>
 <label for="drawing">Technische tekening (PDF / DXF / afbeelding)</label><input id="drawing" type="file" accept=".pdf,.dxf,image/*">
 <label for="stepFile">3D-model (STEP / STP, optioneel)</label><input id="stepFile" type="file" accept=".step,.stp">
-<p class="hint" id="drawingState">Upload een PDF of afbeelding om automatisch maten te herkennen. STEP wordt bewaard als referentie, maar nog niet geometrisch geanalyseerd.</p><div class="actions"><button type="button" id="analyzeDrawing" class="primary">Herken maten met AI</button></div><p id="analysisStatus" role="status" class="hint">Nog geen analyse uitgevoerd.</p>
-<div class="warn">PDF en afbeeldingen worden door AI geïnterpreteerd. Lees elke maat na op de originele tekening; afgeleide maten zijn niet gegarandeerd. STEP en DXF worden nog niet automatisch uitgelezen. NC-export blijft geblokkeerd.</div>
+<p class="hint" id="drawingState">Upload een PDF of afbeelding om automatisch maten te herkennen. STEP kan lokaal worden doorgemeten; kies daarna de draaias en de kant die je wilt bewerken.</p><div class="actions"><button type="button" id="analyzeDrawing" class="primary">Herken PDF-maten met AI</button><button type="button" id="analyzeStep" class="primary">Meet STEP-model</button></div>
+<div id="stepOrientation" class="panel" style="background:#f5f8f6" hidden>
+<h3>Kies de richting waarin je het onderdeel opspant</h3>
+<div class="grid"><div><label for="stepAxis">Draaias in het STEP-model</label>
+<select id="stepAxis"><option value="Z">Z-as</option><option value="X">X-as</option><option value="Y">Y-as</option></select></div>
+<div><label for="stepFace">Welke kant ga je bewerken?</label>
+<select id="stepFace"><option value="max">Vanaf positieve kant (+)</option><option value="min">Vanaf negatieve kant (−)</option></select></div></div>
+<p id="stepMeasurements" class="hint"></p>
+<svg viewBox="0 0 360 126" width="100%" role="img" aria-label="Schematische draaiprojectie met gekozen bewerkingszijde">
+<rect x="74" y="26" width="210" height="73" fill="#b0bdb8" fill-opacity=".4" stroke="#496359" stroke-width="2"/>
+<line x1="48" y1="62" x2="316" y2="62" stroke="#87968e" stroke-dasharray="6 5"/>
+<g id="stepSideArrow"><path d="M315 46 L285 46 L294 40 M285 46 L294 52" stroke="#147e5a" stroke-width="3" fill="none"/></g>
+<text id="stepSideText" x="180" y="16" font-size="13" text-anchor="middle" fill="currentColor">Bewerkingszijde: +Z</text>
+<text x="180" y="117" font-size="11" text-anchor="middle" fill="currentColor">Schema, geen echte contour of opspansimulatie</text></svg>
+<label class="checkrow"><input type="checkbox" id="stepSideConfirmed"> Ik heb de draaias en bewerkingszijde gecontroleerd; gekozen zijde wordt Z0 (negatieve Z loopt het werkstuk in).</label>
+</div><p id="analysisStatus" role="status" class="hint">Nog geen analyse uitgevoerd.</p>
+<div class="warn">PDF en afbeeldingen worden door AI geïnterpreteerd. Lees elke maat na op de originele tekening; afgeleide maten zijn niet gegarandeerd. STEP wordt lokaal als driehoeksgeometrie doorgemeten; diameters zijn voorlopig buitenomhullenden en geen exacte cilindermaten. DXF heeft nog geen geometrielezer. NC-export blijft geblokkeerd.</div>
 </section>
 <section class="panel wizard-page" data-page="1" hidden>
 <h2>Stap 2 · Geïnterpreteerde maten verifiëren</h2>
-<p class="hint" id="dimensionsIntro">Er staan voorbeeldwaarden in de velden. Gebruik eerst de AI-herkenning in stap 1, en controleer daarna elke maat tegen de originele tekening.</p><div id="analysisEvidence" class="panel" style="background:#f5f8f6;margin:12px 0" hidden></div>
+<p class="hint" id="dimensionsIntro">Er staan voorbeeldwaarden in de velden. Gebruik eerst PDF-AI of STEP-meting in stap 1, en controleer daarna elke maat tegen de originele tekening.</p><div id="analysisEvidence" class="panel" style="background:#f5f8f6;margin:12px 0" hidden></div>
 <div class="grid">
 <div><label for="partD">Product buitendiameter (mm)</label><input id="partD" type="number" min="0" value="170"></div>
 <div><label for="partL">Productlengte (mm)</label><input id="partL" type="number" min="0" value="210"></div>
@@ -52,7 +67,7 @@ main.wizard{display:grid;grid-template-columns:1fr;max-width:1050px}
 <div><label for="zero">Z0-referentie</label><select id="zero"><option value="">— nog kiezen —</option><option value="front">Voorzijde werkstuk</option><option value="other">Andere referentie (later configureren)</option></select></div>
 </div>
 <label class="checkrow"><input id="dimensionsVerified" type="checkbox"> Ik heb de maten, aanzichten, referenties en ontbrekende afmetingen gecontroleerd.</label>
-<div id="geometryIssues" class="hint"></div>
+<div id="geometryIssues" class="hint"></div><p class="hint">Bij STEP: je gekozen kant is het Z0-referentievlak. Een andere zijde kiezen maakt eerdere maat- en codebeoordelingen ongeldig.</p>
 </section>
 <section class="panel wizard-page" data-page="2" hidden>
 <h2>Stap 3 · Gekozen bewerkingen controleren</h2>
@@ -101,7 +116,7 @@ main.wizard{display:grid;grid-template-columns:1fr;max-width:1050px}
 <div class="actions"><button id="wizardPrev">← Vorige stap</button><button id="save">Concept JSON opslaan</button><button id="wizardNext" class="primary">Volgende stap →</button></div>
 </footer>
 </main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="assets/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="assets/config.js"></script><script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/occt-import-js.js"></script><script src="assets/step-geometry.js"></script>
 <script>
 "use strict";
 let codeBlocks=[
@@ -159,7 +174,7 @@ $("stats").replaceChildren();stats.forEach(([label,value])=>{const div=document.
 validate();
 }
 function save(){
-reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"concept-not-machine-approved",machine:$("machine").value,programNumber:$("program").value,inputs:inputs(),drawingName:$("drawing").files[0]?.name||null,drawingAnalysis:drawingAnalysis,stepName:$("stepFile").files[0]?.name||null,wizard:{step:wizardStep,dimensionsVerified:$("dimensionsVerified").checked,operationsVerified:$("operationsVerified").checked,stockVerified:$("stockVerified").checked,operations:operationList.map(x=>({...x}))},blocks:codeBlocks.map((b,i)=>({...b,review:reviews[i]})),exportAllowed:false};
+reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"concept-not-machine-approved",machine:$("machine").value,programNumber:$("program").value,inputs:inputs(),drawingName:$("drawing").files[0]?.name||null,drawingAnalysis:drawingAnalysis,stepGeometry:stepInfo?{fileName:stepInfo.fileName,bounds:stepInfo.bounds,axis:$("stepAxis").value,face:$("stepFace").value,orientation:stepOrientation}:null,stepName:$("stepFile").files[0]?.name||null,wizard:{step:wizardStep,dimensionsVerified:$("dimensionsVerified").checked,operationsVerified:$("operationsVerified").checked,stockVerified:$("stockVerified").checked,operations:operationList.map(x=>({...x}))},blocks:codeBlocks.map((b,i)=>({...b,review:reviews[i]})),exportAllowed:false};
 const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ralabaster-cnc-concept-"+Date.now()+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
 }
 
@@ -206,7 +221,7 @@ line.append(c,name,up,down);root.append(line);
 }
 function moveOp(i,delta){const next=i+delta;[operationList[i],operationList[next]]=[operationList[next],operationList[i]];$("operationsVerified").checked=false;drawOperations();buildBlocks();refreshSteps()}
 function hasDrawing(){return $("drawing").files.length>0||$("stepFile").files.length>0}
-function geometricallyValid(){const d=number("partD"),l=number("partL"),w=number("wall");return [d,l,w].every(x=>Number.isFinite(x)&&x>0)&&w*2<d&&$("zero").value==="front"}
+function geometricallyValid(){const d=number("partD"),l=number("partL"),w=number("wall");return [d,l,w].every(x=>Number.isFinite(x)&&x>0)&&w*2<d&&$("zero").value==="front"&&(!stepInfo||($("stepSideConfirmed").checked&&!!stepOrientation))}
 function stockValid(){const values=["qty","rawD","rawL","rawKg","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin"].map(number);return values.every(Number.isFinite)&&values.every(x=>x>=0)&&Number.isInteger(number("qty"))&&number("qty")>0&&number("rawD")>=number("partD")&&number("rawL")>=number("partL")&&number("rawKg")>0&&number("scrap")<100&&number("margin")<100&&/^[0-9]{1,4}$/.test($("program").value)}
 function completed(i){
 if(i===0)return hasDrawing();
@@ -239,7 +254,7 @@ resetDownstream(1);
 ["dimensionsVerified","operationsVerified","stockVerified"].forEach(id=>$(id).addEventListener("change",refreshSteps));
 ["rawD","rawL","rawKg","qty","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin","machine"].forEach(id=>$(id).addEventListener("input",()=>{$("stockVerified").checked=false;refreshSteps();calculate()}));
 
-let drawingAnalysis=null,analysisBusy=false;
+let drawingAnalysis=null,analysisBusy=false,stepInfo=null,stepOrientation=null;
 const fieldMap={outerDiameter:"partD",length:"partL",wallThickness:"wall"};
 const fieldNames={outerDiameter:"Buitendiameter",length:"Productlengte",wallThickness:"Wanddikte",innerDiameter:"Binnendiameter",boreDepth:"Kamerdiepte"};
 function readFileAsBase64(file){
@@ -273,7 +288,70 @@ const ul=document.createElement("ul");for(const item of data.ambiguities){const 
 $("dimensionsIntro").textContent="AI-maten zijn voorgesteld, niet goedgekeurd. Een leeg veld betekent dat de maat niet betrouwbaar is herkend; vul deze alleen vanuit de echte tekening in.";
 $("operationsIntro").textContent="AI heeft op basis van de tekening bewerkingen voorgesteld. Controleer of elke stap daadwerkelijk nodig is en of de volgorde klopt.";
 }
+
+function asCadDimension(value,source,confidence=0.88){
+return {value,unit:"mm",source,origin:value==null?"unknown":"derived",confidence:value==null?0:confidence};
+}
+function setStepOrientation(){
+if(!stepInfo)return;
+const axis=$("stepAxis").value,face=$("stepFace").value;
+stepOrientation=stepInfo.orientation(axis,face);
+const current=stepOrientation;
+$("stepMeasurements").textContent=
+  "As "+axis+": lengte "+current.lengthMm+" mm · radiale omhullende Ø"+current.radialEnvelopeDiameterMm+
+  " mm · modelvlak "+(face==="max"?"max":"min")+" = "+current.faceCoordinateMm+
+  " mm · X/Z transformatie: "+current.mapZ+
+  (stepInfo.meshCount>1?" · LET OP: "+stepInfo.meshCount+" afzonderlijke meshes/solids":"");
+$("stepSideText").textContent="Bewerken vanaf "+(face==="max"?"+":"−")+axis+" · Z0 aan gekozen kant";
+$("stepSideArrow").setAttribute("transform",face==="max"?"":"translate(358,0) scale(-1,1)");
+$("stepSideConfirmed").checked=false;
+$("zero").value="front";
+$("partD").value=String(current.radialEnvelopeDiameterMm);
+$("partL").value=String(current.lengthMm);
+$("wall").value="";
+const dim={
+ outerDiameter:asCadDimension(current.radialEnvelopeDiameterMm,"STEP-getrianguleerde radiale buitenomhullende vanaf as "+axis+" (geen nominale Ø)",0.78),
+ length:asCadDimension(current.lengthMm,"STEP-bounding box langs as "+axis,0.95),
+ wallThickness:asCadDimension(null,"Wanddikte niet exact afleidbaar uit mesh"),
+ innerDiameter:asCadDimension(null,"Binnencontour vereist aparte B-Rep-analyse"),
+ boreDepth:asCadDimension(null,"Kamer-/boordiepte vereist aparte contouranalyse")
+};
+drawingAnalysis={
+ status:"unverified",sourceType:"step-mesh",partType:"uncertain",dimensions:dim,referenceFace:"front",
+ proposedOperations:[],overallConfidence:0.65,
+ ambiguities:[
+ "Bevestig dat "+axis+" de werkelijke draaias is, "+(face==="max"?"de positieve":"de negatieve")+" zijde aan de klauwplaat/bewerking ligt zoals bedoeld.",
+ "Radiale omhullende is niet per definitie de nominale buitendiameter.",
+ "Wanddikte, binnenmaat, opspanning en concentriciteit nog niet gecontroleerd.",
+ ...current.warnings
+ ]
+};
+for(const o of operationList)o.checked=false;
+drawOperations();buildBlocks();displayAnalysis(drawingAnalysis);
+$("dimensionsVerified").checked=false;$("operationsVerified").checked=false;$("stockVerified").checked=false;
+$("analysisStatus").textContent="STEP gelezen: geometrieomhulling gemeten. Kies de bewerkingszijde, controleer alle maten en voeg bewerkingen zelf toe.";
+refreshSteps();calculate();
+}
+$("stepAxis").addEventListener("change",setStepOrientation);
+$("stepFace").addEventListener("change",setStepOrientation);
+$("stepSideConfirmed").addEventListener("change",()=>{resetDownstream(1);refreshSteps()});
+$("analyzeStep").addEventListener("click",async()=>{
+ const file=$("stepFile").files[0];
+ if(!file){$("analysisStatus").textContent="Kies eerst een STEP- of STP-bestand.";return}
+ $("analyzeStep").disabled=true;
+ $("analysisStatus").textContent="STEP-geometrie lokaal inlezen met OpenCascade…";
+ try{
+  if(!window.RALAB_STEP)throw new Error("STEP-engine niet beschikbaar.");
+  stepInfo=await window.RALAB_STEP.read(file);
+  $("stepOrientation").hidden=false;
+  // Guess of axis direction is intentionally avoided: user chooses it.
+  setStepOrientation();
+ }catch(error){stepInfo=null;stepOrientation=null;$("stepOrientation").hidden=true;$("analysisStatus").textContent="STEP-lezen mislukt: "+(error.message||"Onbekende fout")}
+ finally{$("analyzeStep").disabled=false}
+});
+
 function resetAnalysis(){
+stepInfo=null;stepOrientation=null;$("stepOrientation").hidden=true;$("stepSideConfirmed").checked=false;
 drawingAnalysis=null;$("analysisEvidence").hidden=true;$("analysisEvidence").replaceChildren();
 $("analysisStatus").textContent="Bestand gewijzigd. Voer de AI-analyse opnieuw uit.";
 $("dimensionsIntro").textContent="Gebruik eerst Herken maten met AI in stap 1. Controleer elke maat tegen de originele tekening.";
@@ -287,7 +365,7 @@ $("stepFile").addEventListener("change",resetAnalysis);
 $("analyzeDrawing").addEventListener("click",async()=>{
 if(analysisBusy)return;
 const file=$("drawing").files[0];
-if(!file){$("analysisStatus").textContent="Kies eerst een PDF of afbeelding. Voor STEP is een aparte geometrielezer nodig.";return}
+if(!file){$("analysisStatus").textContent="Kies eerst een PDF of afbeelding, of gebruik Meet STEP-model.";return}
 const mime=file.type||({pdf:"application/pdf",png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp"}[file.name.split(".").pop().toLowerCase()]||"");
 if(!["application/pdf","image/png","image/jpeg","image/webp"].includes(mime)){$("analysisStatus").textContent="PDF, PNG, JPEG of WebP nodig. DXF en STEP zijn nog niet ondersteund door deze analyse.";return}
 if(file.size>2_500_000){$("analysisStatus").textContent="Bestand groter dan 2,5 MB. Maak een kleinere PDF of afbeelding.";return}
