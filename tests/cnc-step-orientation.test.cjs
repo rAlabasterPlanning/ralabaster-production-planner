@@ -35,7 +35,7 @@ test('Bad geometry is rejected rather than inventing measurements',()=>{
 });
 test('STEP side and axis review must be approved before code step',()=>{
  const html=fs.readFileSync(path.join(__dirname,'..','cnc-programmer.html'),'utf8');
- for(const item of ['id="stepAxis"','id="stepFace"','id="stepSideConfirmed"','assets/step-geometry.js','setStepOrientation','stepOrientation:stepInfo?'])assert.ok(html.includes(item),item);
+ for(const item of ['id="stepAxis"','id="stepFace"','id="stepSideConfirmed"','assets/step-geometry.js','setStepOrientation','stepGeometry:stepInfo?'])assert.ok(html.includes(item),item);
  assert.ok(html.includes('stepSideConfirmed").checked&&!!stepOrientation'));
  assert.ok(html.includes('id="exportNC" disabled'));
 });
