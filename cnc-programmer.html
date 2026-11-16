@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rAlabaster · CNC Programmer (prototype)</title>
+<style>
+:root{font:15px/1.45 system-ui,Arial;color:#182c29;background:#f2f5f3}*{box-sizing:border-box}body{margin:0}
+header{background:#233d38;color:white;padding:17px 24px;display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
+header a{color:white}main{max-width:1320px;margin:22px auto;padding:0 16px;display:grid;grid-template-columns:330px 1fr;gap:16px}
+.panel{background:white;border:1px solid #d5e0dc;border-radius:12px;padding:17px}h1{font-size:22px;margin:0}h2{font-size:17px;margin:0 0 12px}h3{font-size:14px;margin:15px 0 5px}
+label{display:block;font-weight:600;margin:9px 0 4px}input,textarea,select{font:inherit;width:100%;padding:9px;border:1px solid #bac9c3;border-radius:6px;background:white}
+textarea{min-height:120px;resize:vertical}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.hint{color:#586964;font-size:12px}.warn{background:#fff4dc;border:1px solid #dfbd78;padding:11px;border-radius:8px;margin:12px 0}
+button{font:inherit;border:1px solid #a9bbb3;background:white;border-radius:7px;padding:9px 12px;cursor:pointer}button.primary{background:#274c42;color:white;border-color:#274c42}
+button:disabled{opacity:.45;cursor:not-allowed}.actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.block{border:1px solid #d7dedb;border-left:5px solid transparent;border-radius:6px;padding:10px;margin:7px 0;cursor:pointer}
+.block.selected{border-left-color:#527eaf;background:#eef4fd}.block.approved{border-left-color:#34895f}.block pre{font:13px/1.55 Consolas,monospace;white-space:pre-wrap;margin:5px 0 0}
+.pill{font-size:11px;background:#ecf0ef;border-radius:20px;padding:2px 8px}.error{color:#9a2a19}.ok{color:#186a3b}
+#alerts li{margin:4px 0}#stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{background:#f5f8f6;padding:9px;border-radius:8px}.stat strong{display:block;font-size:19px}
+@media(max-width:850px){main{grid-template-columns:1fr}#stats{grid-template-columns:1fr 1fr}}
+</style></head><body>
+<header><div><h1>rAlabaster · AI CNC Programmer</h1><small>Ontwikkelprototype · uitsluitend concepten, geen machinevrijgave</small></div><a href="/">← Terug naar Planner</a></header>
+<main><aside class="panel">
+<h2>1. Tekening & product</h2>
+<label for="drawing">Technische tekening (PDF/STEP/DXF/afbeelding)</label><input id="drawing" type="file" accept=".pdf,.step,.stp,.dxf,image/*">
+<p class="hint" id="drawingState">Tekening wordt nog niet automatisch geïnterpreteerd. Verifieer de maten handmatig; AI- en CAD-uitlezing volgen in een volgende fase.</p>
+<label>Machine</label><select id="machine"><option value="11tt">Mori Seiki ZL-15 · Fanuc 11TT</option><option value="15t">Mori Seiki SL-25 · Fanuc 15T (nog niet geconfigureerd)</option></select>
+<div class="grid"><div><label>O-nummer</label><input id="program" value="1234" inputmode="numeric"></div><div><label>Aantal</label><input id="qty" type="number" min="1" value="100"></div>
+<div><label>Ruwe Ø mm</label><input id="rawD" type="number" min="0" value="180"></div><div><label>Ruwe lengte mm</label><input id="rawL" type="number" min="0" value="220"></div>
+<div><label>Product Ø mm</label><input id="partD" type="number" min="0" value="170"></div><div><label>Product lengte mm</label><input id="partL" type="number" min="0" value="210"></div>
+<div><label>Wand mm</label><input id="wall" type="number" min="0" value="6"></div><div><label>Ruw kg/st.</label><input id="rawKg" type="number" min="0" step=".01" value="15"></div></div>
+<h2 style="margin-top:18px">2. Kosteninputs</h2>
+<div class="grid"><div><label>Materiaal €/kg</label><input id="kgRate" type="number" min="0" step=".01" value="1.16"></div><div><label>CNC €/uur</label><input id="machineRate" type="number" min="0" step=".01" value="20.50"></div>
+<div><label>CNC min/st.</label><input id="cycle" type="number" min="0" step=".1" value="10"></div><div><label>Instellen min/batch</label><input id="setup" type="number" min="0" value="30"></div>
+<div><label>Instellen €/uur</label><input id="setupRate" type="number" min="0" value="60"></div><div><label>Nabewerking min/st.</label><input id="finish" type="number" min="0" value="5"></div>
+<div><label>Nabewerking €/uur</label><input id="finishRate" type="number" min="0" value="26"></div><div><label>Zaagkosten €/st.</label><input id="saw" type="number" min="0" value="6"></div>
+<div><label>Uitval %</label><input id="scrap" type="number" min="0" max="90" value="5"></div><div><label>Gewenste brutomarge %</label><input id="margin" type="number" min="0" max="95" value="60"></div></div>
+<div class="actions"><button id="estimate" class="primary">Herbereken kostprijs</button><button id="save">Bewaar concept JSON</button></div>
+<p class="hint">De tarieven zijn startwaarden uit bestaande werkplekken of voorbeelden. Cyclustijd en materiaalgewicht zijn nu handmatige aannames, géén G-code- of STEP-berekening.</p>
+</aside>
+<section class="panel">
+<h2>3. Volledige code · blok voor blok controleren</h2>
+<div class="warn"><b>Concept, niet machineklaar.</b> De hieronder getoonde tekst is uitsluitend een programmaraamwerk. De G71-cycli, offsets, turbine-/turretregels en veilige bewegingen zijn nog niet op de Fanuc 11TT gevalideerd. NC-export blijft daarom geblokkeerd.</div>
+<div class="actions"><button id="back">← Vorig blok</button><button id="approve" class="primary">Markeer blok inhoudelijk gecontroleerd</button><button id="next">Volgend blok →</button></div>
+<div id="code"></div>
+<label for="review">Opmerking bij geselecteerd blok</label><textarea id="review" placeholder="Bijvoorbeeld: bij het uitdraaien eerst in Z terug, daarna in X."></textarea>
+<div class="actions"><button id="storeReview">Opmerking bewaren</button><button id="exportNC" disabled title="Pas na machine- en postprocessorvalidatie">NC exporteren (geblokkeerd)</button></div>
+<h2>4. Automatische conceptcontroles</h2><ul id="alerts"></ul>
+<h2>5. Productietijd & kostprijs</h2><div id="stats"></div>
+<p class="hint">Voordat NC-export beschikbaar wordt: alle echte contouren uit tekening controleren; gereedschappen en offsets op machine valideren; G71-dialect, feed-modus, spilsnelheid, synchronisatie en veilige terugtrekwegen verifiëren; simulatie en gecontroleerde proefloop uitvoeren.</p>
+</section></main>
+<script>
+"use strict";
+const codeBlocks=[
+{name:"Programmastart",lines:["O1234 (CONCEPT - NIET UITVOEREN) ;","G50 S1750 ;"]},
+{name:"Vlakken",lines:["(VLAKKEN - GEOMETRIE EN T11 NOG CONTROLEREN) ;","(FANUC 11TT TEMPLATE NOG NIET VRIJGEGEVEN) ;"]},
+{name:"Buitencontour G71/G70",lines:["(BUITENCONTOUR - P/Q G71 NOG VALIDEREN) ;","(GEEN BEWEGINGEN GEGENEREERD) ;"]},
+{name:"Kamertje G71/G70",lines:["(KAMER - INTERNE CONTOUR NOG VALIDEREN) ;","(TERUGTREKKEN: EERST Z DAN X) ;"]},
+{name:"Boren en afsteken",lines:["(BOREN / AFSTEKEN ALLEEN INDIEN VEREIST) ;","(GEREEDSCHAP, FEED EN VEILIGHEID NOG CONTROLEREN) ;"]},
+{name:"Programma-einde",lines:["(GWP X150 Z150 PAS NA VEILIGE ROUTECONTROLE) ;","M30 ;"]}
+];
+let selected=0;let reviews=codeBlocks.map(()=>({approved:false,note:""}));
+const $=id=>document.getElementById(id);
+const number=id=>Number($(id).value);
+const money=n=>new Intl.NumberFormat("nl-NL",{style:"currency",currency:"EUR"}).format(n);
+function draw(){
+const d=$("code"); d.replaceChildren();
+codeBlocks.forEach((block,i)=>{
+const outer=document.createElement("div");outer.className="block"+(selected===i?" selected":"")+(reviews[i].approved?" approved":"");
+const top=document.createElement("div"); const strong=document.createElement("strong");strong.textContent=(i+1)+". "+block.name;top.append(strong);
+const status=document.createElement("span");status.className="pill";status.textContent=reviews[i].approved?"Inhoudelijk bekeken":"Nog niet bekeken";top.append(" ",status);
+const pre=document.createElement("pre");pre.textContent=block.lines.join("\n");outer.append(top,pre);
+outer.addEventListener("click",()=>select(i));d.append(outer);
+});$("review").value=reviews[selected].note;
+$("approve").textContent=reviews[selected].approved?"Controle ongedaan maken":"Markeer blok inhoudelijk gecontroleerd";
+$("back").disabled=selected===0;$("next").disabled=selected===codeBlocks.length-1;
+}
+function select(i){reviews[selected].note=$("review").value;selected=i;draw()}
+function inputs(){
+const ids=["rawD","rawL","partD","partL","wall","rawKg","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin","qty"];
+return Object.fromEntries(ids.map(id=>[id,number(id)]));
+}
+function validate(){
+const x=inputs(), errors=[];
+for(const [key,val] of Object.entries(x)) if(!Number.isFinite(val)||val<0)errors.push("Ongeldige waarde bij "+key);
+if(x.qty<1||!Number.isInteger(x.qty))errors.push("Aantal moet een positief geheel getal zijn.");
+if(x.partD>x.rawD||x.partL>x.rawL)errors.push("Productafmetingen groter dan ruwmateriaal.");
+if(x.wall*2>=x.partD)errors.push("Wanddikte is onmogelijk voor deze diameter.");
+if(x.scrap>=100||x.margin>=100)errors.push("Uitval en marge moeten lager zijn dan 100%.");
+if(!/^[0-9]{1,4}$/.test($("program").value))errors.push("O-nummer moet 1 t/m 4 cijfers bevatten.");
+if($("machine").value!=="11tt")errors.push("Fanuc 15T heeft nog geen gevalideerd machineprofiel.");
+errors.push("G71-/G70-parameters en offsets zijn nog niet machine-gevalideerd.");
+errors.push("Automatische tekeninginterpretatie en geometriecontrole zijn nog niet actief.");
+$("alerts").replaceChildren();errors.forEach(msg=>{const li=document.createElement("li");li.textContent=msg;li.className="error";$("alerts").append(li)});
+return errors;
+}
+function calculate(){
+const x=inputs(),safe=(v)=>Number.isFinite(v)&&v>=0?v:0;
+const qty=Math.max(1,safe(x.qty)),goodFraction=1-Math.min(99,safe(x.scrap))/100;
+const material=safe(x.rawKg)*safe(x.kgRate),machine=safe(x.cycle)/60*safe(x.machineRate);
+const finish=safe(x.finish)/60*safe(x.finishRate),setup=safe(x.setup)/60*safe(x.setupRate)/qty;
+const cost=(material+machine+finish+setup+safe(x.saw))/goodFraction;
+const sale=cost/(1-Math.min(99,safe(x.margin))/100);
+const stats=[["CNC tijd/st.",safe(x.cycle).toFixed(1)+" min"],["Kostprijs/st.",money(cost)],["Verkoopvoorstel/st.",money(sale)],["Materiaal/st.",money(material)],["Instellen/st.",money(setup)],["Totale productiekosten",money(cost*qty)]];
+$("stats").replaceChildren();stats.forEach(([label,value])=>{const div=document.createElement("div");div.className="stat";const s=document.createElement("small");s.textContent=label;const b=document.createElement("strong");b.textContent=value;div.append(s,b);$("stats").append(div)});
+validate();
+}
+function save(){
+reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"concept-not-machine-approved",machine:$("machine").value,programNumber:$("program").value,inputs:inputs(),drawingName:$("drawing").files[0]?.name||null,blocks:codeBlocks.map((b,i)=>({...b,review:reviews[i]})),exportAllowed:false};
+const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ralabaster-cnc-concept-"+Date.now()+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
+}
+$("drawing").addEventListener("change",()=>{$("drawingState").textContent=$("drawing").files[0]?"Geselecteerd: "+$("drawing").files[0].name+". AI-uitlezing nog niet geïmplementeerd; maten handmatig overnemen en controleren.":"Tekening nog niet gekozen."});
+$("review").addEventListener("input",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=false;draw()});
+$("storeReview").addEventListener("click",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=false;draw()});
+$("approve").addEventListener("click",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=!reviews[selected].approved;draw()});
+$("back").addEventListener("click",()=>select(selected-1));$("next").addEventListener("click",()=>select(selected+1));
+$("estimate").addEventListener("click",calculate);$("save").addEventListener("click",save);
+codeBlocks[0].lines[0]="O1234 (CONCEPT - NIET UITVOEREN) ;";
+$("program").addEventListener("input",()=>{codeBlocks[0].lines[0]="O"+$("program").value+" (CONCEPT - NIET UITVOEREN) ;";reviews[0].approved=false;draw();calculate()});
+draw();calculate();
+</script></body></html>
