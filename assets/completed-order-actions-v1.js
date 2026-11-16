@@ -32,6 +32,37 @@ async function setInvoiceSent(input){
 }
 document.addEventListener('change',e=>{const input=e.target.closest?.('[data-invoice-sent]');if(input){e.stopPropagation();setInvoiceSent(input)}},true);
 const bundleCache=new Map();let noteTimer=0;
+let reopenSession=null,reopenBusy=false;
+async function openReopen(id){
+ if(reopenBusy)return;
+ try{
+  // Always fetch the saved bundle; an archived list can outlive another edit.
+  const loaded=await performanceApi()?.loadOrderBundle?.(id)||await bundle(id),o=loaded.order;
+  if(o.active!==false&&!o.closed&&o.status!=='completed')throw Error('Deze order is al actief.');
+  reopenSession={id,requestId:crypto.randomUUID(),revision:o.orderCompletionUpdatedAt||''};
+  showModal(`<div class="modalhead"><h3>Order ${esc(o.orderNo)} heropenen</h3></div><form data-reopen-form><div class="modalbody"><p><b>${esc(o.product)}</b></p><p>De order komt terug bij de actieve orders. Uren, aantallen, leveringen, pakbonnen en factuurregistratie blijven bewaard.</p><label>Reden voor heropenen<textarea class="input" data-reopen-reason required maxlength="2000" placeholder="Bijvoorbeeld: beschadiging geconstateerd; opnieuw polijsten"></textarea></label><label style="display:block;margin-top:12px">Productiestap opnieuw openen<select class="input" data-reopen-task><option value="">Alleen de order heropenen</option>${(loaded.tasks||[]).map(t=>`<option value="${esc(t.id)}">${esc(t.seq)}. ${esc(t.name||t.machine)}</option>`).join('')}</select></label><p class="muted">Alleen de gekozen stap wordt opnieuw opengezet. Bestaande uren en aantallen blijven staan. De stap wordt nog niet ingepland.</p><p data-reopen-status role="status"></p></div><div class="modalfoot"><button type="button" class="btn" data-reopen-cancel>Annuleren</button><div class="spacer"></div><button type="submit" class="btn primary">Order heropenen</button></div></form>`);
+ }catch(error){alert(error.message||String(error));}
+}
+async function submitReopen(form){
+ if(reopenBusy||!reopenSession||!form?.isConnected||!form.reportValidity())return false;
+ const reason=form.querySelector('[data-reopen-reason]').value.trim(),taskId=form.querySelector('[data-reopen-task]').value||null;
+ if(!reason)return false;
+ const message=form.querySelector('[data-reopen-status]'),controls=[...form.querySelectorAll('input,textarea,select,button')];
+ reopenBusy=true;controls.forEach(x=>x.disabled=true);message.textContent='Order wordt heropend…';let timer;
+ try{
+  const db=window.RALAB_ADMIN_AUTH?.client||(typeof supabaseClient==='undefined'?null:supabaseClient);if(!db)throw Error('Log online in om de order te heropenen.');
+  const {data,error}=await Promise.race([db.rpc('planner_reopen_order_v1',{p_order_id:reopenSession.id,p_reason:reason,p_task_id:taskId,p_request_id:reopenSession.requestId,p_expected_revision:reopenSession.revision}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Nog geen bevestiging ontvangen. Probeer opnieuw met dezelfde gegevens; de heropening wordt niet dubbel opgeslagen.')),30000)})]);
+  if(error)throw error;
+  if(!data?.order||data.order.id!==reopenSession.id||data.order.active!==true||data.order.closed!==false||data.order.status==='completed'||!Array.isArray(data.tasks))throw Error('De database heeft het heropenen niet bevestigd.');
+  const s=S();s.orders||=[];s.tasks||=[];const i=s.orders.findIndex(o=>o.id===data.order.id);if(i<0)s.orders.push(data.order);else s.orders[i]=data.order;
+  for(const t of data.tasks){const j=s.tasks.findIndex(x=>x.id===t.id);if(j<0)s.tasks.push(t);else s.tasks[j]=t;}
+  s.completedOrders=(s.completedOrders||[]).filter(id=>id!==data.order.id);bundleCache.delete(data.order.id);performanceApi()?.invalidate?.();
+  reopenSession=null;window.RALAB_DIRTY?.allowClose?.();closeModal();window.RALAB_ERP?.show?.('orderoverview');return true;
+ }catch(error){message.setAttribute('role','alert');message.textContent=error.message||String(error);return false;}
+ finally{clearTimeout(timer);reopenBusy=false;controls.forEach(x=>x.disabled=false);}
+}
+document.addEventListener('submit',e=>{if(e.target.matches?.('[data-reopen-form]')){e.preventDefault();e.stopImmediatePropagation();submitReopen(e.target)}},true);
+document.addEventListener('click',e=>{const b=e.target.closest?.('[data-reopen-order],[data-reopen-cancel]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();if(reopenBusy)return;if(b.hasAttribute('data-reopen-order'))openReopen(b.dataset.reopenOrder);else{reopenSession=null;closeModal()}},true);
 function localBundle(id){const s=S(),o=(s?.orders||[]).find(x=>x.id===id);return o?{order:o,tasks:(s.tasks||[]).filter(t=>t.orderId===id).sort((a,b)=>num(a.seq)-num(b.seq))}:null}
 async function bundle(id){const local=localBundle(id);if(local){bundleCache.set(id,local);return local}if(bundleCache.has(id))return bundleCache.get(id);const loaded=await performanceApi()?.loadOrderBundle?.(id);if(!loaded?.order)throw new Error('Afgeronde order niet gevonden.');bundleCache.set(id,loaded);return loaded}
 function customerEmail(o){const s=S(),c=(s?.customers||[]).find(x=>x.id===o.customerId);return c?.email||o.customerSnapshot?.email||''}
@@ -134,5 +165,5 @@ document.addEventListener('click',e=>{
  if(e.target.closest?.('[data-completed-close]')){e.preventDefault();e.stopImmediatePropagation();if(typeof closeModal==='function')closeModal();return}
  const legacy=e.target.closest?.('#modalRoot button[onclick]'),raw=legacy?.getAttribute('onclick')||'';let m=raw.match(/printProductionReport\(['"]([^'"]+)['"]\)/);if(m){e.preventDefault();e.stopImmediatePropagation();createDocument(m[1],'report');return}m=raw.match(/printPackingSlip\(['"]([^'"]+)['"]\)/);if(m){e.preventDefault();e.stopImmediatePropagation();createDocument(m[1],'packing');return}m=raw.match(/emailPackingSlip\(['"]([^'"]+)['"]\)/);if(m){e.preventDefault();e.stopImmediatePropagation();prepareEmail(m[1])}
 },true);
-window.RALAB_COMPLETED_ORDER_ACTIONS={version:VERSION,open,createDocument,prepareEmail,persistNote,bundle,financials,markDeliveryDraft,markDeliverySent,markDeliveryFailed,deliveryStatusHtml,invoiceCheckbox,setInvoiceSent};
+window.RALAB_COMPLETED_ORDER_ACTIONS={version:VERSION,open,createDocument,prepareEmail,persistNote,bundle,financials,markDeliveryDraft,markDeliverySent,markDeliveryFailed,deliveryStatusHtml,invoiceCheckbox,setInvoiceSent,openReopen,submitReopen};
 })();
