@@ -10,7 +10,7 @@ test('wizard includes five stages in correct order',()=>{
  for(const item of items){const at=page.indexOf(item);assert.ok(at>pos,item+' missing or out of order');pos=at}
 });
 test('AI drawing endpoint requires authentication and restricts file types and sizes',()=>{
- for(const s of ['authenticatedUser(tokenFrom(req))','MAX_FILE_BYTES=7_000_000','application/pdf','image/png','image/jpeg','image/webp','status:\'unverified\'','exportAllowed:false']) assert.ok(api.includes(s),s);
+ for(const s of ['authenticatedUser(tokenFrom(req))','MAX_FILE_BYTES=2_500_000','application/pdf','image/png','image/jpeg','image/webp','status:\'unverified\'','exportAllowed:false']) assert.ok(api.includes(s),s);
 });
 test('confidence and missing dimension do not become production-ready numbers',()=>{
  assert.ok(api.includes("val.confidence<0.6"));
