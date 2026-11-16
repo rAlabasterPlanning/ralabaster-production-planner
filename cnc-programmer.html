@@ -46,7 +46,7 @@ main.wizard{display:grid;grid-template-columns:1fr;max-width:1050px}
 <select id="stepAxis"><option value="Z">Z-as</option><option value="X">X-as</option><option value="Y">Y-as</option></select></div>
 <div><label for="stepFace">Welke kant ga je bewerken?</label>
 <select id="stepFace"><option value="max">Vanaf positieve kant (+)</option><option value="min">Vanaf negatieve kant (−)</option></select></div></div>
-<p id="stepMeasurements" class="hint"></p>
+<p id="stepMeasurements" class="hint"></p><div id="stepFeatures" class="hint"></div>
 <svg viewBox="0 0 360 126" width="100%" role="img" aria-label="Schematische draaiprojectie met gekozen bewerkingszijde">
 <rect x="74" y="26" width="210" height="73" fill="#b0bdb8" fill-opacity=".4" stroke="#496359" stroke-width="2"/>
 <line x1="48" y1="62" x2="316" y2="62" stroke="#87968e" stroke-dasharray="6 5"/>
@@ -116,7 +116,7 @@ main.wizard{display:grid;grid-template-columns:1fr;max-width:1050px}
 <div class="actions"><button id="wizardPrev">← Vorige stap</button><button id="save">Concept JSON opslaan</button><button id="wizardNext" class="primary">Volgende stap →</button></div>
 </footer>
 </main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="assets/config.js"></script><script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/occt-import-js.js"></script><script src="assets/step-geometry.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="assets/config.js"></script><script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/occt-import-js.js"></script><script src="assets/step-geometry.js"></script><script src="assets/step-analytic.js"></script>
 <script>
 "use strict";
 let codeBlocks=[
@@ -176,7 +176,7 @@ $("stats").replaceChildren();stats.forEach(([label,value])=>{const div=document.
 validate();
 }
 function save(){
-reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"concept-not-machine-approved",machine:$("machine").value,programNumber:$("program").value,inputs:inputs(),drawingName:$("drawing").files[0]?.name||null,drawingAnalysis:drawingAnalysis,stepGeometry:stepInfo?{fileName:stepInfo.fileName,bounds:stepInfo.bounds,axis:$("stepAxis").value,face:$("stepFace").value,orientation:stepOrientation}:null,stepName:$("stepFile").files[0]?.name||null,wizard:{step:wizardStep,dimensionsVerified:$("dimensionsVerified").checked,operationsVerified:$("operationsVerified").checked,stockVerified:$("stockVerified").checked,operations:operationList.map(x=>({...x}))},blocks:codeBlocks.map((b,i)=>({...b,review:reviews[i]})),exportAllowed:false};
+reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"concept-not-machine-approved",machine:$("machine").value,programNumber:$("program").value,inputs:inputs(),drawingName:$("drawing").files[0]?.name||null,drawingAnalysis:drawingAnalysis,stepGeometry:stepInfo?{fileName:stepInfo.fileName,bounds:stepInfo.bounds,axis:$("stepAxis").value,face:$("stepFace").value,orientation:stepOrientation,analyticFeatures:stepAnalytic}:null,stepName:$("stepFile").files[0]?.name||null,wizard:{step:wizardStep,dimensionsVerified:$("dimensionsVerified").checked,operationsVerified:$("operationsVerified").checked,stockVerified:$("stockVerified").checked,operations:operationList.map(x=>({...x}))},blocks:codeBlocks.map((b,i)=>({...b,review:reviews[i]})),exportAllowed:false};
 const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ralabaster-cnc-concept-"+Date.now()+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
 }
 
@@ -256,7 +256,7 @@ resetDownstream(1);
 ["dimensionsVerified","operationsVerified","stockVerified"].forEach(id=>$(id).addEventListener("change",refreshSteps));
 ["rawD","rawL","rawKg","qty","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin","machine"].forEach(id=>$(id).addEventListener("input",()=>{$("stockVerified").checked=false;refreshSteps();calculate()}));
 
-let drawingAnalysis=null,analysisBusy=false,stepInfo=null,stepOrientation=null;
+let drawingAnalysis=null,analysisBusy=false,stepInfo=null,stepOrientation=null,stepAnalytic=null;
 const fieldMap={outerDiameter:"partD",length:"partL",wallThickness:"wall"};
 const fieldNames={outerDiameter:"Buitendiameter",length:"Productlengte",wallThickness:"Wanddikte",innerDiameter:"Binnendiameter",boreDepth:"Kamerdiepte"};
 function readFileAsBase64(file){
@@ -345,6 +345,13 @@ $("analyzeStep").addEventListener("click",async()=>{
  try{
   if(!window.RALAB_STEP)throw new Error("STEP-engine niet beschikbaar.");
   stepInfo=await window.RALAB_STEP.read(file);
+  stepAnalytic=null;
+  try{stepAnalytic=window.RALAB_STEP_ANALYTIC.parse(await file.text());}catch(e){stepAnalytic={warnings:["STEP-entiteiteninventaris niet beschikbaar: "+e.message],completeFeatureRecognition:false}}
+  const features=$("stepFeatures");features.replaceChildren();
+  const h=document.createElement("h3");h.textContent="CAD-elementen uit STEP (nog te verifiëren)";features.append(h);
+  const rows=[["Cilindervlakken",stepAnalytic.cylinders||[],"radiusMm"],["Cirkelbogen",stepAnalytic.circles||[],"radiusMm"],["Toroïdale afrondingsvlakken",stepAnalytic.toruses||[],"minorRadiusMm"],["Conische vlakken",stepAnalytic.cones||[],"semiAngleRadians"]];
+  for(const [title,items,key] of rows){const p=document.createElement("p");p.textContent=title+": "+items.length+" gevonden"+(items.length?" · "+items.slice(0,14).map(x=>x.entity+" "+x[key]+(key==="semiAngleRadians"?" rad":" mm")).join(", "):"");features.append(p)}
+  const warning=document.createElement("p");warning.textContent="Chamfers, fillets en contouren zijn nog niet via B-Rep-topologie geclassificeerd. Vermelde radiussen zijn STEP-entiteitswaarden en nog geen goedgekeurde productmaten.";features.append(warning);
   $("stepOrientation").hidden=false;
   // Guess of axis direction is intentionally avoided: user chooses it.
   setStepOrientation();
@@ -353,7 +360,7 @@ $("analyzeStep").addEventListener("click",async()=>{
 });
 
 function resetAnalysis(){
-stepInfo=null;stepOrientation=null;$("stepOrientation").hidden=true;$("stepSideConfirmed").checked=false;
+stepAnalytic=null;$("stepFeatures").replaceChildren();stepInfo=null;stepOrientation=null;$("stepOrientation").hidden=true;$("stepSideConfirmed").checked=false;
 drawingAnalysis=null;$("analysisEvidence").hidden=true;$("analysisEvidence").replaceChildren();
 $("analysisStatus").textContent="Bestand gewijzigd. Voer de AI-analyse opnieuw uit.";
 $("dimensionsIntro").textContent="Gebruik eerst Herken maten met AI in stap 1. Controleer elke maat tegen de originele tekening.";
