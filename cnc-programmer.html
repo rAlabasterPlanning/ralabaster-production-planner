@@ -107,7 +107,7 @@ reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"con
 const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ralabaster-cnc-concept-"+Date.now()+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
 }
 $("drawing").addEventListener("change",()=>{$("drawingState").textContent=$("drawing").files[0]?"Geselecteerd: "+$("drawing").files[0].name+". AI-uitlezing nog niet geïmplementeerd; maten handmatig overnemen en controleren.":"Tekening nog niet gekozen."});
-$("review").addEventListener("input",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=false;draw()});
+$("review").addEventListener("input",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=false;const el=document.querySelectorAll(".block")[selected];if(el){el.classList.remove("approved");const pill=el.querySelector(".pill");if(pill)pill.textContent="Nog niet bekeken";}});
 $("storeReview").addEventListener("click",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=false;draw()});
 $("approve").addEventListener("click",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=!reviews[selected].approved;draw()});
 $("back").addEventListener("click",()=>select(selected-1));$("next").addEventListener("click",()=>select(selected+1));
