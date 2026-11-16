@@ -290,7 +290,7 @@ const file=$("drawing").files[0];
 if(!file){$("analysisStatus").textContent="Kies eerst een PDF of afbeelding. Voor STEP is een aparte geometrielezer nodig.";return}
 const mime=file.type||({pdf:"application/pdf",png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp"}[file.name.split(".").pop().toLowerCase()]||"");
 if(!["application/pdf","image/png","image/jpeg","image/webp"].includes(mime)){$("analysisStatus").textContent="PDF, PNG, JPEG of WebP nodig. DXF en STEP zijn nog niet ondersteund door deze analyse.";return}
-if(file.size>7_000_000){$("analysisStatus").textContent="Bestand groter dan 7 MB. Maak een kleinere PDF of afbeelding.";return}
+if(file.size>2_500_000){$("analysisStatus").textContent="Bestand groter dan 2,5 MB. Maak een kleinere PDF of afbeelding.";return}
 analysisBusy=true;$("analyzeDrawing").disabled=true;$("analysisStatus").textContent="AI leest maatlijnen en doorsneden. Geen gegevens worden automatisch goedgekeurd.";
 try{
 const authorization=await token(),base64=await readFileAsBase64(file);
