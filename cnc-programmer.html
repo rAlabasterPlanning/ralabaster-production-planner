@@ -176,7 +176,7 @@ $("stats").replaceChildren();stats.forEach(([label,value])=>{const div=document.
 validate();
 }
 function save(){
-reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"concept-not-machine-approved",machine:$("machine").value,programNumber:$("program").value,inputs:inputs(),drawingName:$("drawing").files[0]?.name||null,drawingAnalysis:drawingAnalysis,stepGeometry:stepInfo?{fileName:stepInfo.fileName,bounds:stepInfo.bounds,axis:$("stepAxis").value,face:$("stepFace").value,orientation:stepOrientation,analyticFeatures:stepAnalytic,exactFeatures:stepExact}:null,stepName:$("stepFile").files[0]?.name||null,wizard:{step:wizardStep,dimensionsVerified:$("dimensionsVerified").checked,operationsVerified:$("operationsVerified").checked,stockVerified:$("stockVerified").checked,operations:operationList.map(x=>({...x}))},blocks:codeBlocks.map((b,i)=>({...b,review:reviews[i]})),exportAllowed:false};
+reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"concept-not-machine-approved",machine:$("machine").value,programNumber:$("program").value,inputs:inputs(),drawingName:$("drawing").files[0]?.name||null,drawingAnalysis:drawingAnalysis,pdfAnalysis:pdfAnalysis,analysisConflicts:analysisConflicts,stepGeometry:stepInfo?{fileName:stepInfo.fileName,bounds:stepInfo.bounds,axis:$("stepAxis").value,face:$("stepFace").value,orientation:stepOrientation,analyticFeatures:stepAnalytic,exactFeatures:stepExact}:null,stepName:$("stepFile").files[0]?.name||null,wizard:{step:wizardStep,dimensionsVerified:$("dimensionsVerified").checked,operationsVerified:$("operationsVerified").checked,stockVerified:$("stockVerified").checked,operations:operationList.map(x=>({...x}))},blocks:codeBlocks.map((b,i)=>({...b,review:reviews[i]})),exportAllowed:false};
 const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ralabaster-cnc-concept-"+Date.now()+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
 }
 
@@ -223,7 +223,7 @@ line.append(c,name,up,down);root.append(line);
 }
 function moveOp(i,delta){const next=i+delta;[operationList[i],operationList[next]]=[operationList[next],operationList[i]];$("operationsVerified").checked=false;drawOperations();buildBlocks();refreshSteps()}
 function hasDrawing(){return $("drawing").files.length>0||$("stepFile").files.length>0}
-function geometricallyValid(){const d=number("partD"),l=number("partL"),w=number("wall");return [d,l,w].every(x=>Number.isFinite(x)&&x>0)&&w*2<d&&$("zero").value==="front"&&(!stepInfo||($("stepSideConfirmed").checked&&!!stepOrientation))}
+function geometricallyValid(){const d=number("partD"),l=number("partL"),w=number("wall");return [d,l,w].every(x=>Number.isFinite(x)&&x>0)&&w*2<d&&$("zero").value==="front"&&(!stepInfo||($("stepSideConfirmed").checked&&!!stepOrientation))&&(!pdfAnalysis||!stepInfo||!analysisConflicts.length||!!$("conflictsReviewed")?.checked)}
 function stockValid(){const values=["qty","rawD","rawL","rawKg","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin"].map(number);return values.every(Number.isFinite)&&values.every(x=>x>=0)&&Number.isInteger(number("qty"))&&number("qty")>0&&number("rawD")>=number("partD")&&number("rawL")>=number("partL")&&number("rawKg")>0&&number("scrap")<100&&number("margin")<100&&/^[0-9]{1,4}$/.test($("program").value)}
 function completed(i){
 if(i===0)return hasDrawing();
@@ -256,7 +256,7 @@ resetDownstream(1);
 ["dimensionsVerified","operationsVerified","stockVerified"].forEach(id=>$(id).addEventListener("change",refreshSteps));
 ["rawD","rawL","rawKg","qty","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin","machine"].forEach(id=>$(id).addEventListener("input",()=>{$("stockVerified").checked=false;refreshSteps();calculate()}));
 
-let drawingAnalysis=null,analysisBusy=false,stepInfo=null,stepOrientation=null,stepAnalytic=null,stepExact=null;
+let drawingAnalysis=null,pdfAnalysis=null,stepAnalysis=null,analysisConflicts=[],analysisBusy=false,stepInfo=null,stepOrientation=null,stepAnalytic=null,stepExact=null;
 const fieldMap={outerDiameter:"partD",length:"partL",wallThickness:"wall"};
 const fieldNames={outerDiameter:"Buitendiameter",length:"Productlengte",wallThickness:"Wanddikte",innerDiameter:"Binnendiameter",boreDepth:"Kamerdiepte"};
 function readFileAsBase64(file){
@@ -291,6 +291,40 @@ $("dimensionsIntro").textContent="AI-maten zijn voorgesteld, niet goedgekeurd. E
 $("operationsIntro").textContent="AI heeft op basis van de tekening bewerkingen voorgesteld. Controleer of elke stap daadwerkelijk nodig is en of de volgorde klopt.";
 }
 
+function compareSources(){
+ analysisConflicts=[];
+ const d=pdfAnalysis?.dimensions;
+ if(!stepInfo||!stepOrientation||!d)return;
+ for(const [key,shapeValue,label] of [
+  ["outerDiameter",stepOrientation.radialEnvelopeDiameterMm,"Buitendiameter"],
+  ["length",stepOrientation.lengthMm,"Lengte"]
+ ]){
+  const src=d[key],p=src?.value;
+  if(typeof p!=="number"||!Number.isFinite(p))continue;
+  // The B-Rep/mesh-derived envelope is not always the nominal annotated
+  // diameter. Differences must be resolved by a human, never auto-merged.
+  const tolerance=Math.max(.1,Math.abs(p)*.001);
+  if(Math.abs(p-shapeValue)>tolerance)analysisConflicts.push(
+    label+": PDF vermeldt "+p+" mm; STEP-omhullende is "+shapeValue+
+    " mm. Verschil "+Math.abs(p-shapeValue).toFixed(3)+
+    " mm. Controleer annotatie, chamfer/fillet en modeloriëntatie."
+  );
+ }
+}
+function showComparison(){
+ compareSources();
+ let box=$("drawingComparison");
+ if(!box){box=document.createElement("div");box.id="drawingComparison";box.className="panel";box.style.background="#fff6df";$("analysisEvidence").after(box)}
+ box.replaceChildren();
+ box.hidden=!pdfAnalysis||!stepInfo;
+ if(box.hidden)return;
+ const title=document.createElement("strong");title.textContent="Kruiscontrole PDF ↔ STEP";box.append(title);
+ const list=document.createElement("ul");
+ const msgs=analysisConflicts.length?analysisConflicts:["Buitenomhullende en aangegeven hoofdafmetingen lijken overeen te komen binnen de ingestelde signaleringsgrens. Dit is geen bewijs dat alle maten kloppen."];
+ for(const msg of msgs){const li=document.createElement("li");li.textContent=msg;list.append(li)}box.append(list);
+ const info=document.createElement("p");info.textContent="Bij tegenstrijdigheden: kies en bevestig zelf welke bron leidend is. De software geeft geen automatische keuze.";box.append(info);
+ const c=document.createElement("label");c.className="checkrow";const check=document.createElement("input");check.type="checkbox";check.id="conflictsReviewed";check.addEventListener("change",refreshSteps);c.append(check,document.createTextNode(" Ik heb de verschillen tussen STEP en tekening beoordeeld."));box.append(c);
+}
 function asCadDimension(value,source,confidence=0.88){
 return {value,unit:"mm",source,origin:value==null?"unknown":"derived",confidence:value==null?0:confidence};
 }
@@ -329,7 +363,7 @@ drawingAnalysis={
  ]
 };
 for(const o of operationList)o.checked=false;
-drawOperations();buildBlocks();displayAnalysis(drawingAnalysis);
+stepAnalysis=drawingAnalysis;drawOperations();buildBlocks();displayAnalysis(drawingAnalysis);showComparison();
 $("dimensionsVerified").checked=false;$("operationsVerified").checked=false;$("stockVerified").checked=false;
 $("analysisStatus").textContent="STEP gelezen: geometrieomhulling gemeten. Kies de bewerkingszijde, controleer alle maten en voeg bewerkingen zelf toe.";
 refreshSteps();calculate();
@@ -393,7 +427,7 @@ $("analyzeStep").addEventListener("click",async()=>{
 });
 
 function resetAnalysis(){
-stepAnalytic=null;stepExact=null;$("stepFeatures").replaceChildren();stepInfo=null;stepOrientation=null;$("stepOrientation").hidden=true;$("stepSideConfirmed").checked=false;
+stepAnalytic=null;stepExact=null;pdfAnalysis=null;stepAnalysis=null;analysisConflicts=[];$("drawingComparison")?.remove();$("stepFeatures").replaceChildren();stepInfo=null;stepOrientation=null;$("stepOrientation").hidden=true;$("stepSideConfirmed").checked=false;
 drawingAnalysis=null;$("analysisEvidence").hidden=true;$("analysisEvidence").replaceChildren();
 $("analysisStatus").textContent="Bestand gewijzigd. Voer de AI-analyse opnieuw uit.";
 $("dimensionsIntro").textContent="Gebruik eerst Herken maten met AI in stap 1. Controleer elke maat tegen de originele tekening.";
@@ -416,14 +450,14 @@ try{
 const authorization=await token(),base64=await readFileAsBase64(file);
 const res=await fetch("/api/cnc-drawing-analysis",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+authorization},body:JSON.stringify({file:{mediaType:mime,base64}})});
 const output=await res.json();if(!res.ok)throw new Error(output.error||"Analyse niet gelukt.");
-drawingAnalysis=output;
+pdfAnalysis=output;drawingAnalysis=output;
 for(const [name,id] of Object.entries(fieldMap)){
 const value=output.dimensions?.[name]?.value;$(id).value=typeof value==="number"&&value>0?String(value):"";
 }
 $("zero").value=output.referenceFace==="front"?"front":"";
 const suggested=new Set(output.proposedOperations||[]);
 for(const operation of operationList)operation.checked=suggested.has(operation.id);
-drawOperations();buildBlocks();displayAnalysis(output);
+drawOperations();buildBlocks();displayAnalysis(output);showComparison();
 $("dimensionsVerified").checked=false;$("operationsVerified").checked=false;$("stockVerified").checked=false;
 $("analysisStatus").textContent="AI-analyse gereed · "+Math.round((output.overallConfidence||0)*100)+"% algemene zekerheid. Controleer iedere maat bij stap 2.";
 refreshSteps();calculate();
