@@ -24,7 +24,7 @@ test('downstream approval gated and NC export disabled',()=>{
  assert.match(page,/resetDownstream\(1\)/);
 });
 test('step and DXF are not quietly treated as interpreted geometry',()=>{
- assert.ok(page.includes('STEP en DXF worden nog niet automatisch uitgelezen'));
+ assert.ok(page.includes('STEP wordt lokaal als driehoeksgeometrie doorgemeten'));
  assert.ok(api.includes('STEP en DXF vereisen een aparte geometrielezer'));
 });
 test('wizard JS is syntactically valid',()=>{
