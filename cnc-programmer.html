@@ -342,11 +342,23 @@ $("stepSideText").textContent="Bewerken vanaf "+(face==="max"?"+":"−")+axis+" 
 $("stepSideArrow").setAttribute("transform",face==="max"?"":"translate(358,0) scale(-1,1)");
 $("stepSideConfirmed").checked=false;
 $("zero").value="front";
-$("partD").value=String(current.radialEnvelopeDiameterMm);
+// Prefer a verified analytic cylinder candidate only when it is aligned with
+// the selected axis and agrees with the mesh envelope. It is still subject to
+// human confirmation and is NOT a postprocessor-ready diameter.
+const axisIndex={X:0,Y:1,Z:2}[axis];
+const exactCylinderCandidates=(stepExact?.features||[]).filter(f=>{
+ if(f.kind!=="face"||f.geometryType!=="cylinder"||!Number.isFinite(f.radiusMm)||!Array.isArray(f.axis))return false;
+ const length=Math.hypot(...f.axis);
+ return length>0&&Math.abs(f.axis[axisIndex]/length)>0.999;
+}).map(f=>2*f.radiusMm);
+const analyticDiameter=exactCylinderCandidates.length?Math.max(...exactCylinderCandidates):null;
+const agrees=analyticDiameter!=null&&Math.abs(analyticDiameter-current.radialEnvelopeDiameterMm)<=Math.max(.5,current.radialEnvelopeDiameterMm*.005);
+const proposedDiameter=agrees?analyticDiameter:current.radialEnvelopeDiameterMm;
+$("partD").value=String(proposedDiameter);
 $("partL").value=String(current.lengthMm);
 $("wall").value="";
 const dim={
- outerDiameter:asCadDimension(current.radialEnvelopeDiameterMm,"STEP-getrianguleerde radiale buitenomhullende vanaf as "+axis+" (geen nominale Ø)",0.78),
+ outerDiameter:asCadDimension(proposedDiameter,agrees?"Exact cilindervlak langs "+axis+"; Ø vergeleken met mesh-omhullende.":"STEP-getrianguleerde radiale buitenomhullende vanaf as "+axis+" (geen nominale Ø)",agrees?0.92:0.78),
  length:asCadDimension(current.lengthMm,"STEP-bounding box langs as "+axis,0.95),
  wallThickness:asCadDimension(null,"Wanddikte niet exact afleidbaar uit mesh"),
  innerDiameter:asCadDimension(null,"Binnencontour vereist aparte B-Rep-analyse"),
@@ -357,7 +369,7 @@ drawingAnalysis={
  proposedOperations:[],overallConfidence:0.65,
  ambiguities:[
  "Bevestig dat "+axis+" de werkelijke draaias is, "+(face==="max"?"de positieve":"de negatieve")+" zijde aan de klauwplaat/bewerking ligt zoals bedoeld.",
- "Radiale omhullende is niet per definitie de nominale buitendiameter.",
+ agrees?"Buitendiameter volgt een exact cilindervlak, maar productfunctie en opspanning zijn niet gecontroleerd.":"Radiale omhullende is niet per definitie de nominale buitendiameter; geen passende exacte cilinder gevonden.",
  "Wanddikte, binnenmaat, opspanning en concentriciteit nog niet gecontroleerd.",
  ...current.warnings
  ]
