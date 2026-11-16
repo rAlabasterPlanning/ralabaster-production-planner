@@ -39,12 +39,12 @@ main.wizard{display:grid;grid-template-columns:1fr;max-width:1050px}
 <h2>Stap 1 · Tekening en/of STEP uploaden</h2>
 <label for="drawing">Technische tekening (PDF / DXF / afbeelding)</label><input id="drawing" type="file" accept=".pdf,.dxf,image/*">
 <label for="stepFile">3D-model (STEP / STP, optioneel)</label><input id="stepFile" type="file" accept=".step,.stp">
-<p class="hint" id="drawingState">Upload minstens één bron. De automatische AI/CAD-uitlezing is nog niet gekoppeld; alle volgende voorbeeldmaten moet je zelf vergelijken met de tekening.</p>
-<div class="warn">Dit prototype leest nog geen echte maten uit bestanden en maakt geen uitvoerbare NC-code. Een bestand selecteren geeft geen analyse of veiligheidsvalidatie.</div>
+<p class="hint" id="drawingState">Upload een PDF of afbeelding om automatisch maten te herkennen. STEP wordt bewaard als referentie, maar nog niet geometrisch geanalyseerd.</p><div class="actions"><button type="button" id="analyzeDrawing" class="primary">Herken maten met AI</button></div><p id="analysisStatus" role="status" class="hint">Nog geen analyse uitgevoerd.</p>
+<div class="warn">PDF en afbeeldingen worden door AI geïnterpreteerd. Lees elke maat na op de originele tekening; afgeleide maten zijn niet gegarandeerd. STEP en DXF worden nog niet automatisch uitgelezen. NC-export blijft geblokkeerd.</div>
 </section>
 <section class="panel wizard-page" data-page="1" hidden>
 <h2>Stap 2 · Geïnterpreteerde maten verifiëren</h2>
-<p class="hint">Onderstaande getallen zijn voorbeeldwaarden en geen herkende maten. Verwijder of corrigeer ze op basis van de tekening. Bevestig expliciet dat je ze hebt gecontroleerd.</p>
+<p class="hint" id="dimensionsIntro">Er staan voorbeeldwaarden in de velden. Gebruik eerst de AI-herkenning in stap 1, en controleer daarna elke maat tegen de originele tekening.</p><div id="analysisEvidence" class="panel" style="background:#f5f8f6;margin:12px 0" hidden></div>
 <div class="grid">
 <div><label for="partD">Product buitendiameter (mm)</label><input id="partD" type="number" min="0" value="170"></div>
 <div><label for="partL">Productlengte (mm)</label><input id="partL" type="number" min="0" value="210"></div>
@@ -58,7 +58,7 @@ main.wizard{display:grid;grid-template-columns:1fr;max-width:1050px}
 <h2>Stap 3 · Gekozen bewerkingen controleren</h2>
 <p>Beoordeel en verander de bewerkingsvolgorde. Dit zijn <b>voorbeeldsuggesties</b>, geen AI-selectie uit de tekening.</p>
 <div id="operations"></div>
-<p class="hint">Je kunt bewerkingen aan- of uitzetten en met ↑ / ↓ verplaatsen. Iedere wijziging maakt bestaande codebeoordelingen ongeldig.</p>
+<p class="hint" id="operationsIntro">Je kunt bewerkingen aan- of uitzetten en met ↑ / ↓ verplaatsen. Eventuele AI-voorstellen blijven onbevestigd tot je ze controleert. Iedere wijziging maakt bestaande codebeoordelingen ongeldig.</p>
 <label class="checkrow"><input id="operationsVerified" type="checkbox"> Bewerkingen, volgorde en gereedschapskeuze gecontroleerd.</label>
 </section>
 <section class="panel wizard-page" data-page="3" hidden>
@@ -101,6 +101,7 @@ main.wizard{display:grid;grid-template-columns:1fr;max-width:1050px}
 <div class="actions"><button id="wizardPrev">← Vorige stap</button><button id="save">Concept JSON opslaan</button><button id="wizardNext" class="primary">Volgende stap →</button></div>
 </footer>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="assets/config.js"></script>
 <script>
 "use strict";
 let codeBlocks=[
@@ -158,7 +159,7 @@ $("stats").replaceChildren();stats.forEach(([label,value])=>{const div=document.
 validate();
 }
 function save(){
-reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"concept-not-machine-approved",machine:$("machine").value,programNumber:$("program").value,inputs:inputs(),drawingName:$("drawing").files[0]?.name||null,stepName:$("stepFile").files[0]?.name||null,wizard:{step:wizardStep,dimensionsVerified:$("dimensionsVerified").checked,operationsVerified:$("operationsVerified").checked,stockVerified:$("stockVerified").checked,operations:operationList.map(x=>({...x}))},blocks:codeBlocks.map((b,i)=>({...b,review:reviews[i]})),exportAllowed:false};
+reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"concept-not-machine-approved",machine:$("machine").value,programNumber:$("program").value,inputs:inputs(),drawingName:$("drawing").files[0]?.name||null,drawingAnalysis:drawingAnalysis,stepName:$("stepFile").files[0]?.name||null,wizard:{step:wizardStep,dimensionsVerified:$("dimensionsVerified").checked,operationsVerified:$("operationsVerified").checked,stockVerified:$("stockVerified").checked,operations:operationList.map(x=>({...x}))},blocks:codeBlocks.map((b,i)=>({...b,review:reviews[i]})),exportAllowed:false};
 const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ralabaster-cnc-concept-"+Date.now()+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
 }
 
@@ -209,8 +210,8 @@ function geometricallyValid(){const d=number("partD"),l=number("partL"),w=number
 function stockValid(){const values=["qty","rawD","rawL","rawKg","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin"].map(number);return values.every(Number.isFinite)&&values.every(x=>x>=0)&&Number.isInteger(number("qty"))&&number("qty")>0&&number("rawD")>=number("partD")&&number("rawL")>=number("partL")&&number("rawKg")>0&&number("scrap")<100&&number("margin")<100&&/^[0-9]{1,4}$/.test($("program").value)}
 function completed(i){
 if(i===0)return hasDrawing();
-if(i===1)return geometricallyValid()&&$("dimensionsVerified").checked;
-if(i===2)return operationList.some(o=>o.checked)&&$("operationsVerified").checked;
+if(i===1)return !!drawingAnalysis&&geometricallyValid()&&$("dimensionsVerified").checked;
+if(i===2)return !!drawingAnalysis&&operationList.some(o=>o.checked)&&$("operationsVerified").checked;
 if(i===3)return stockValid()&&$("stockVerified").checked;
 return reviews.length===codeBlocks.length&&reviews.every(r=>r.approved);
 }
@@ -237,5 +238,77 @@ resetDownstream(1);
 ["partD","partL","wall","zero"].forEach(id=>$(id).addEventListener("input",()=>{resetDownstream(1);refreshSteps()}));
 ["dimensionsVerified","operationsVerified","stockVerified"].forEach(id=>$(id).addEventListener("change",refreshSteps));
 ["rawD","rawL","rawKg","qty","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin","machine"].forEach(id=>$(id).addEventListener("input",()=>{$("stockVerified").checked=false;refreshSteps();calculate()}));
+
+let drawingAnalysis=null,analysisBusy=false;
+const fieldMap={outerDiameter:"partD",length:"partL",wallThickness:"wall"};
+const fieldNames={outerDiameter:"Buitendiameter",length:"Productlengte",wallThickness:"Wanddikte",innerDiameter:"Binnendiameter",boreDepth:"Kamerdiepte"};
+function readFileAsBase64(file){
+return new Promise((resolve,reject)=>{
+const reader=new FileReader();
+reader.onerror=()=>reject(new Error("Bestand kon niet worden gelezen."));
+reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");
+reader.readAsDataURL(file);
+});
+}
+async function token(){
+if(!window.supabase?.createClient||!window.RALAB_CONFIG?.online)throw new Error("Aanmeldinstellingen ontbreken.");
+const c=window.supabase.createClient(window.RALAB_CONFIG.online.supabaseUrl,window.RALAB_CONFIG.online.supabasePublishableKey,{auth:{persistSession:true,autoRefreshToken:true}});
+const {data,error}=await c.auth.getSession();
+if(error||!data?.session?.access_token)throw new Error("Log eerst in op rAlabaster Planner en open daarna opnieuw deze pagina.");
+return data.session.access_token;
+}
+function displayAnalysis(data){
+const box=$("analysisEvidence");box.replaceChildren();box.hidden=false;
+const title=document.createElement("strong");title.textContent="Herkende maten · controleer de bron";box.append(title);
+for(const [name,val] of Object.entries(data.dimensions||{})){
+const line=document.createElement("p");const strong=document.createElement("strong");strong.textContent=(fieldNames[name]||name)+": ";
+const value=document.createElement("span");value.textContent=val.value==null?"onbekend":val.value+" mm";
+const evidence=document.createElement("small");evidence.textContent=" · "+(val.origin==="explicit"?"Afgelezen":val.origin==="derived"?"Berekend":"Onzeker")+" · "+(val.source||"Geen bron")+" · "+Math.round((val.confidence||0)*100)+"%";
+line.append(strong,value,evidence);box.append(line);
+}
+if(data.ambiguities?.length){
+const label=document.createElement("strong");label.textContent="Onzekerheden en ontbrekende gegevens";box.append(label);
+const ul=document.createElement("ul");for(const item of data.ambiguities){const li=document.createElement("li");li.textContent=item;ul.append(li)}box.append(ul);
+}
+$("dimensionsIntro").textContent="AI-maten zijn voorgesteld, niet goedgekeurd. Een leeg veld betekent dat de maat niet betrouwbaar is herkend; vul deze alleen vanuit de echte tekening in.";
+$("operationsIntro").textContent="AI heeft op basis van de tekening bewerkingen voorgesteld. Controleer of elke stap daadwerkelijk nodig is en of de volgorde klopt.";
+}
+function resetAnalysis(){
+drawingAnalysis=null;$("analysisEvidence").hidden=true;$("analysisEvidence").replaceChildren();
+$("analysisStatus").textContent="Bestand gewijzigd. Voer de AI-analyse opnieuw uit.";
+$("dimensionsIntro").textContent="Gebruik eerst Herken maten met AI in stap 1. Controleer elke maat tegen de originele tekening.";
+["partD","partL","wall"].forEach(id=>$(id).value="");
+$("zero").value="";
+$("dimensionsVerified").checked=false;$("operationsVerified").checked=false;$("stockVerified").checked=false;
+reviews=codeBlocks.map(()=>({approved:false,note:""}));selected=0;draw();refreshSteps();
+}
+$("drawing").addEventListener("change",resetAnalysis);
+$("stepFile").addEventListener("change",resetAnalysis);
+$("analyzeDrawing").addEventListener("click",async()=>{
+if(analysisBusy)return;
+const file=$("drawing").files[0];
+if(!file){$("analysisStatus").textContent="Kies eerst een PDF of afbeelding. Voor STEP is een aparte geometrielezer nodig.";return}
+const mime=file.type||({pdf:"application/pdf",png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp"}[file.name.split(".").pop().toLowerCase()]||"");
+if(!["application/pdf","image/png","image/jpeg","image/webp"].includes(mime)){$("analysisStatus").textContent="PDF, PNG, JPEG of WebP nodig. DXF en STEP zijn nog niet ondersteund door deze analyse.";return}
+if(file.size>7_000_000){$("analysisStatus").textContent="Bestand groter dan 7 MB. Maak een kleinere PDF of afbeelding.";return}
+analysisBusy=true;$("analyzeDrawing").disabled=true;$("analysisStatus").textContent="AI leest maatlijnen en doorsneden. Geen gegevens worden automatisch goedgekeurd.";
+try{
+const authorization=await token(),base64=await readFileAsBase64(file);
+const res=await fetch("/api/cnc-drawing-analysis",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+authorization},body:JSON.stringify({file:{mediaType:mime,base64}})});
+const output=await res.json();if(!res.ok)throw new Error(output.error||"Analyse niet gelukt.");
+drawingAnalysis=output;
+for(const [name,id] of Object.entries(fieldMap)){
+const value=output.dimensions?.[name]?.value;$(id).value=typeof value==="number"&&value>0?String(value):"";
+}
+$("zero").value=output.referenceFace==="front"?"front":"";
+const suggested=new Set(output.proposedOperations||[]);
+for(const operation of operationList)operation.checked=suggested.has(operation.id);
+drawOperations();buildBlocks();displayAnalysis(output);
+$("dimensionsVerified").checked=false;$("operationsVerified").checked=false;$("stockVerified").checked=false;
+$("analysisStatus").textContent="AI-analyse gereed · "+Math.round((output.overallConfidence||0)*100)+"% algemene zekerheid. Controleer iedere maat bij stap 2.";
+refreshSteps();calculate();
+}catch(error){$("analysisStatus").textContent="Analyse mislukt: "+(error.message||"Onbekende fout");}
+finally{analysisBusy=false;$("analyzeDrawing").disabled=false}
+});
 drawOperations();buildBlocks();refreshSteps();
 </script></body></html>
