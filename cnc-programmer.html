@@ -225,7 +225,7 @@ $("wizardMessage").textContent="Stap "+(wizardStep+1)+" van 5 · "+wizardNames[w
 function showStep(i,allowBack=true){
 if(i<0||i>4)return;
 if(i>wizardStep){for(let k=0;k<i;k++)if(!completed(k)){$("wizardMessage").textContent="Controleer eerst stap "+(k+1)+": "+wizardNames[k];return}}
-wizardStep=i;if(wizardStep===4){buildBlocks();calculate()}refreshSteps();window.scrollTo({top:0,behavior:"smooth"});
+wizardStep=i;if(wizardStep===4){calculate()}refreshSteps();window.scrollTo({top:0,behavior:"smooth"});
 }
 $("wizardPrev").addEventListener("click",()=>showStep(wizardStep-1));
 $("wizardNext").addEventListener("click",()=>showStep(wizardStep+1));
