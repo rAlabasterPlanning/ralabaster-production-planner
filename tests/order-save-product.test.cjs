@@ -20,3 +20,11 @@ test('dezelfde order maakt geen dubbele productversie',async t=>{
  w.RALAB_ORDER_PRODUCT.save('same-order');w.RALAB_ORDER_PRODUCT.save('same-order');
  assert.equal(f.state().productTemplates.length,1);
 });
+
+test('unit times survive legacy order totals and current per-unit metadata',async t=>{
+ const f=await fullApp(t),{w}=f;
+ vm.runInContext(`state.orders.push({id:'scale',product:'Kraal',qty:135,costing:{ops:[{id:'cut',name:'Mori',mode:'unit',minutes:8},{name:'Instellen',mode:'batch',minutes:30}]}});state.tasks.push({id:'a',orderId:'scale',seq:1,name:'Mori',estimate:1080,type:'internal'},{id:'b',orderId:'scale',seq:2,name:'Instellen',estimate:30,type:'internal'},{id:'c',orderId:'scale',seq:3,name:'Mori',estimate:1080,orderCalcMinutes:8,calcMode:'unit',type:'internal'});`,f.ctx);
+ const ops=w.RALAB_ORDER_PRODUCT.build('scale').ops;
+ assert.equal(ops[0].mode,'unit');assert.equal(ops[0].minutes,8);assert.equal(ops[1].mode,'batch');assert.equal(ops[1].minutes,30);assert.equal(ops[2].minutes,8);
+ for(const qty of [1,135,200])assert.equal(ops.reduce((n,o)=>n+o.minutes*(o.mode==='unit'?qty:1),0),16*qty+30);
+});
