@@ -11,7 +11,7 @@ test('submitted web orders appear in the same inbox, badge and order filter with
  d.querySelector('[data-inbox-filter="quote"]').click();assert.equal(d.querySelectorAll('[data-inbox-open]').length,0);
  d.querySelector('[data-inbox-filter="order"]').click();assert.equal(d.querySelectorAll('[data-inbox-open]').length,2);
  d.querySelector('[data-inbox-open="web_order:'+web.id+'"]').click();assert.ok(d.querySelector('[data-inbox-web-order]'));assert.equal(d.querySelector('[data-inbox-form]'),null);assert.match(d.querySelector('[data-inbox-web-order]').textContent,/4.600,00/);assert.match(d.querySelector('[data-inbox-web-order]').textContent,/2026-11-17/);
- let opened;w.RALAB_PORTAL_ADMIN.openOrder=async id=>{opened=id;};d.querySelector('[data-inbox-process-web]').click();await f.wait(30);assert.equal(opened,web.id);assert.equal(writes.length,0);assert.equal(f.state().quotes.filter(q=>q.sourceRequest==='web_order:'+web.id).length,0);
+ let opened;w.RALAB_PORTAL_ADMIN.acceptOrder=async id=>{opened=id;};d.querySelector('[data-inbox-process-web]').click();await f.wait(30);assert.equal(opened,web.id);assert.equal(writes.length,0);assert.equal(f.state().quotes.filter(q=>q.sourceRequest==='web_order:'+web.id).length,0);
  d.querySelector('[data-inbox-filter="all"]').click();assert.equal(d.querySelectorAll('[data-inbox-open]').length,2);
 });
 
@@ -83,4 +83,15 @@ test('request links find the original quotation without a review link and open i
  let quote,order;w.RALAB_DOCS.openQuote=no=>quote=no;w.RALAB_ERP.openOrder=id=>order=id;
  d.querySelector('[data-inbox-quote]').click();assert.equal(quote,'AAN-source-req');d.querySelector('[data-inbox-order]').click();assert.equal(order,'existing-production');
  assert.equal(f.state().orders.filter(o=>o.id==='existing-production').length,1);
+});
+
+test('direct web-order acceptance creates production once and reopens that same order on repeat',async t=>{
+ const f=await fullApp(t),w=f.w;
+ const web={id:'direct-web',order_no:'WEB-DIRECT',customer_id:'direct-customer',status:'submitted',internal_order_ids:[],notes:'Graag bronzen afdekplaat',customer_reference:'PO-DIRECT',requested_delivery_date:'2026-12-01',portal_order_lines:[{line_no:1,description:'Ringen set',quantity:1,unit_price:4600,line_total:4600}]};
+ vm.runInContext("state.customers.push({id:'direct-customer',name:'NILA'});",f.ctx);
+ let opened,updates=0;w.RALAB_ERP.openOrder=async id=>{opened=id};w.alert=()=>{};
+ w.RALAB_ADMIN_AUTH={client:{from(table){assert.equal(table,'portal_orders');const q={select(){return q},eq(){return q},maybeSingle:async()=>({data:structuredClone(web)}),update(value){updates++;Object.assign(web,value);return {eq:async()=>({error:null})}}};return q}}};
+ await w.RALAB_PORTAL_ADMIN.acceptOrder(web.id,{disabled:false});
+ const created=f.state().orders.filter(o=>o.portalOrderId===web.id);assert.equal(created.length,1);assert.equal(created[0].customerName,'NILA');assert.match(created[0].note,/bronzen afdekplaat/);assert.equal(created[0].needsCalculation,true);assert.equal(opened,created[0].id);assert.equal(updates,1);
+ await w.RALAB_PORTAL_ADMIN.acceptOrder(web.id,{disabled:false});assert.equal(f.state().orders.filter(o=>o.portalOrderId===web.id).length,1);assert.equal(opened,created[0].id);assert.equal(updates,1);
 });
