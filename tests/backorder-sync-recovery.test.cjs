@@ -25,3 +25,13 @@ test('latest cached iPad cart survives startup and beats an older cloud cart',()
  const result=c.window.testApi.mergeOperationalRows([server],[ipad],new Map(),[[['projectCartNumber'],'projectCartUpdatedAt']]);assert.equal(result[0].projectCartNumber,'24');
  const pc=c.window.testApi.mergeOperationalRows([ipad],[server],new Map(),[[['projectCartNumber'],'projectCartUpdatedAt']]);assert.equal(pc[0].projectCartNumber,'24');
 });
+for(const archived of [false,true])test('recovery handles '+(archived?'an archived order with a stale larger quantity':'a string-valued closed flag'),async()=>{
+ const server={id:'o',qty:5,deliveredQty:archived?5:2,active:!archived,status:archived?'completed':'confirmed',completedQty:5};
+ const local={...server,qty:10,active:!archived,status:archived?'completed':'confirmed',closed:'true',note:'iPad details'};let writes=0,saved;
+ const c=fixture({from(){return{upsert(rows){writes++;saved=structuredClone(rows);return{select:async()=>writes===1?{error:{message:'Er staat nog een backorder open'}}:{data:rows.map(r=>({data:r.data}))}}},select(){return this},eq(){return this},in:async()=>({data:[{order_id:'o',data:server}]})}}});
+ await c.window.testApi.upsertChunks('planner_orders_v2',[{order_id:'o',active:!archived,status:local.status,data:local}],true);assert.equal(writes,2);assert.equal(saved[0].data.pendingBackorderCloseout.attempted.note,'iPad details');assert.equal(saved[0].data.pendingBackorderCloseout.attempted.qty,10);assert.equal(saved[0].data.qty,archived?5:10);assert.equal(saved[0].active,!archived);
+});
+test('remaining failed batch is split and names the exact conflicting order while saving other rows',async()=>{
+ const accepted=[];const c=fixture({from(){return{upsert(rows){return{select:async()=>{if(rows.some(r=>r.order_id==='bad'))return{error:{message:'Er staat nog een backorder open'}};accepted.push(...rows.map(r=>r.order_id));return{data:rows.map(r=>({data:r.data}))}}}},select(){return this},eq(){return this},in:async()=>({data:[]})}}});
+ await assert.rejects(c.window.testApi.upsertChunks('planner_orders_v2',[{order_id:'good',order_no:'GOOD',data:{id:'good'}},{order_id:'bad',order_no:'BAD-123',data:{id:'bad'}}],true),/BAD-123/);assert.deepEqual(accepted,['good']);
+});

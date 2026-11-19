@@ -226,7 +226,7 @@
   }
   function acceptSavedDeadlines(savedRows,snapshot){
     const snapById=new Map((snapshot.orders||[]).map((o,i)=>[o.id,i])),liveById=new Map((state.orders||[]).map(o=>[o.id,o]));
-    for(const row of savedRows||[]){const server=row?.data;if(!server?.id)continue;const i=snapById.get(server.id),attempted=i!==undefined?snapshot.orders[i]:null;if(i!==undefined)snapshot.orders[i]=structuredClone(server);const live=liveById.get(server.id);if(!live)continue;const base=lastOrderSnapshots.get(server.id);if(base&&server.pendingBackorderCloseout)for(const k of new Set([...Object.keys(base),...Object.keys(server)])){if(hash(live[k]??null)===hash(base[k]??null)){if(Object.hasOwn(server,k))live[k]=structuredClone(server[k]);else delete live[k]}}if(server.pendingBackorderCloseout&&String(live.orderCompletionUpdatedAt||'')<=String(server.pendingBackorderCloseout.at||''))for(const k of ['pendingBackorderCloseout','active','status','closed','completedAt','completedQty','orderCompletionUpdatedAt','projectCartNumber','projectCartUpdatedAt','deliveries','deliveredQty','backorderQty','deliveryUpdatedAt']){if(Object.hasOwn(server,k))live[k]=structuredClone(server[k]);else delete live[k]}for(const [fields,revision] of [[DEADLINE_FIELDS,'deadlineUpdatedAt'],[ORDER_COMPLETION_FIELDS,'orderCompletionUpdatedAt']])if(String(live[revision]||'')<=String(server[revision]||'')||(attempted&&[...fields,revision].every(k=>hash(live[k]??null)===hash(attempted[k]??null))))for(const k of [...fields,revision]){if(Object.prototype.hasOwnProperty.call(server,k))live[k]=structuredClone(server[k]);else delete live[k]}}
+    for(const row of savedRows||[]){const server=row?.data;if(!server?.id)continue;const i=snapById.get(server.id),attempted=i!==undefined?snapshot.orders[i]:null;if(i!==undefined)snapshot.orders[i]=structuredClone(server);const live=liveById.get(server.id);if(!live)continue;const base=lastOrderSnapshots.get(server.id);if(base&&server.pendingBackorderCloseout)for(const k of new Set([...Object.keys(base),...Object.keys(server)])){if(hash(live[k]??null)===hash(base[k]??null)){if(Object.hasOwn(server,k))live[k]=structuredClone(server[k]);else delete live[k]}}if(server.pendingBackorderCloseout&&String(live.orderCompletionUpdatedAt||'')<=String(server.pendingBackorderCloseout.at||''))for(const k of ['pendingBackorderCloseout','active','status','closed','completedAt','qty','completedQty','orderCompletionUpdatedAt','projectCartNumber','projectCartUpdatedAt','deliveries','deliveredQty','backorderQty','deliveryUpdatedAt']){if(Object.hasOwn(server,k))live[k]=structuredClone(server[k]);else delete live[k]}for(const [fields,revision] of [[DEADLINE_FIELDS,'deadlineUpdatedAt'],[ORDER_COMPLETION_FIELDS,'orderCompletionUpdatedAt']])if(String(live[revision]||'')<=String(server[revision]||'')||(attempted&&[...fields,revision].every(k=>hash(live[k]??null)===hash(attempted[k]??null))))for(const k of [...fields,revision]){if(Object.prototype.hasOwnProperty.call(server,k))live[k]=structuredClone(server[k]);else delete live[k]}}
   }
   function acceptSavedTaskProgress(savedRows,snapshot){
     const snapById=new Map((snapshot.tasks||[]).map((t,i)=>[t.id,i])),liveById=new Map((state.tasks||[]).map(t=>[t.id,t]));
@@ -251,15 +251,15 @@
     for(const row of rows){
       const saved=data?.find(r=>r.order_id===row.order_id)?.data;if(!saved)continue;
       const delivered=Number(saved.deliveredQty)||0,qty=Number(row.data.qty)||0;
-      if(!(delivered>0&&delivered<qty&&(!row.active||row.status==='completed'||row.data.closed===true)))continue;
+      if(!(delivered>0&&delivered<qty&&(!row.active||row.status==='completed'||String(row.data.closed)==='true')))continue;
       const before=lastOrderSnapshots.get(row.data.id);if(before)for(const k of new Set([...Object.keys(before),...Object.keys(saved)])){if(!ORDER_COMPLETION_FIELDS.includes(k)&&hash(row.data[k]??null)===hash(before[k]??null)&&hash(saved[k]??null)!==hash(before[k]??null)){if(Object.hasOwn(saved,k))row.data[k]=structuredClone(saved[k]);else delete row.data[k]}}
-      row.data.pendingBackorderCloseout={at:new Date().toISOString(),reason:'Afronden geblokkeerd: open backorder',attempted:Object.fromEntries(ORDER_COMPLETION_FIELDS.filter(k=>Object.hasOwn(row.data,k)).map(k=>[k,structuredClone(row.data[k])]))};
+      row.data.pendingBackorderCloseout={at:new Date().toISOString(),reason:'Afronden geblokkeerd: open backorder',attempted:structuredClone(row.data)};
       const completedQty=Math.max(Number(row.data.completedQty)||0,Number(saved.completedQty)||0,delivered),completionRevision=row.data.orderCompletionUpdatedAt;
       if(String(saved.projectCartUpdatedAt||'')>String(row.data.projectCartUpdatedAt||'')){row.data.projectCartNumber=saved.projectCartNumber;row.data.projectCartUpdatedAt=saved.projectCartUpdatedAt;}
       for(const k of ['active','status','closed','completedAt','completedAtDT','orderCompletionUpdatedAt','deliveries','deliveredQty','backorderQty','deliveryUpdatedAt','overdeliveredQty','billableQty','billableRevenue','overdeliveryAmount']){
         if(Object.hasOwn(saved,k))row.data[k]=structuredClone(saved[k]);else delete row.data[k];
       }
-      row.data.completedQty=completedQty;if(String(completionRevision||'')>String(row.data.orderCompletionUpdatedAt||''))row.data.orderCompletionUpdatedAt=completionRevision;
+      if(saved.active===false||saved.status==='completed'||String(saved.closed)==='true'){row.data.qty=saved.qty;row.data.completedQty=saved.completedQty;}else row.data.completedQty=completedQty;if(String(completionRevision||'')>String(row.data.orderCompletionUpdatedAt||''))row.data.orderCompletionUpdatedAt=completionRevision;
       row.active=saved.active!==false;row.status=saved.status||'confirmed';row.data.active=row.active;row.data.status=row.status;row.completed_at=validDate(row.data.completedAt);repaired++;
     }
     return repaired;
@@ -272,6 +272,7 @@
     for(let i=0;i<clean.length;i+=50){
       const chunk=clean.slice(i,i+50);let request=supabaseClient.from(table).upsert(chunk,{onConflict:conflict}),{data,error}=await(returnRows?request.select('data'):request);
       if(error&&table==='planner_orders_v2'&&/Er staat nog een backorder open/.test(error.message||'')){if(await repairBackorderClosures(chunk)){request=supabaseClient.from(table).upsert(chunk,{onConflict:conflict});({data,error}=await(returnRows?request.select('data'):request));}}
+      if(error&&table==='planner_orders_v2'&&/Er staat nog een backorder open/.test(error.message||'')&&chunk.length>1){const accepted=[],failures=[];for(const row of chunk){try{accepted.push(...await upsertChunks(table,[row],returnRows))}catch(e){failures.push((row.order_no||row.order_id)+': '+e.message)}}if(failures.length)throw new Error('Overige orders zijn verwerkt. Controleer deze order(s): '+failures.join('; '));saved.push(...accepted);continue;}
       if(error){throw new Error(`${table} (${chunk.length} records): ${error.message||'opslaan mislukt'}${error.code?' ['+error.code+']':''}`)}
       if(returnRows&&data)saved.push(...data);
       await yieldUI();
