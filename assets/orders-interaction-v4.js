@@ -89,7 +89,7 @@
     if(nav){
       e.preventDefault();e.stopImmediatePropagation();
       if(nav.id==='refreshAppBtn'){
-        const u=new URL(location.href);u.searchParams.set('_refresh',Date.now().toString());location.replace(u.toString());return;
+        window.RALAB_APP_REFRESH.refresh();return;
       }
       const view=nav.dataset.view;
       if(view)go(view);

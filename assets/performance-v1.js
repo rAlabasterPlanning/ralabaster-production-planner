@@ -318,6 +318,21 @@
     }
   }
 
+  async function persistTaskProgress(tasks){
+    if(!supabaseClient||!cloudUser)throw new Error('Log eerst in bij Supabase.');
+    const snapshot={tasks:structuredClone(tasks)},now=new Date().toISOString(),active=new Map((state.orders||[]).map(o=>[o.id,!o.deleted&&o.active!==false&&o.status!=='completed']));
+    const rows=uniqueRows('planner_tasks_v2',snapshot.tasks.map(t=>taskRow(t,active.get(t.orderId)!==false,now)));
+    if(!rows.length)return true;
+    const controller=new AbortController();let timer;
+    try{
+      const request=supabaseClient.from('planner_tasks_v2').upsert(rows,{onConflict:'workspace_id,task_id'}).select('task_id,data').abortSignal(controller.signal);
+      const result=await Promise.race([request,new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Online bevestiging duurt te lang. Je keuze blijft lokaal bewaard; controleer de opgeslagen stand voordat je opnieuw probeert.'));},12000)})]);
+      if(result.error)throw new Error('Productiestap opslaan mislukt: '+result.error.message);
+      if(!snapshot.tasks.every(t=>result.data?.some(r=>r.task_id===t.id&&r.data?.status===t.status&&r.data?.seq===t.seq&&r.data?.stageCorrection?.at===t.stageCorrection?.at)))throw new Error('De opgeslagen stap wijkt af van je keuze. Open de order opnieuw om de actuele stand te controleren.');
+      acceptSavedTaskProgress(result.data,snapshot);scheduleLocalPersist();return true;
+    }finally{clearTimeout(timer)}
+  }
+
   async function flushCloudSave(timeoutMs=90000){
     if(!supabaseClient||!cloudUser)throw new Error('Log eerst in bij Supabase.');
     if(!normalizedReady){const loaded=await loadNormalizedCloud(true);if(!loaded)throw new Error('De actuele plannergegevens konden niet worden geladen.');}
@@ -382,7 +397,7 @@
     };
     switchView=function(v){currentView=v;document.querySelectorAll('section[id^="view-"]').forEach(x=>x.classList.add('hidden'));document.getElementById('view-'+v)?.classList.remove('hidden');document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));if(pendingViewFrame)cancelAnimationFrame(pendingViewFrame);pendingViewFrame=requestAnimationFrame(()=>{pendingViewFrame=0;render()})};
 
-    window.RALAB_PERFORMANCE={version:VERSION,invalidate,rebuild:()=>{invalidate();ensureIndexes()},getOrder,getOrderTasks,getActiveOrders:activeOrders,loadArchivedOrders,loadOrderBundle,isNormalized:()=>normalizedReady,markDeleted,cancelDeletion,ensureLoaded:()=>normalizedReady?Promise.resolve(true):loadNormalizedCloud(true),flushCloudSave,exactOrderAnalysis:window.RALAB_EXACT_ORDER_ANALYSIS};
+    window.RALAB_PERFORMANCE={version:VERSION,invalidate,rebuild:()=>{invalidate();ensureIndexes()},getOrder,getOrderTasks,getActiveOrders:activeOrders,loadArchivedOrders,loadOrderBundle,isNormalized:()=>normalizedReady,markDeleted,cancelDeletion,ensureLoaded:()=>normalizedReady?Promise.resolve(true):loadNormalizedCloud(true),flushCloudSave,persistTaskProgress,exactOrderAnalysis:window.RALAB_EXACT_ORDER_ANALYSIS};
     installed=true;ensureIndexes();return true;
   }
   let tries=0;const timer=setInterval(()=>{tries++;if(install()||tries>100)clearInterval(timer)},100);
