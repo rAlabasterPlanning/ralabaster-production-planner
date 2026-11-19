@@ -15,7 +15,7 @@ test('weeks sort chronologically regardless of production priority with undated 
 test('both order views render week headings, exclude completed orders and support other sort modes',()=>{
  const roots=Object.fromEntries(['view-orders','view-orderoverview'].map(id=>[id,{dataset:{},innerHTML:'',querySelector:()=>null}]));
  const orders=[{id:'44',orderNo:'C',product:'C',deadline:'2026-10-26',active:true},{id:'43b',orderNo:'B',product:'B',deadline:'2026-10-25',active:true},{id:'43a',orderNo:'A',product:'A',deadline:'2026-10-20',active:true},{id:'none',orderNo:'D',product:'D',active:true},{id:'done',active:false,status:'completed'}];
- const c=vm.createContext({window:{},state:{orders,tasks:[]},document:{getElementById:id=>roots[id],addEventListener:()=>{},createElement:()=>({}),head:{appendChild:()=>{}}},setTimeout:()=>1,requestAnimationFrame:()=>{},console});vm.runInContext(source,c);
+ const c=vm.createContext({window:{RALAB_ALABASTER_WAIT:{displayName:x=>x,options:()=>[]}},state:{orders,tasks:[]},document:{getElementById:id=>roots[id],addEventListener:()=>{},createElement:()=>({}),head:{appendChild:()=>{}}},setTimeout:()=>1,requestAnimationFrame:()=>{},console});vm.runInContext(source,c);
  c.window.RALAB_ERP.renderOrderOverview();let html=roots['view-orderoverview'].innerHTML;
  assert.match(html,/Week 43.*2 orders/s);assert.match(html,/Week 44/);assert.match(html,/Zonder deadline/);assert.ok(html.indexOf('data-overview-order="43a"')<html.indexOf('data-overview-order="44"'));assert.doesNotMatch(html,/data-overview-order="done"/);
  roots['view-orderoverview'].dataset.overviewSort='production';c.window.RALAB_ERP.renderOrderOverview();assert.doesNotMatch(roots['view-orderoverview'].innerHTML,/data-deadline-week=/);
