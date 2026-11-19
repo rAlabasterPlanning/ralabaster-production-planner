@@ -51,3 +51,14 @@ test('opening delivery controls reloads the saved delivery count before allowing
 });
 
  test('cancelled delivery stays visible as history without a downloadable valid packing slip',async t=>{const f=await fixture(t),w=f.w,d=w.document;vm.runInContext("state.orders.find(o=>o.id==='delivery-order').deliveries=[{id:'void',qty:5,voidedAt:'2026-10-26',packing:{orderNo:'ORDER-25-DL02'}}]",f.ctx);w.RALAB_DELIVERIES.open('delivery-order');const b=d.querySelector('[data-delivery-pdf]');assert.equal(b.disabled,true);assert.match(b.textContent,/Geannuleerd/);});
+test('delivery mail draft attaches only the immutable partial-delivery packing slip',async t=>{
+ const f=await fixture(t),w=f.w,d=w.document;
+ vm.runInContext(`Object.assign(state.orders.find(o=>o.id==='delivery-order'),{customerSnapshot:{email:'klant@example.com'},deliveredQty:5,deliveries:[{id:'dl1',qty:5,packing:{id:'delivery-order',orderNo:'ORDER-25-DL01',product:'Ringen',qty:5,completedQty:5,orderedQty:25,backorderQty:20,deliveryDate:'2026-11-19',customerSnapshot:{email:'klant@example.com'}}}]})`,f.ctx);
+ w.URL.createObjectURL=()=> 'blob:test';w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=function(){};
+ w.RALAB_DELIVERIES.open('delivery-order',true,null,true);assert.ok(d.querySelector('[data-delivery-draft="dl1"]'));
+ const before=JSON.stringify(f.state().orders),delivery=f.state().orders.find(o=>o.id==='delivery-order').deliveries[0];
+ const file=w.RALAB_DELIVERIES.draft(delivery),text=await new Promise((resolve,reject)=>{const r=new w.FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsText(file)});
+ assert.equal(file.name,'Pakbon-ORDER-25-DL01.eml');assert.match(text,/X-Unsent: 1/);assert.match(text,/To: klant@example.com/);assert.match(text,/filename="Pakbon-ORDER-25-DL01.pdf"/);
+ const encoded=text.match(/Content-Type: text\/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n([\s\S]*?)\r\n--/)[1];assert.match(Buffer.from(encoded,'base64').toString(),/Aantal: 5/);
+ assert.equal(JSON.stringify(f.state().orders),before);d.querySelector('[data-delivery-email]').value='bad';assert.throws(()=>w.RALAB_DELIVERIES.draft(delivery),/geldig e-mailadres/);assert.throws(()=>w.RALAB_DELIVERIES.draft({...delivery,voidedAt:'now'}),/niet beschikbaar/);
+});
