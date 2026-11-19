@@ -68,6 +68,19 @@ test('grouped order request becomes one quotation containing every product and s
  d.querySelector('[data-view="requests"]').click();await f.wait(80);assert.equal(d.querySelectorAll('[data-inbox-open]').length,1);assert.match(d.getElementById('view-requests').textContent,/PO-456/);
  d.querySelector('[data-inbox-open]').click();assert.match(d.querySelector('details').textContent,/Second description/);assert.ok(d.querySelector('[data-request-attachment]'));
  d.querySelector('[data-inbox-calculate]').click();await f.wait(250);
- const quotes=f.state().quotes.filter(q=>q.sourceRequest);assert.equal(quotes.length,2);assert.equal(quotes[0].quoteNo,quotes[1].quoteNo);assert.equal(quotes[1].name,'Second');assert.equal(quotes[1].qty,3);assert.equal(quotes[1].customerReference,'PO-456');assert.equal(quotes[1].deadline,'2026-12-10');assert.match(quotes[1].project,/200 mm/);
+ const quotes=f.state().quotes.filter(q=>q.sourceRequest);assert.equal(quotes.length,2);assert.equal(quotes[0].quoteNo,quotes[1].quoteNo);assert.equal(quotes[1].name,'Second');assert.equal(quotes[1].qty,3);assert.equal(quotes[1].customerReference,'PO-456');assert.equal(quotes[1].deadline,'2026-12-10');assert.match(quotes[1].project,/200 mm/);assert.equal(quotes[1].customerDescription,'Second description');w.RALAB_DOCS.openQuote(quotes[0].quoteNo);assert.match(d.querySelector('#modalRoot').textContent,/Second description/);w.closeModal?.();
  d.querySelector('[data-view="requests"]').click();await f.wait(60);d.querySelector('[data-inbox-open]').click();d.querySelector('[data-inbox-calculate]').click();await f.wait(250);assert.equal(f.state().quotes.filter(q=>q.sourceRequest).length,2);assert.equal(original.product_lines[1].quantity,3);
+});
+
+test('request links find the original quotation without a review link and open its existing production order',async t=>{
+ const f=await fullApp(t),w=f.w,d=w.document;
+ const original={id:'source-req',customer_id:'customer-a',product_name:'Bakker',description:'Ring 60 en 80 cm\nBronzen afdekplaat',quantity:2,status:'new',created_at:'2026-11-19T10:00:00Z'};
+ const tables={portal_product_requests:[original],acquisition_requests:[],planner_request_reviews:[],portal_customers:[{customer_id:'customer-a',company_name:'NILA'}],portal_orders:[]};
+ w.RALAB_ADMIN_AUTH={client:{from(table){const q={select(){return q},order(){return q},eq(){return q},range:async()=>({data:tables[table]})};return q},rpc:async()=>({data:0})}};
+ vm.runInContext(`state.quotes.push({id:'linked-line',quoteNo:'AAN-source-req',sourceRequest:'portal:source-req',name:'Bakker',qty:2,project:'Ring 60 en 80 cm',customerId:'customer-a'});state.orders.push({id:'existing-production',orderNo:'PROD-1',sourceQuoteLineId:'linked-line',sourceQuoteNo:'AAN-source-req',active:true});`,f.ctx);
+ d.querySelector('[data-view="requests"]').click();await f.wait(80);d.querySelector('[data-inbox-filter="all"]').click();
+ assert.ok(d.querySelector('[data-inbox-quote="portal:source-req"]'));assert.ok(d.querySelector('[data-inbox-order="existing-production"]'));
+ let quote,order;w.RALAB_DOCS.openQuote=no=>quote=no;w.RALAB_ERP.openOrder=id=>order=id;
+ d.querySelector('[data-inbox-quote]').click();assert.equal(quote,'AAN-source-req');d.querySelector('[data-inbox-order]').click();assert.equal(order,'existing-production');
+ assert.equal(f.state().orders.filter(o=>o.id==='existing-production').length,1);
 });
