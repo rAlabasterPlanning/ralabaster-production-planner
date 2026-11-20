@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 function fixture(initial={orders:[],tasks:[],quotes:[]}){
- const values=new Map(),source=fs.readFileSync(require.resolve('../assets/performance-v1.js'),'utf8').replace('  let tries=0;','  window.testApi={seedHashes,compactLocalState,loadNormalizedCloud,saveNormalizedCloud};\n  let tries=0;');
+ const values=new Map(),source=fs.readFileSync(require.resolve('../assets/performance-v1.js'),'utf8').replace('  let tries=0;','  window.testApi={seedHashes,compactLocalState,loadNormalizedCloud,saveNormalizedCloud,setReady:()=>{normalizedReady=true}};\n  let tries=0;');
  const c=vm.createContext({window:{},state:structuredClone(initial),structuredClone,localStorage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},KEY:'cache',WORKSPACE_ID:'ralabaster',setTimeout:()=>1,clearTimeout:()=>{},setInterval:()=>1,clearInterval:()=>{},requestAnimationFrame:f=>f(),console,cloudUser:{id:'admin'},cloudStatus:'online',cloudLoading:false,renderOnlineBadge:()=>{},isExternalTask:()=>false,isDryTask:()=>false});
  vm.runInContext(source,c);return c;
 }
@@ -38,4 +38,11 @@ test('mobile refresh watches normalized order and task timestamps',()=>{
  assert.match(source,/planner_tasks_v2'\)\.select\('updated_at'\).*order\('updated_at'.*limit\(1\)/s);
  assert.match(source,/nextOperational===cloudOperationalStamp/);
  assert.match(source,/select\('order_id,updated_at'\).*eq\('active',false\)/s);
+});
+
+test('ordinary order edits do not rebuild unchanged central metadata',async()=>{
+ const c=fixture({orders:[{id:'o',qty:5,active:true,status:'confirmed',projectCartNumber:'18'}],tasks:[],quotes:[],customers:[{id:'customer',name:'NILA'}],normalizedVersion:2});c.window.testApi.seedHashes();c.window.testApi.setReady();c.state.orders[0].projectCartNumber='24';
+ const metadata={customers:[{id:'customer',name:'NILA'}],quotes:[],orders:[],tasks:[],normalizedVersion:2};let metadataWrites=0,orderWrites=0;
+ c.supabaseClient={from(table){let payload;const q={select(){return q},eq(){return q},upsert(value){payload=value;if(table==='planner_shared_state')metadataWrites++;if(table==='planner_orders_v2')orderWrites++;return q},maybeSingle:async()=>({data:{data:metadata,updated_at:'stamp'}}),then(resolve,reject){return Promise.resolve({data:(payload||[]).map(x=>({data:x.data}))}).then(resolve,reject)}};return q}};
+ await c.window.testApi.saveNormalizedCloud();assert.equal(orderWrites,1);assert.equal(metadataWrites,0);assert.equal(c.window.__RALAB_LAST_SYNC_ERROR,undefined);assert.equal(c.state.orders[0].projectCartNumber,'24');
 });

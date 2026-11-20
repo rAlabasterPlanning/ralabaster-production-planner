@@ -321,7 +321,8 @@
       if(changedOrders.length){const savedOrders=await upsertChunks('planner_orders_v2',changedOrders,true);acceptSavedDeadlines(savedOrders,snapshot)}
       if(changedTasks.length){const savedTasks=await upsertChunks('planner_tasks_v2',changedTasks,true);acceptSavedTaskProgress(savedTasks,snapshot)}
       const meta={...snapshot,quoteWriteBaseline:cloudQuotes,metadataWriteBaseline:cloudMetadata,orders:[],tasks:[],pendingRecordDeletions:{orders:[],tasks:[]},normalizedVersion:2};
-      const {data:savedMeta,error}=await supabaseClient.from('planner_shared_state').upsert({workspace_id:WORKSPACE_ID,data:meta,updated_at:now},{onConflict:'workspace_id'}).select('data,updated_at').maybeSingle();if(error)throw error;
+      const sameMetadata=hash({...metadataOnly(meta),quotes:meta.quotes||[]})===hash({...metadataOnly(latest?.data||{}),quotes:latest?.data?.quotes||[]});
+      let savedMeta=latest;if(!sameMetadata){const result=await supabaseClient.from('planner_shared_state').upsert({workspace_id:WORKSPACE_ID,data:meta,updated_at:now},{onConflict:'workspace_id'}).select('data,updated_at').maybeSingle();if(result.error)throw new Error('Centrale plannergegevens opslaan: '+result.error.message);savedMeta=result.data;}
       if(!savedMeta?.data)throw new Error('Opgeslagen planner-metadata kon niet worden bevestigd');
       for(const [key,value] of Object.entries(savedMeta.data))if(!OPERATIONAL_KEYS.has(key)){snapshot[key]=value;if(hash(state[key])===hash(localMetadata[key]))state[key]=structuredClone(value)}
       cloudMetadata=structuredClone(metadataOnly(savedMeta.data));
