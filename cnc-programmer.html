@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rAlabaster · CNC Programmer (prototype)</title>
+<style>
+:root{font:15px/1.45 system-ui,Arial;color:#182c29;background:#f2f5f3}*{box-sizing:border-box}body{margin:0}
+header{background:#233d38;color:white;padding:17px 24px;display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
+header a{color:white}main{max-width:1320px;margin:22px auto;padding:0 16px;display:grid;grid-template-columns:330px 1fr;gap:16px}
+.panel{background:white;border:1px solid #d5e0dc;border-radius:12px;padding:17px}h1{font-size:22px;margin:0}h2{font-size:17px;margin:0 0 12px}h3{font-size:14px;margin:15px 0 5px}
+label{display:block;font-weight:600;margin:9px 0 4px}input,textarea,select{font:inherit;width:100%;padding:9px;border:1px solid #bac9c3;border-radius:6px;background:white}
+textarea{min-height:120px;resize:vertical}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.hint{color:#586964;font-size:12px}.warn{background:#fff4dc;border:1px solid #dfbd78;padding:11px;border-radius:8px;margin:12px 0}
+button{font:inherit;border:1px solid #a9bbb3;background:white;border-radius:7px;padding:9px 12px;cursor:pointer}button.primary{background:#274c42;color:white;border-color:#274c42}
+button:disabled{opacity:.45;cursor:not-allowed}.actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.block{border:1px solid #d7dedb;border-left:5px solid transparent;border-radius:6px;padding:10px;margin:7px 0;cursor:pointer}
+.block.selected{border-left-color:#527eaf;background:#eef4fd}.block.approved{border-left-color:#34895f}.block pre{font:13px/1.55 Consolas,monospace;white-space:pre-wrap;margin:5px 0 0}
+.pill{font-size:11px;background:#ecf0ef;border-radius:20px;padding:2px 8px}.error{color:#9a2a19}.ok{color:#186a3b}
+#alerts li{margin:4px 0}#stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{background:#f5f8f6;padding:9px;border-radius:8px}.stat strong{display:block;font-size:19px}
+@media(max-width:850px){main{grid-template-columns:1fr}#stats{grid-template-columns:1fr 1fr}}
+
+main.wizard{display:grid;grid-template-columns:1fr;max-width:1050px}
+.steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.steps .step{font-size:12px;text-align:left;white-space:normal;padding:12px;border:1px solid #cad7d0}
+.steps .step.active{background:#284a40;color:#fff}.steps .step.done{border-color:#33885b}
+.wizard-page[hidden]{display:none!important}.wizard-footer{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.checkrow{display:flex;gap:10px;align-items:flex-start;margin:20px 0;padding:12px;background:#eff5f1;border-radius:8px}
+.checkrow input,.opline input{width:auto;flex:none}.opline{display:flex;gap:10px;align-items:center;padding:12px;border:1px solid #d7e2dc;border-radius:8px;margin:7px 0}
+.opline .opname{flex:1}.opline button{padding:4px 9px}
+@media(max-width:850px){.steps{grid-template-columns:1fr 1fr}.wizard-footer{display:block}}
+</style></head><body>
+<header><div><h1>rAlabaster · AI CNC Programmer</h1><small>Ontwikkelprototype · uitsluitend concepten, geen machinevrijgave</small></div><a href="/">← Terug naar Planner</a></header>
+<main class="wizard">
+<nav class="steps panel" aria-label="Stappen CNC-programmer">
+<button class="step active" data-step="0">1. Tekening of STEP uploaden</button>
+<button class="step" data-step="1">2. Geïnterpreteerde maten verifiëren</button>
+<button class="step" data-step="2">3. Bewerkingen controleren</button>
+<button class="step" data-step="3">4. Basisgegevens en stock</button>
+<button class="step" data-step="4">5. Volledige G-code controleren</button>
+</nav>
+<section class="panel wizard-page" data-page="0">
+<h2>Stap 1 · Tekening en/of STEP uploaden</h2>
+<label for="drawing">Technische tekening (PDF / DXF / afbeelding)</label><input id="drawing" type="file" accept=".pdf,.dxf,image/*">
+<label for="stepFile">3D-model (STEP / STP, optioneel)</label><input id="stepFile" type="file" accept=".step,.stp">
+<p class="hint" id="drawingState">Upload een PDF of afbeelding om automatisch maten te herkennen. STEP kan lokaal worden doorgemeten; kies daarna de draaias en de kant die je wilt bewerken.</p><div class="actions"><button type="button" id="analyzeDrawing" class="primary">Herken PDF-maten met AI</button><button type="button" id="analyzeStep" class="primary">Meet STEP-model</button></div>
+<div id="stepOrientation" class="panel" style="background:#f5f8f6" hidden>
+<h3>Kies de richting waarin je het onderdeel opspant</h3>
+<div class="grid"><div><label for="stepAxis">Draaias in het STEP-model</label>
+<select id="stepAxis"><option value="Z">Z-as</option><option value="X">X-as</option><option value="Y">Y-as</option></select></div>
+<div><label for="stepFace">Welke kant ga je bewerken?</label>
+<select id="stepFace"><option value="max">Vanaf positieve kant (+)</option><option value="min">Vanaf negatieve kant (−)</option></select></div></div>
+<p id="stepMeasurements" class="hint"></p><div id="stepFeatures" class="hint"></div>
+<svg viewBox="0 0 360 126" width="100%" role="img" aria-label="Schematische draaiprojectie met gekozen bewerkingszijde">
+<rect x="74" y="26" width="210" height="73" fill="#b0bdb8" fill-opacity=".4" stroke="#496359" stroke-width="2"/>
+<line x1="48" y1="62" x2="316" y2="62" stroke="#87968e" stroke-dasharray="6 5"/>
+<g id="stepSideArrow"><path d="M315 46 L285 46 L294 40 M285 46 L294 52" stroke="#147e5a" stroke-width="3" fill="none"/></g>
+<text id="stepSideText" x="180" y="16" font-size="13" text-anchor="middle" fill="currentColor">Bewerkingszijde: +Z</text>
+<text x="180" y="117" font-size="11" text-anchor="middle" fill="currentColor">Schema, geen echte contour of opspansimulatie</text></svg>
+<label class="checkrow"><input type="checkbox" id="stepSideConfirmed"> Ik heb de draaias en bewerkingszijde gecontroleerd; gekozen zijde wordt Z0 (negatieve Z loopt het werkstuk in).</label>
+</div><p id="analysisStatus" role="status" class="hint">Nog geen analyse uitgevoerd.</p>
+<div class="warn">PDF en afbeeldingen worden door AI geïnterpreteerd. Lees elke maat na op de originele tekening; afgeleide maten zijn niet gegarandeerd. STEP wordt lokaal als driehoeksgeometrie doorgemeten; diameters zijn voorlopig buitenomhullenden en geen exacte cilindermaten. DXF heeft nog geen geometrielezer. NC-export blijft geblokkeerd.</div>
+</section>
+<section class="panel wizard-page" data-page="1" hidden>
+<h2>Stap 2 · Geïnterpreteerde maten verifiëren</h2>
+<p class="hint" id="dimensionsIntro">Er staan voorbeeldwaarden in de velden. Gebruik eerst PDF-AI of STEP-meting in stap 1, en controleer daarna elke maat tegen de originele tekening.</p><div id="analysisEvidence" class="panel" style="background:#f5f8f6;margin:12px 0" hidden></div>
+<div class="grid">
+<div><label for="partD">Product buitendiameter (mm)</label><input id="partD" type="number" min="0" value="170"></div>
+<div><label for="partL">Productlengte (mm)</label><input id="partL" type="number" min="0" value="210"></div>
+<div><label for="wall">Wanddikte (mm)</label><input id="wall" type="number" min="0" value="6"></div>
+<div><label for="zero">Z0-referentie</label><select id="zero"><option value="">— nog kiezen —</option><option value="front">Voorzijde werkstuk</option><option value="other">Andere referentie (later configureren)</option></select></div>
+</div>
+<label class="checkrow"><input id="dimensionsVerified" type="checkbox"> Ik heb de maten, aanzichten, referenties en ontbrekende afmetingen gecontroleerd.</label>
+<div id="geometryIssues" class="hint"></div><p class="hint">Bij STEP: je gekozen kant is het Z0-referentievlak. Een andere zijde kiezen maakt eerdere maat- en codebeoordelingen ongeldig.</p>
+</section>
+<section class="panel wizard-page" data-page="2" hidden>
+<h2>Stap 3 · Gekozen bewerkingen controleren</h2>
+<p>Beoordeel en verander de bewerkingsvolgorde. Dit zijn <b>voorbeeldsuggesties</b>, geen AI-selectie uit de tekening.</p>
+<div id="operations"></div>
+<p class="hint" id="operationsIntro">Je kunt bewerkingen aan- of uitzetten en met ↑ / ↓ verplaatsen. Eventuele AI-voorstellen blijven onbevestigd tot je ze controleert. Iedere wijziging maakt bestaande codebeoordelingen ongeldig.</p>
+<label class="checkrow"><input id="operationsVerified" type="checkbox"> Bewerkingen, volgorde en gereedschapskeuze gecontroleerd.</label>
+</section>
+<section class="panel wizard-page" data-page="3" hidden>
+<h2>Stap 4 · Basisgegevens, stock en calculatie</h2>
+<div class="grid">
+<div><label for="machine">Machine</label><select id="machine"><option value="11tt">Mori Seiki ZL-15 · Fanuc 11TT</option><option value="15t">Mori Seiki SL-25 · Fanuc 15T (nog niet gevalideerd)</option></select></div>
+<div><label for="program">O-nummer</label><input id="program" value="1234" inputmode="numeric"></div>
+<div><label for="qty">Aantal</label><input id="qty" type="number" min="1" value="100"></div>
+<div><label for="rawD">Stock diameter (mm)</label><input id="rawD" type="number" min="0" value="180"></div>
+<div><label for="rawL">Stock lengte (mm)</label><input id="rawL" type="number" min="0" value="220"></div>
+<div><label for="rawKg">Stock gewicht (kg/st.)</label><input id="rawKg" type="number" min="0" step=".01" value="15"></div>
+<div><label for="kgRate">Materiaal (€/kg)</label><input id="kgRate" type="number" min="0" step=".01" value="1.16"></div>
+<div><label for="machineRate">CNC (€/uur)</label><input id="machineRate" type="number" min="0" step=".01" value="20.50"></div>
+<div><label for="cycle">CNC-tijd (min/st.)</label><input id="cycle" type="number" min="0" step=".1" value="10"></div>
+<div><label for="setup">Instellen (min/batch)</label><input id="setup" type="number" min="0" value="30"></div>
+<div><label for="setupRate">Instellen (€/uur)</label><input id="setupRate" type="number" min="0" value="60"></div>
+<div><label for="finish">Nabewerking (min/st.)</label><input id="finish" type="number" min="0" value="5"></div>
+<div><label for="finishRate">Nabewerking (€/uur)</label><input id="finishRate" type="number" min="0" value="26"></div>
+<div><label for="saw">Zagen (€/st.)</label><input id="saw" type="number" min="0" value="6"></div>
+<div><label for="scrap">Uitval (%)</label><input id="scrap" type="number" min="0" max="90" value="5"></div>
+<div><label for="margin">Brutomarge (%)</label><input id="margin" type="number" min="0" max="95" value="60"></div>
+</div>
+<p class="hint">Tarieven en tijden zijn hier nog voorbeeld- of handmatige waarden. Er is nog geen automatische timing uit G-code en geen koppeling naar live kostprijzen.</p>
+<button type="button" id="estimate">Herbereken kostprijs</button>
+<div id="stats"></div>
+<label class="checkrow"><input id="stockVerified" type="checkbox"> Stock, opspanning, machine, aantallen en calculatie-invoer gecontroleerd.</label>
+</section>
+<section class="panel wizard-page" data-page="4" hidden>
+<h2>Stap 5 · Volledige G-code controleren</h2>
+<div class="warn"><b>Geen uitvoerbare NC-code.</b> Dit is uitsluitend een concept met commentaarblokken. Programmageneratie, G71/G70, offsets, veilige bewegingen en postprocessor worden nog ontwikkeld en onafhankelijk gevalideerd. NC-export blijft uitgeschakeld.</div>
+<div class="actions"><button id="back">← Vorig blok</button><button id="approve" class="primary">Markeer blok inhoudelijk gecontroleerd</button><button id="next">Volgend blok →</button></div>
+<div id="code"></div>
+<label for="review">Opmerking bij geselecteerd blok</label><textarea id="review" placeholder="Bijvoorbeeld: voor het kamertje eerst veilig in Z terugtrekken, dan X."></textarea>
+<div class="actions"><button id="storeReview">Opmerking bewaren</button><button id="exportNC" disabled>NC exporteren (geblokkeerd)</button></div>
+<h3>Conceptcontroles</h3><ul id="alerts"></ul>
+<p class="hint">Controleer straks de hele code van boven naar beneden, blok voor blok. Na volledige machinevalidatie en expliciete vrijgave kan NC-export pas beschikbaar worden.</p>
+</section>
+<footer class="panel wizard-footer">
+<div id="wizardMessage" role="status" class="hint"></div>
+<div class="actions"><button id="wizardPrev">← Vorige stap</button><button id="save">Concept JSON opslaan</button><button id="wizardNext" class="primary">Volgende stap →</button></div>
+</footer>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="assets/config.js"></script><script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/occt-import-js.js"></script><script src="assets/step-geometry.js"></script><script src="assets/step-analytic.js"></script><script src="assets/step-brep.js"></script>
+<script>
+"use strict";
+let codeBlocks=[
+{name:"Programmastart",lines:["O1234 (CONCEPT - NIET UITVOEREN) ;","G50 S1750 ;"]},
+{name:"Vlakken",lines:["(VLAKKEN - GEOMETRIE EN T11 NOG CONTROLEREN) ;","(FANUC 11TT TEMPLATE NOG NIET VRIJGEGEVEN) ;"]},
+{name:"Buitencontour G71/G70",lines:["(BUITENCONTOUR - P/Q G71 NOG VALIDEREN) ;","(GEEN BEWEGINGEN GEGENEREERD) ;"]},
+{name:"Kamertje G71/G70",lines:["(KAMER - INTERNE CONTOUR NOG VALIDEREN) ;","(TERUGTREKKEN: EERST Z DAN X) ;"]},
+{name:"Boren en afsteken",lines:["(BOREN / AFSTEKEN ALLEEN INDIEN VEREIST) ;","(GEREEDSCHAP, FEED EN VEILIGHEID NOG CONTROLEREN) ;"]},
+{name:"Programma-einde",lines:["(GWP X150 Z150 PAS NA VEILIGE ROUTECONTROLE) ;","M30 ;"]}
+];
+let selected=0;let reviews=codeBlocks.map(()=>({approved:false,note:""}));
+const $=id=>document.getElementById(id);
+const number=id=>Number($(id).value);
+const money=n=>new Intl.NumberFormat("nl-NL",{style:"currency",currency:"EUR"}).format(n);
+function draw(){
+const d=$("code"); d.replaceChildren();
+codeBlocks.forEach((block,i)=>{
+const outer=document.createElement("div");outer.className="block"+(selected===i?" selected":"")+(reviews[i].approved?" approved":"");
+const top=document.createElement("div"); const strong=document.createElement("strong");strong.textContent=(i+1)+". "+block.name;top.append(strong);
+const status=document.createElement("span");status.className="pill";status.textContent=reviews[i].approved?"Inhoudelijk bekeken":"Nog niet bekeken";top.append(" ",status);
+const pre=document.createElement("pre");pre.textContent=block.lines.join("\n");outer.append(top,pre);
+outer.addEventListener("click",()=>select(i));d.append(outer);
+});$("review").value=reviews[selected].note;
+$("approve").textContent=reviews[selected].approved?"Controle ongedaan maken":"Markeer blok inhoudelijk gecontroleerd";
+$("back").disabled=selected===0;$("next").disabled=selected===codeBlocks.length-1;
+}
+function select(i){reviews[selected].note=$("review").value;selected=i;draw()}
+function inputs(){
+const ids=["rawD","rawL","partD","partL","wall","rawKg","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin","qty"];
+return Object.fromEntries(ids.map(id=>[id,number(id)]));
+}
+function validate(){
+const x=inputs(), errors=[];
+for(const [key,val] of Object.entries(x)) if(!Number.isFinite(val)||val<0)errors.push("Ongeldige waarde bij "+key);
+if(x.qty<1||!Number.isInteger(x.qty))errors.push("Aantal moet een positief geheel getal zijn.");
+if(x.partD>x.rawD||x.partL>x.rawL)errors.push("Productafmetingen groter dan ruwmateriaal.");
+if(x.wall*2>=x.partD)errors.push("Wanddikte is onmogelijk voor deze diameter.");
+if(x.scrap>=100||x.margin>=100)errors.push("Uitval en marge moeten lager zijn dan 100%.");
+if(!/^[0-9]{1,4}$/.test($("program").value))errors.push("O-nummer moet 1 t/m 4 cijfers bevatten.");
+if($("machine").value!=="11tt")errors.push("Fanuc 15T heeft nog geen gevalideerd machineprofiel.");
+errors.push("G71-/G70-parameters en offsets zijn nog niet machine-gevalideerd.");
+if(!drawingAnalysis)errors.push("Tekening of STEP moet nog worden geanalyseerd.");
+if(stepInfo&&!$("stepSideConfirmed").checked)errors.push("Bewerkingsrichting en Z0 zijn nog niet door jou bevestigd.");
+errors.push("CNC-machinesimulatie en volledige binnencontouranalyse zijn nog niet beschikbaar.");
+$("alerts").replaceChildren();errors.forEach(msg=>{const li=document.createElement("li");li.textContent=msg;li.className="error";$("alerts").append(li)});
+return errors;
+}
+function calculate(){
+const x=inputs(),safe=(v)=>Number.isFinite(v)&&v>=0?v:0;
+const qty=Math.max(1,safe(x.qty)),goodFraction=1-Math.min(99,safe(x.scrap))/100;
+const material=safe(x.rawKg)*safe(x.kgRate),machine=safe(x.cycle)/60*safe(x.machineRate);
+const finish=safe(x.finish)/60*safe(x.finishRate),setup=safe(x.setup)/60*safe(x.setupRate)/qty;
+const cost=(material+machine+finish+setup+safe(x.saw))/goodFraction;
+const sale=cost/(1-Math.min(99,safe(x.margin))/100);
+const stats=[["CNC tijd/st.",safe(x.cycle).toFixed(1)+" min"],["Kostprijs/st.",money(cost)],["Verkoopvoorstel/st.",money(sale)],["Materiaal/st.",money(material)],["Instellen/st.",money(setup)],["Totale productiekosten",money(cost*qty)]];
+$("stats").replaceChildren();stats.forEach(([label,value])=>{const div=document.createElement("div");div.className="stat";const s=document.createElement("small");s.textContent=label;const b=document.createElement("strong");b.textContent=value;div.append(s,b);$("stats").append(div)});
+validate();
+}
+function save(){
+reviews[selected].note=$("review").value;const data={schemaVersion:1,status:"concept-not-machine-approved",machine:$("machine").value,programNumber:$("program").value,inputs:inputs(),drawingName:$("drawing").files[0]?.name||null,drawingAnalysis:drawingAnalysis,pdfAnalysis:pdfAnalysis,analysisConflicts:analysisConflicts,stepGeometry:stepInfo?{fileName:stepInfo.fileName,bounds:stepInfo.bounds,axis:$("stepAxis").value,face:$("stepFace").value,orientation:stepOrientation,analyticFeatures:stepAnalytic,exactFeatures:stepExact}:null,stepName:$("stepFile").files[0]?.name||null,wizard:{step:wizardStep,dimensionsVerified:$("dimensionsVerified").checked,operationsVerified:$("operationsVerified").checked,stockVerified:$("stockVerified").checked,operations:operationList.map(x=>({...x}))},blocks:codeBlocks.map((b,i)=>({...b,review:reviews[i]})),exportAllowed:false};
+const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ralabaster-cnc-concept-"+Date.now()+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
+}
+
+$("review").addEventListener("input",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=false;const el=document.querySelectorAll(".block")[selected];if(el){el.classList.remove("approved");const pill=el.querySelector(".pill");if(pill)pill.textContent="Nog niet bekeken";}});
+$("storeReview").addEventListener("click",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=false;draw()});
+$("approve").addEventListener("click",()=>{reviews[selected].note=$("review").value;reviews[selected].approved=!reviews[selected].approved;draw()});
+$("back").addEventListener("click",()=>select(selected-1));$("next").addEventListener("click",()=>select(selected+1));
+$("estimate").addEventListener("click",calculate);$("save").addEventListener("click",save);
+codeBlocks[0].lines[0]="O1234 (CONCEPT - NIET UITVOEREN) ;";
+$("program").addEventListener("input",()=>{codeBlocks[0].lines[0]="O"+$("program").value+" (CONCEPT - NIET UITVOEREN) ;";reviews[0].approved=false;draw();calculate()});
+draw();calculate();
+
+const operationList=[
+{id:"face",label:"Vlakken",tool:"T11",checked:true},
+{id:"outer",label:"Buitencontour G71/G70",tool:"T12",checked:true},
+{id:"inner",label:"Kamertje G71/G70",tool:"T07",checked:true},
+{id:"drill",label:"Boren",tool:"T09",checked:false},
+{id:"partoff",label:"Afsteken",tool:"T06",checked:true}
+];
+let wizardStep=0;
+const wizardNames=["Tekening uploaden","Maten verifiëren","Bewerkingen controleren","Stock invullen","Code controleren"];
+function resetDownstream(from){
+if(from<=1)$("dimensionsVerified").checked=false;
+if(from<=2)$("operationsVerified").checked=false;
+if(from<=3)$("stockVerified").checked=false;
+reviews=codeBlocks.map(()=>({approved:false,note:""}));selected=0;draw();refreshSteps();
+}
+function buildBlocks(){
+const header=[{name:"Programmastart",lines:["O"+$("program").value+" (CONCEPT - NIET UITVOEREN) ;","G50 S1750 ;"]}];
+const body=operationList.filter(x=>x.checked).map(x=>({name:x.label,lines:["("+x.label.toUpperCase()+" - "+x.tool+" - NOG VALIDEREN) ;","(GEEN UITVOERBARE CNC-BEWEGINGEN BESCHIKBAAR) ;"]}));
+codeBlocks=[...header,...body,{name:"Programma-einde",lines:["(GWP EN VEILIGE ROUTE NOG CONTROLEREN) ;","M30 ;"]}];
+reviews=codeBlocks.map(()=>({approved:false,note:""}));selected=0;draw();
+}
+function drawOperations(){
+const root=$("operations");root.replaceChildren();
+operationList.forEach((o,i)=>{
+const line=document.createElement("div");line.className="opline";
+const c=document.createElement("input");c.type="checkbox";c.checked=o.checked;c.setAttribute("aria-label","Selecteer "+o.label);c.addEventListener("change",()=>{o.checked=c.checked;$("operationsVerified").checked=false;buildBlocks();refreshSteps()});
+const name=document.createElement("span");name.className="opname";name.textContent=o.label+" · "+o.tool;
+const up=document.createElement("button");up.type="button";up.textContent="↑";up.disabled=i===0;up.setAttribute("aria-label","Verplaats "+o.label+" omhoog");up.addEventListener("click",()=>moveOp(i,-1));
+const down=document.createElement("button");down.type="button";down.textContent="↓";down.disabled=i===operationList.length-1;down.setAttribute("aria-label","Verplaats "+o.label+" omlaag");down.addEventListener("click",()=>moveOp(i,1));
+line.append(c,name,up,down);root.append(line);
+});
+}
+function moveOp(i,delta){const next=i+delta;[operationList[i],operationList[next]]=[operationList[next],operationList[i]];$("operationsVerified").checked=false;drawOperations();buildBlocks();refreshSteps()}
+function hasDrawing(){return $("drawing").files.length>0||$("stepFile").files.length>0}
+function geometricallyValid(){const d=number("partD"),l=number("partL"),w=number("wall");return [d,l,w].every(x=>Number.isFinite(x)&&x>0)&&w*2<d&&$("zero").value==="front"&&(!stepInfo||($("stepSideConfirmed").checked&&!!stepOrientation))&&(!pdfAnalysis||!stepInfo||!analysisConflicts.length||!!$("conflictsReviewed")?.checked)}
+function stockValid(){const values=["qty","rawD","rawL","rawKg","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin"].map(number);return values.every(Number.isFinite)&&values.every(x=>x>=0)&&Number.isInteger(number("qty"))&&number("qty")>0&&number("rawD")>=number("partD")&&number("rawL")>=number("partL")&&number("rawKg")>0&&number("scrap")<100&&number("margin")<100&&/^[0-9]{1,4}$/.test($("program").value)}
+function completed(i){
+if(i===0)return hasDrawing();
+if(i===1)return !!drawingAnalysis&&geometricallyValid()&&$("dimensionsVerified").checked;
+if(i===2)return !!drawingAnalysis&&operationList.some(o=>o.checked)&&$("operationsVerified").checked;
+if(i===3)return stockValid()&&$("stockVerified").checked;
+return reviews.length===codeBlocks.length&&reviews.every(r=>r.approved);
+}
+function refreshSteps(){
+document.querySelectorAll(".steps .step").forEach((btn,i)=>{btn.classList.toggle("active",i===wizardStep);btn.classList.toggle("done",completed(i));btn.setAttribute("aria-current",i===wizardStep?"step":"false")});
+document.querySelectorAll(".wizard-page").forEach((panel,i)=>{panel.hidden=i!==wizardStep});
+$("wizardPrev").disabled=wizardStep===0;
+$("wizardNext").disabled=wizardStep>=4;
+$("wizardNext").textContent=wizardStep===3?"Naar codecontrole →":"Volgende stap →";
+$("wizardMessage").textContent="Stap "+(wizardStep+1)+" van 5 · "+wizardNames[wizardStep]+(completed(wizardStep)?" · gecontroleerd":" · nog te controleren");
+}
+function showStep(i,allowBack=true){
+if(i<0||i>4)return;
+if(i>wizardStep){for(let k=0;k<i;k++)if(!completed(k)){$("wizardMessage").textContent="Controleer eerst stap "+(k+1)+": "+wizardNames[k];return}}
+wizardStep=i;if(wizardStep===4){calculate()}refreshSteps();window.scrollTo({top:0,behavior:"smooth"});
+}
+$("wizardPrev").addEventListener("click",()=>showStep(wizardStep-1));
+$("wizardNext").addEventListener("click",()=>showStep(wizardStep+1));
+document.querySelectorAll(".steps .step").forEach((b,i)=>b.addEventListener("click",()=>showStep(i)));
+["drawing","stepFile"].forEach(id=>$(id).addEventListener("change",()=>{
+$("drawingState").textContent=hasDrawing()?"Bestand(en) geselecteerd. Automatische interpretatie is nog niet geactiveerd; maten handmatig vergelijken.":"Upload minimaal een tekening of STEP.";
+resetDownstream(1);
+}));
+["partD","partL","wall","zero"].forEach(id=>$(id).addEventListener("input",()=>{resetDownstream(1);refreshSteps()}));
+["dimensionsVerified","operationsVerified","stockVerified"].forEach(id=>$(id).addEventListener("change",refreshSteps));
+["rawD","rawL","rawKg","qty","kgRate","machineRate","cycle","setup","setupRate","finish","finishRate","saw","scrap","margin","machine"].forEach(id=>$(id).addEventListener("input",()=>{$("stockVerified").checked=false;refreshSteps();calculate()}));
+
+let drawingAnalysis=null,pdfAnalysis=null,stepAnalysis=null,analysisConflicts=[],analysisBusy=false,stepInfo=null,stepOrientation=null,stepAnalytic=null,stepExact=null;
+const fieldMap={outerDiameter:"partD",length:"partL",wallThickness:"wall"};
+const fieldNames={outerDiameter:"Buitendiameter",length:"Productlengte",wallThickness:"Wanddikte",innerDiameter:"Binnendiameter",boreDepth:"Kamerdiepte"};
+function readFileAsBase64(file){
+return new Promise((resolve,reject)=>{
+const reader=new FileReader();
+reader.onerror=()=>reject(new Error("Bestand kon niet worden gelezen."));
+reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");
+reader.readAsDataURL(file);
+});
+}
+async function token(){
+if(!window.supabase?.createClient||!window.RALAB_CONFIG?.online)throw new Error("Aanmeldinstellingen ontbreken.");
+const c=window.supabase.createClient(window.RALAB_CONFIG.online.supabaseUrl,window.RALAB_CONFIG.online.supabasePublishableKey,{auth:{persistSession:true,autoRefreshToken:true}});
+const {data,error}=await c.auth.getSession();
+if(error||!data?.session?.access_token)throw new Error("Log eerst in op rAlabaster Planner en open daarna opnieuw deze pagina.");
+return data.session.access_token;
+}
+function displayAnalysis(data){
+const box=$("analysisEvidence");box.replaceChildren();box.hidden=false;
+const title=document.createElement("strong");title.textContent="Herkende maten · controleer de bron";box.append(title);
+for(const [name,val] of Object.entries(data.dimensions||{})){
+const line=document.createElement("p");const strong=document.createElement("strong");strong.textContent=(fieldNames[name]||name)+": ";
+const value=document.createElement("span");value.textContent=val.value==null?"onbekend":val.value+" mm";
+const evidence=document.createElement("small");evidence.textContent=" · "+(val.origin==="explicit"?"Afgelezen":val.origin==="derived"?"Berekend":"Onzeker")+" · "+(val.source||"Geen bron")+" · "+Math.round((val.confidence||0)*100)+"%";
+line.append(strong,value,evidence);box.append(line);
+}
+if(data.ambiguities?.length){
+const label=document.createElement("strong");label.textContent="Onzekerheden en ontbrekende gegevens";box.append(label);
+const ul=document.createElement("ul");for(const item of data.ambiguities){const li=document.createElement("li");li.textContent=item;ul.append(li)}box.append(ul);
+}
+$("dimensionsIntro").textContent="AI-maten zijn voorgesteld, niet goedgekeurd. Een leeg veld betekent dat de maat niet betrouwbaar is herkend; vul deze alleen vanuit de echte tekening in.";
+$("operationsIntro").textContent="AI heeft op basis van de tekening bewerkingen voorgesteld. Controleer of elke stap daadwerkelijk nodig is en of de volgorde klopt.";
+}
+
+function compareSources(){
+ analysisConflicts=[];
+ const d=pdfAnalysis?.dimensions;
+ if(!stepInfo||!stepOrientation||!d)return;
+ for(const [key,shapeValue,label] of [
+  ["outerDiameter",stepOrientation.radialEnvelopeDiameterMm,"Buitendiameter"],
+  ["length",stepOrientation.lengthMm,"Lengte"]
+ ]){
+  const src=d[key],p=src?.value;
+  if(typeof p!=="number"||!Number.isFinite(p))continue;
+  // The B-Rep/mesh-derived envelope is not always the nominal annotated
+  // diameter. Differences must be resolved by a human, never auto-merged.
+  const tolerance=Math.max(.1,Math.abs(p)*.001);
+  if(Math.abs(p-shapeValue)>tolerance)analysisConflicts.push(
+    label+": PDF vermeldt "+p+" mm; STEP-omhullende is "+shapeValue+
+    " mm. Verschil "+Math.abs(p-shapeValue).toFixed(3)+
+    " mm. Controleer annotatie, chamfer/fillet en modeloriëntatie."
+  );
+ }
+}
+function showComparison(){
+ compareSources();
+ let box=$("drawingComparison");
+ if(!box){box=document.createElement("div");box.id="drawingComparison";box.className="panel";box.style.background="#fff6df";$("analysisEvidence").after(box)}
+ box.replaceChildren();
+ box.hidden=!pdfAnalysis||!stepInfo;
+ if(box.hidden)return;
+ const title=document.createElement("strong");title.textContent="Kruiscontrole PDF ↔ STEP";box.append(title);
+ const list=document.createElement("ul");
+ const msgs=analysisConflicts.length?analysisConflicts:["Buitenomhullende en aangegeven hoofdafmetingen lijken overeen te komen binnen de ingestelde signaleringsgrens. Dit is geen bewijs dat alle maten kloppen."];
+ for(const msg of msgs){const li=document.createElement("li");li.textContent=msg;list.append(li)}box.append(list);
+ const info=document.createElement("p");info.textContent="Bij tegenstrijdigheden: kies en bevestig zelf welke bron leidend is. De software geeft geen automatische keuze.";box.append(info);
+ const c=document.createElement("label");c.className="checkrow";const check=document.createElement("input");check.type="checkbox";check.id="conflictsReviewed";check.addEventListener("change",refreshSteps);c.append(check,document.createTextNode(" Ik heb de verschillen tussen STEP en tekening beoordeeld."));box.append(c);
+}
+function asCadDimension(value,source,confidence=0.88){
+return {value,unit:"mm",source,origin:value==null?"unknown":"derived",confidence:value==null?0:confidence};
+}
+function setStepOrientation(){
+if(!stepInfo)return;
+const axis=$("stepAxis").value,face=$("stepFace").value;
+stepOrientation=stepInfo.orientation(axis,face);
+const current=stepOrientation;
+$("stepMeasurements").textContent=
+  "As "+axis+": lengte "+current.lengthMm+" mm · radiale omhullende Ø"+current.radialEnvelopeDiameterMm+
+  " mm · modelvlak "+(face==="max"?"max":"min")+" = "+current.faceCoordinateMm+
+  " mm · X/Z transformatie: "+current.mapZ+
+  (stepInfo.meshCount>1?" · LET OP: "+stepInfo.meshCount+" afzonderlijke meshes/solids":"");
+$("stepSideText").textContent="Bewerken vanaf "+(face==="max"?"+":"−")+axis+" · Z0 aan gekozen kant";
+$("stepSideArrow").setAttribute("transform",face==="max"?"":"translate(358,0) scale(-1,1)");
+$("stepSideConfirmed").checked=false;
+$("zero").value="front";
+// Prefer a verified analytic cylinder candidate only when it is aligned with
+// the selected axis and agrees with the mesh envelope. It is still subject to
+// human confirmation and is NOT a postprocessor-ready diameter.
+const axisIndex={X:0,Y:1,Z:2}[axis];
+const exactCylinderCandidates=(stepExact?.features||[]).filter(f=>{
+ if(f.kind!=="face"||f.geometryType!=="cylinder"||!Number.isFinite(f.radiusMm)||!Array.isArray(f.axis))return false;
+ const length=Math.hypot(...f.axis);
+ return length>0&&Math.abs(f.axis[axisIndex]/length)>0.999;
+}).map(f=>2*f.radiusMm);
+const analyticDiameter=exactCylinderCandidates.length?Math.max(...exactCylinderCandidates):null;
+const agrees=analyticDiameter!=null&&Math.abs(analyticDiameter-current.radialEnvelopeDiameterMm)<=Math.max(.5,current.radialEnvelopeDiameterMm*.005);
+const proposedDiameter=agrees?analyticDiameter:current.radialEnvelopeDiameterMm;
+$("partD").value=String(proposedDiameter);
+$("partL").value=String(current.lengthMm);
+$("wall").value="";
+const dim={
+ outerDiameter:asCadDimension(proposedDiameter,agrees?"Exact cilindervlak langs "+axis+"; Ø vergeleken met mesh-omhullende.":"STEP-getrianguleerde radiale buitenomhullende vanaf as "+axis+" (geen nominale Ø)",agrees?0.92:0.78),
+ length:asCadDimension(current.lengthMm,"STEP-bounding box langs as "+axis,0.95),
+ wallThickness:asCadDimension(null,"Wanddikte niet exact afleidbaar uit mesh"),
+ innerDiameter:asCadDimension(null,"Binnencontour vereist aparte B-Rep-analyse"),
+ boreDepth:asCadDimension(null,"Kamer-/boordiepte vereist aparte contouranalyse")
+};
+drawingAnalysis={
+ status:"unverified",sourceType:"step-mesh",partType:"uncertain",dimensions:dim,referenceFace:"front",
+ proposedOperations:[],overallConfidence:0.65,
+ ambiguities:[
+ "Bevestig dat "+axis+" de werkelijke draaias is, "+(face==="max"?"de positieve":"de negatieve")+" zijde aan de klauwplaat/bewerking ligt zoals bedoeld.",
+ agrees?"Buitendiameter volgt een exact cilindervlak, maar productfunctie en opspanning zijn niet gecontroleerd.":"Radiale omhullende is niet per definitie de nominale buitendiameter; geen passende exacte cilinder gevonden.",
+ "Wanddikte, binnenmaat, opspanning en concentriciteit nog niet gecontroleerd.",
+ ...current.warnings
+ ]
+};
+for(const o of operationList)o.checked=false;
+stepAnalysis=drawingAnalysis;drawOperations();buildBlocks();displayAnalysis(drawingAnalysis);showComparison();
+$("dimensionsVerified").checked=false;$("operationsVerified").checked=false;$("stockVerified").checked=false;
+$("analysisStatus").textContent="STEP gelezen: geometrieomhulling gemeten. Kies de bewerkingszijde, controleer alle maten en voeg bewerkingen zelf toe.";
+refreshSteps();calculate();
+}
+$("stepAxis").addEventListener("change",setStepOrientation);
+$("stepFace").addEventListener("change",setStepOrientation);
+$("stepSideConfirmed").addEventListener("change",()=>{resetDownstream(1);refreshSteps()});
+$("analyzeStep").addEventListener("click",async()=>{
+ const file=$("stepFile").files[0];
+ if(!file){$("analysisStatus").textContent="Kies eerst een STEP- of STP-bestand.";return}
+ $("analyzeStep").disabled=true;
+ $("analysisStatus").textContent="STEP-geometrie lokaal inlezen met OpenCascade…";
+ try{
+  if(!window.RALAB_STEP)throw new Error("STEP-engine niet beschikbaar.");
+  stepInfo=await window.RALAB_STEP.read(file);
+  stepAnalytic=null;
+  try{stepAnalytic=window.RALAB_STEP_ANALYTIC.parse(await file.text());}catch(e){stepAnalytic={warnings:["STEP-entiteiteninventaris niet beschikbaar: "+e.message],completeFeatureRecognition:false}}
+  const features=$("stepFeatures");features.replaceChildren();
+  const h=document.createElement("h3");h.textContent="CAD-elementen uit STEP (nog te verifiëren)";features.append(h);
+  const rows=[["Cilindervlakken",stepAnalytic.cylinders||[],"radiusMm"],["Cirkelbogen",stepAnalytic.circles||[],"radiusMm"],["Toroïdale afrondingsvlakken",stepAnalytic.toruses||[],"minorRadiusMm"],["Conische vlakken",stepAnalytic.cones||[],"semiAngleRadians"]];
+  for(const [title,items,key] of rows){const p=document.createElement("p");p.textContent=title+": "+items.length+" gevonden"+(items.length?" · "+items.slice(0,14).map(x=>x.entity+" "+x[key]+(key==="semiAngleRadians"?" rad":" mm")).join(", "):"");features.append(p)}
+  const warning=document.createElement("p");warning.textContent="Chamfers, fillets en contouren zijn nog niet via B-Rep-topologie geclassificeerd. Vermelde radiussen zijn STEP-entiteitswaarden en nog geen goedgekeurde productmaten.";features.append(warning);
+
+  // Exact B-Rep is an additional measurement source. Failure never turns a
+  // mesh candidate into a trusted geometry dimension.
+  stepExact=null;
+  if(window.RALAB_STEP_BREP){
+    try{stepExact=await window.RALAB_STEP_BREP.read(file)}
+    catch(error){stepExact={source:"unavailable",features:[],warnings:["Exacte B-Rep-analyse niet beschikbaar: "+String(error.message||error)],fullyResolved:false}}
+  }
+  const exactTitle=document.createElement("h3");exactTitle.textContent="Exacte B-Rep-kandidaten";features.append(exactTitle);
+  if(stepExact?.features?.length){
+    const summary=document.createElement("p");
+    summary.textContent="Gevonden "+stepExact.features.length+" geometrische kandidaten. Hun aanwezigheid betekent niet dat het allemaal te bewerken contouren zijn.";
+    features.append(summary);
+    const list=document.createElement("ul");
+    for(const item of stepExact.features.slice(0,100)){
+      const li=document.createElement("li");
+      const parts=[item.geometry+" · "+item.kind+" "+item.elementId+" · "+item.geometryType];
+      if(item.radiusMm!=null)parts.push("R "+item.radiusMm+" mm");
+      if(item.chamfer)parts.push("Chamfer "+item.chamfer.distanceAmm+" × "+item.chamfer.distanceBmm+" mm ("+item.chamfer.variant+")");
+      if(item.hole)parts.push("Boring Ø"+item.hole.diameterMm+" mm"+(item.hole.depthMm==null?"":" diep "+item.hole.depthMm+" mm"));
+      li.textContent=parts.join(" · ");list.append(li);
+    }
+    features.append(list);
+  }else{
+    const msg=document.createElement("p");msg.textContent="Geen bevestigde B-Rep-features beschikbaar. Dit betekent NIET dat het onderdeel geen radiussen of chamfers heeft.";features.append(msg);
+  }
+  for(const warningText of stepExact?.warnings||[]){
+    const p=document.createElement("p");p.textContent=warningText;features.append(p);
+  }
+  if(stepExact?.features?.length){
+    const matches=stepExact.features.filter(x=>x.chamfer||x.radiusMm!=null);
+    const warning=document.createElement("p");warning.textContent="Controleer alle "+matches.length+" radius-/chamferkandidaten op de juiste plaats in de 3D-geometrie. Geen automatische NC-export.";features.append(warning);
+  }
+  $("stepOrientation").hidden=false;
+  // Guess of axis direction is intentionally avoided: user chooses it.
+  setStepOrientation();
+ }catch(error){stepInfo=null;stepOrientation=null;$("stepOrientation").hidden=true;$("analysisStatus").textContent="STEP-lezen mislukt: "+(error.message||"Onbekende fout")}
+ finally{$("analyzeStep").disabled=false}
+});
+
+function resetAnalysis(){
+stepAnalytic=null;stepExact=null;pdfAnalysis=null;stepAnalysis=null;analysisConflicts=[];$("drawingComparison")?.remove();$("stepFeatures").replaceChildren();stepInfo=null;stepOrientation=null;$("stepOrientation").hidden=true;$("stepSideConfirmed").checked=false;
+drawingAnalysis=null;$("analysisEvidence").hidden=true;$("analysisEvidence").replaceChildren();
+$("analysisStatus").textContent="Bestand gewijzigd. Voer de AI-analyse opnieuw uit.";
+$("dimensionsIntro").textContent="Gebruik eerst Herken maten met AI in stap 1. Controleer elke maat tegen de originele tekening.";
+["partD","partL","wall"].forEach(id=>$(id).value="");
+$("zero").value="";
+$("dimensionsVerified").checked=false;$("operationsVerified").checked=false;$("stockVerified").checked=false;
+reviews=codeBlocks.map(()=>({approved:false,note:""}));selected=0;draw();refreshSteps();
+}
+$("drawing").addEventListener("change",resetAnalysis);
+$("stepFile").addEventListener("change",resetAnalysis);
+$("analyzeDrawing").addEventListener("click",async()=>{
+if(analysisBusy)return;
+const file=$("drawing").files[0];
+if(!file){$("analysisStatus").textContent="Kies eerst een PDF of afbeelding, of gebruik Meet STEP-model.";return}
+const mime=file.type||({pdf:"application/pdf",png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp"}[file.name.split(".").pop().toLowerCase()]||"");
+if(!["application/pdf","image/png","image/jpeg","image/webp"].includes(mime)){$("analysisStatus").textContent="PDF, PNG, JPEG of WebP nodig. DXF en STEP zijn nog niet ondersteund door deze analyse.";return}
+if(file.size>2_500_000){$("analysisStatus").textContent="Bestand groter dan 2,5 MB. Maak een kleinere PDF of afbeelding.";return}
+analysisBusy=true;$("analyzeDrawing").disabled=true;$("analysisStatus").textContent="AI leest maatlijnen en doorsneden. Geen gegevens worden automatisch goedgekeurd.";
+try{
+const authorization=await token(),base64=await readFileAsBase64(file);
+const res=await fetch("/api/cnc-drawing-analysis",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+authorization},body:JSON.stringify({file:{mediaType:mime,base64}})});
+const output=await res.json();if(!res.ok)throw new Error(output.error||"Analyse niet gelukt.");
+pdfAnalysis=output;drawingAnalysis=output;
+for(const [name,id] of Object.entries(fieldMap)){
+const value=output.dimensions?.[name]?.value;$(id).value=typeof value==="number"&&value>0?String(value):"";
+}
+$("zero").value=output.referenceFace==="front"?"front":"";
+const suggested=new Set(output.proposedOperations||[]);
+for(const operation of operationList)operation.checked=suggested.has(operation.id);
+drawOperations();buildBlocks();displayAnalysis(output);showComparison();
+$("dimensionsVerified").checked=false;$("operationsVerified").checked=false;$("stockVerified").checked=false;
+$("analysisStatus").textContent="AI-analyse gereed · "+Math.round((output.overallConfidence||0)*100)+"% algemene zekerheid. Controleer iedere maat bij stap 2.";
+refreshSteps();calculate();
+}catch(error){$("analysisStatus").textContent="Analyse mislukt: "+(error.message||"Onbekende fout");}
+finally{analysisBusy=false;$("analyzeDrawing").disabled=false}
+});
+drawOperations();buildBlocks();refreshSteps();
+</script></body></html>
